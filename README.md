@@ -10,16 +10,24 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 5. (to be considered) apart from MIDI functionality, creation of simple synthesizer can be considered. Parameters of filters, LFO, effects etc. can be optimized by genetic algorithm as well.
 
 ## Previous works???
+- magenta
+- z inżynierki różne
 
-## Schedule
+## Schedule (tasks to be finished by the end of given week)
 - 4-10.03 - Concept proposal, literature analysis, planning
-- 11-17.03 - testing and choosing framework for VST creation, framework functionality analysis
+- 11-17.03 - experiementing and choosing framework for VST creation, framework functionality analysis
 - 18-24.03 - Implementation of basic genetic algorithm
 - 25-31.03 - Creation of basic VST prototype with basic functionality
-- 1.04-7.04, 8.04-14.04, 15.04-21.04 - Development of UI, improving functionality of genetic algorithm, optimization
-- 22-28.04 - Research and initial implementation of a synthesizer and prospects of controlling it with AI methods (i.e. Genetic Algorithm)
+- 1.04 - 7.04 - integration of genetic algorithm and VST
+- 8.04 - 14.04, 15.04 - 21.04 - Development of UI, improving functionality of genetic algorithm, optimization
+- 22.04 - 28.04 - Research and initial implementation of a synthesizer and prospects of controlling it with AI methods (i.e. Genetic Algorithm)
 - 29.04 - 5.05 - fajrancik
-- some further development and stuff
+- 6.05 - 12.05 - synth building?
+- 13.05 - 19.05 - further synth building?
+- 20.05 - 26.05 - testing
+- 27.05 - 2.06 - further testing
+- 3.06 - 9.06 - Documentation, user's instruction
+- 10.06 - 16.06 - Final documentation and video
 
 ## Planned experiements
 - analysis of algorithm's ability to converge to the best solutions
