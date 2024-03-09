@@ -12,7 +12,7 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 ## Previous works???
 
 ## Schedule
-- 11-17.03 - Concept proposal, literature analysis, planning
+- 4-19.03 - Concept proposal, literature analysis, planning
 - 11-17.03 - testing and choosing framework for VST creation, framework functionality analysis
 - 18-24.03 - Implementation of basic genetic algorithm
 - 25-31.03 - Creation of basic VST prototype with basic functionality
