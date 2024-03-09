@@ -14,19 +14,20 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 - z inżynierki różne
 
 ## Schedule (tasks to be finished by the end of given week)
-- 4.03 - 10.03 - Concept proposal, literature analysis, planning
-- 11.03 - 17.03 - experiementing and choosing framework for VST creation, framework functionality analysis
-- 18.03 - 24.03 - Implementation of basic genetic algorithm
-- 25.03 - 31.03 - integration of the basic genetic algorithm and VST
-- 1.04 - 7.04 - Basic VST prototype with basic functionality
-- 8.04 - 14.04, 15.04 - 21.04 - Development of UI, improving functionality of genetic algorithm, optimization
-- 22.04 - 28.04 - Research and initial implementation of a synthesizer and prospects of controlling it with AI methods (i.e. Genetic Algorithm)
-- 29.04 - 5.05 - fajrancik
-- 6.05 - 12.05 - synth building?
-- 13.05 - 19.05 - further synth building?
-- 20.05 - 26.05 - testing
-- 27.05 - 2.06 - further testing
-- 3.06 - 9.06 - Documentation, user's instruction
+- 04.03 - 10.03 - Concept proposal, literature analysis, planning
+- 11.03 - 17.03 - creating issues for accepted schedule, experiementing and choosing framework for VST creation, framework functionality analysis
+- 18.03 - 24.03 - Basic VST plugin
+- 25.03 - 31.03 - Implementation of basic genetic algorithm
+- 01.04 - 07.04 - Integration of the basic genetic algorithm and VST -> Basic VST prototype with basic functionality (1st milestone)
+- 08.04 - 14.04,\
+  15.04 - 21.04 - Development of UI, improving functionality of genetic algorithm, optimization
+- 22.04 - 28.04 - Research about potential sonification of MIDI (i.e. synthesizer controlled by GA or ability to control different midi signals on other vst instruments)
+- 29.04 - 05.05 - fajrancik (majóweczka, chill)
+- 06.05 - 12.05,\
+  13.05 - 19.05 - working on sonification (and its control)
+- 20.05 - 26.05,\
+  27.05 - 02.06 - Testing
+- 03.06 - 09.06 - Documentation, user's instruction
 - 10.06 - 16.06 - Final documentation and video
 
 ## Planned experiements
