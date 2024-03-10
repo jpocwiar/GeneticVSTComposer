@@ -10,7 +10,15 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 5. (to be considered) apart from MIDI functionality, creation of simple synthesizer can be considered. Parameters of filters, LFO, effects etc. can be optimized by genetic algorithm as well.
 
 ## Previous works
-There exist a fair amount of VST plugins designed to help musicians in their creative process. Some of them involve simple music theory tools [1] and some may use advanced AI models for generation [2].
+VST (Virtual Studio Technology) plugins are software components that can be integrated into digital audio workstations (DAWs) and other compatible software for music production. These plugins extend the functionality of the host software by providing additional effects, instruments, and processing capabilities.
+
+There exist a fair amount of VST plugins designed to help musicians in their creative process. Some of them involve simple music theory tools [1], offering a wide array of audio effects, virtual instruments, and utility tools for music production, including EQ, reverb, synthesizers, and MIDI effects.
+Some plugins use advanced AI models for generation [2]. These may introduce innovative functionalities such as automatic transcription, audio classification, and source separation for analytical tasks. Some examples worth mentioning are:
+
+<!-- Add bibliography -->
+- Synplant - utilizes AI technology to create synth patches from audio recordings
+- Magenta Studio - consists of 5 AI tools from Google, allowing to completely transform existing melodies and drum patterns
+- Orb Producer Suite 3 - a set of 4 AI MIDI generator plugins, which allow for quick randomization of patterns and very advanced customization with multiple parameters
 
 Music generation models based on neural networks are fairly effective, but their limitations are lack of controllability and restriction to dominant musical structures, like 4/4 common time signature [3]. Alternative approach might be using genetic algorithms, which are based simply on optimization of the melody, rather than predicting consecutive notes based on learned data. The biggest challenge for building a genetic algorithm is creating a fitness function to evaluate quality of the created melodies. One approach is user evaluating melodies based on their preference, as presented in widely cited GenJam [4] work. However, using that approach is very time consuming, as it requires user evaluating all members of population for every generation. For many years research has been conducted concerning finding appropriate fitness function. Many of works use music theory rules as a source of evaluation. [5,7] measure qualities such as amount of dissonances or scale conformance in the melody, when [5,6] use statistical criteria to find the distance between qualities measured in generated melody and the same qualities in real pieces. [3] used that approach to propose a way to evaluate melodies according to desired mood measured by valence-arousal plane. There are also another approaches worth analysing, such as using sequence models like LSTM as a fitness function [8].
 
