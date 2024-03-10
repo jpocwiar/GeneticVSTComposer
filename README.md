@@ -43,14 +43,11 @@ To our best of knowledge, there is not yet a VST plugin that uses genetic algori
 - C++ / Python
 
 ## Bibliography
-[1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024
-[2] Magenta Studio. https://magenta.tensorflow.org/studio/. Access: 10.03.2024
-[3] Poćwiardowski J., (2023). System for synthetizing music from users description [Unpublished bachelor’s thesis]. Gdańsk University of Technology.
-[4] Biles J. “GenJam: A genetic algorithm for generating jazz solos”. in: ICMC. T. 94. Ann Arbor, MI. 1994, p. 131–137.
-[5] Zdzisław Kowalczuk, Marek Tatara & Adam Bąk. “Evolutionary music composition system with statistically modeled criteria”. in: Trends in Advanced Intelligent Control, Optimization and Automation:
-Proceedings of KKA 2017—The 19th Polish Control Conference, Kraków, Poland, June 18–21, 2017. Springer. 2017, p. 722–733.
-[6] L Rocha de Azevedo Santos, Carlos Nascimento Silla Jr & MD Costa-Abreu. “A methodology for
-procedural piano music composition with mood templates using genetic algorithms”. in: (2021).
-[7] Michael Towsey “Towards melodic extension using genetic algorithms”. in: Educational Tech-
-nology and Society (2001), p. 54–65.
+[1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024\
+[2] Magenta Studio. https://magenta.tensorflow.org/studio/. Access: 10.03.2024\
+[3] Poćwiardowski J., (2023). System for synthetizing music from users description [Unpublished bachelor’s thesis]. Gdańsk University of Technology.\
+[4] Biles J. “GenJam: A genetic algorithm for generating jazz solos”. in: ICMC. T. 94. Ann Arbor, MI. 1994, p. 131–137.\
+[5] Zdzisław Kowalczuk, Marek Tatara & Adam Bąk. “Evolutionary music composition system with statistically modeled criteria”. in: Trends in Advanced Intelligent Control, Optimization and Automation: Proceedings of KKA 2017—The 19th Polish Control Conference, Kraków, Poland, June 18–21, 2017. Springer. 2017, p. 722–733.\
+[6] L Rocha de Azevedo Santos, Carlos Nascimento Silla Jr & MD Costa-Abreu. “A methodology for procedural piano music composition with mood templates using genetic algorithms”. in: (2021).\
+[7] Michael Towsey “Towards melodic extension using genetic algorithms”. in: Educational Technology and Society (2001), p. 54–65.\
 [8] Farzaneh, Majid, and Rahil Mahdian Toroghi. "GGA-MG: Generative genetic algorithm for music generation." arXiv preprint arXiv:2004.04687 (2020).
