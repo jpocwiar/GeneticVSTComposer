@@ -9,9 +9,12 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 4. For specific range of MIDI notes, created riff / melody can be played with different pitches, which should be able to fit to scale if desired.
 5. (to be considered) apart from MIDI functionality, creation of simple synthesizer can be considered. Parameters of filters, LFO, effects etc. can be optimized by genetic algorithm as well.
 
-## Previous works???
-- magenta
-- z inżynierki różne
+## Previous works
+There exist a fair amount of VST plugins designed to help musicians in their creative process. Some of them involve simple music theory tools [1] and some may use advanced AI models for generation [2].
+
+Music generation models based on neural networks are fairly effective, but their limitations are lack of controllability and restriction to dominant musical structures, like 4/4 common time signature [3]. Alternative approach might be using genetic algorithms, which are based simply on optimization of the melody, rather than predicting consecutive notes based on learned data. The biggest challenge for building a genetic algorithm is creating a fitness function to evaluate quality of the created melodies. One approach is user evaluating melodies based on their preference, as presented in widely cited GenJam [4] work. However, using that approach is very time consuming, as it requires user evaluating all members of population for every generation. For many years research has been conducted concerning finding appropriate fitness function. Many of works use music theory rules as a source of evaluation. [5,7] measure qualities such as amount of dissonances or scale conformance in the melody, when [5,6] use statistical criteria to find the distance between qualities measured in generated melody and the same qualities in real pieces. [3] used that approach to propose a way to evaluate melodies according to desired mood measured by valence-arousal plane. There are also another approaches worth analysing, such as using sequence models like LSTM as a fitness function [8].
+
+To our best of knowledge, there is not yet a VST plugin that uses genetic algorithms for the task of MIDI generation in a way we proposed. We also did not find an approach that concerns generating rhythm and melody seperately, which we find to have a great potential in creative process.
 
 ## Schedule (tasks to be finished by the end of given week)
 - 04.03 - 10.03 - Concept proposal, literature analysis, planning
@@ -40,4 +43,14 @@ Interactive VST Plugin composing tool for generating short melodic lines using g
 - C++ / Python
 
 ## Bibliography
-
+[1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024
+[2] Magenta Studio. https://magenta.tensorflow.org/studio/. Access: 10.03.2024
+[3] Poćwiardowski J., (2023). System for synthetizing music from users description [Unpublished bachelor’s thesis]. Gdańsk University of Technology.
+[4] Biles J. “GenJam: A genetic algorithm for generating jazz solos”. in: ICMC. T. 94. Ann Arbor, MI. 1994, p. 131–137.
+[5] Zdzisław Kowalczuk, Marek Tatara & Adam Bąk. “Evolutionary music composition system with statistically modeled criteria”. in: Trends in Advanced Intelligent Control, Optimization and Automation:
+Proceedings of KKA 2017—The 19th Polish Control Conference, Kraków, Poland, June 18–21, 2017. Springer. 2017, p. 722–733.
+[6] L Rocha de Azevedo Santos, Carlos Nascimento Silla Jr & MD Costa-Abreu. “A methodology for
+procedural piano music composition with mood templates using genetic algorithms”. in: (2021).
+[7] Michael Towsey “Towards melodic extension using genetic algorithms”. in: Educational Tech-
+nology and Society (2001), p. 54–65.
+[8] Farzaneh, Majid, and Rahil Mahdian Toroghi. "GGA-MG: Generative genetic algorithm for music generation." arXiv preprint arXiv:2004.04687 (2020).
