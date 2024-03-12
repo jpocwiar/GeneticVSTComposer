@@ -21,13 +21,13 @@ To our best of knowledge, there is not yet a VST plugin that uses genetic algori
 ## Schedule (tasks to be finished by the end of given week)
 - 04.03 - 10.03 - Concept proposal, literature analysis, planning
 - 11.03 - 17.03 - creating issues for accepted schedule, experiementing and choosing framework for VST creation, framework functionality analysis
-- 18.03 - 24.03 - Basic VST plugin
+- 18.03 - 24.03 - Basic VST plugin (no functionality yet)
 - 25.03 - 31.03 - Implementation of basic genetic algorithm
 - 01.04 - 07.04 - Integration of the basic genetic algorithm and VST -> Basic VST prototype with basic functionality (1st milestone)
 - 08.04 - 14.04,\
   15.04 - 21.04 - Development of UI, improving functionality of genetic algorithm, optimization
 - 22.04 - 28.04 - Research about potential sonification of MIDI (i.e. ability to control different MIDI signals on other vst instruments or synthesizer controlled by GA)
-- 29.04 - 05.05 - fajrancik (majóweczka, chill)
+- 29.04 - 05.05 - break (nothing)
 - 06.05 - 12.05,\
   13.05 - 19.05 - working on sonification (and its control), improving UI functionality for more controllable and intuitive generation
 - 20.05 - 26.05,\
