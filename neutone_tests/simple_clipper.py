@@ -18,12 +18,13 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 class ClipperModel(nn.Module):
     def forward(
-        self, x: Tensor, min_val: Tensor, max_val: Tensor, gain: Tensor
+        self, x: Tensor, min_val: Tensor, max_val: Tensor, gain: Tensor, add: Tensor
     ) -> Tensor:
         tr.neg(min_val, out=min_val)
         tr.mul(gain, min_val, out=min_val)
         tr.mul(gain, max_val, out=max_val)
         tr.clip(x, min=min_val, max=max_val, out=x)
+        tr.add(x, add*10, out=x)
         return x
 
 
@@ -32,7 +33,7 @@ class ClipperModelWrapper(WaveformToWaveformBase):
         return "clipper"
 
     def get_model_authors(self) -> List[str]:
-        return ["Andrew Fyfe"]
+        return ["WIMU Team 9"]
 
     def get_model_short_description(self) -> str:
         return "Audio clipper."
@@ -45,7 +46,7 @@ class ClipperModelWrapper(WaveformToWaveformBase):
 
     def get_technical_links(self) -> Dict[str, str]:
         return {
-            "Code": "https://github.com/QosmoInc/neutone_sdk/blob/main/examples/example_clipper.py"
+            "Code": "https://github.com/Pocwiardo/GeneticVSTComposer"
         }
 
     def get_tags(self) -> List[str]:
@@ -62,6 +63,7 @@ class ClipperModelWrapper(WaveformToWaveformBase):
             NeutoneParameter("min", "min clip threshold", default_value=0.15),
             NeutoneParameter("max", "max clip threshold", default_value=0.15),
             NeutoneParameter("gain", "scale clip threshold", default_value=1.0),
+            NeutoneParameter("add", "offset the output", default_value=0.0),
         ]
 
     @tr.jit.export
@@ -84,8 +86,8 @@ class ClipperModelWrapper(WaveformToWaveformBase):
         return params  # We want sample-level control, so no aggregation
 
     def do_forward_pass(self, x: Tensor, params: Dict[str, Tensor]) -> Tensor:
-        min_val, max_val, gain = params["min"], params["max"], params["gain"]
-        x = self.model.forward(x, min_val, max_val, gain)
+        min_val, max_val, gain, add = params["min"], params["max"], params["gain"], params["add"]
+        x = self.model.forward(x, min_val, max_val, gain, add)
         return x
 
 
