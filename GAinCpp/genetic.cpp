@@ -12,25 +12,25 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     expectedLength(static_cast<int>(1 / noteDuration)), notesRange(noteRange.second - noteRange.first) {
 
     std::random_device rd;  // Uzyskaj ziarno dla generatora liczb losowych
-    rng = std::mt19937(rd()); // U¿yj ziarna do inicjalizacji generatora
+    rng = std::mt19937(rd()); // UÂ¿yj ziarna do inicjalizacji generatora
     std::uniform_real_distribution<double> prob_dist{ 0.0, 1.0 };
-    // Przyk³adowe wype³nienie NOTES zakresem od 0 do 127
+    // PrzykÂ³adowe wypeÂ³nienie NOTES zakresem od 0 do 127
     NOTES.resize(128);
     for (int i = 0; i < 128; ++i) {
         NOTES[i] = i;
     }
 
-    // Przyk³adowe wype³nienie scale_notes - to bêdzie wymaga³o prawdziwej implementacji
-    scale_notes = { 0, 2, 4, 5, 7, 9, 11, 12 }; // C-dur dla przyk³adu
+    // PrzykÂ³adowe wypeÂ³nienie scale_notes - to bÃªdzie wymagaÂ³o prawdziwej implementacji
+    scale_notes = { 0, 2, 4, 5, 7, 9, 11, 12 }; // C-dur dla przykÂ³adu
 
     set_coefficients();
 }
 
-// set_coefficients - implementacja jak powy¿ej...
+// set_coefficients - implementacja jak powyÂ¿ej...
 void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, double>& mu_values,
     const std::map<std::string, double>& sigma_values,
     const std::map<std::string, int>& weights) {
-    // Ustaw wartoœci domyœlne, jeœli nie przekazano ¿adnych map
+    // Ustaw wartoÅ“ci domyÅ“lne, jeÅ“li nie przekazano Â¿adnych map
     this->muValues = mu_values.empty() ? std::map<std::string, double>{
         {"diversity", 0.8},
         { "diversity_interval", 0.8 },
@@ -105,25 +105,25 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     std::uniform_int_distribution<int> interval_dist(-12, 12);
     float MUTATION_RATE = 0.3;
 
-    // Poni¿ej pokazujê jedn¹ z mutacji jako przyk³ad. Pozosta³e mutacje powinieneœ zaimplementowaæ analogicznie.
+    // PoniÂ¿ej pokazujÃª jednÂ¹ z mutacji jako przykÂ³ad. PozostaÂ³e mutacje powinieneÅ“ zaimplementowaÃ¦ analogicznie.
 
-    // Pierwsza mutacja: zamiana dwóch nut na interwa³
+    // Pierwsza mutacja: zamiana dwÃ³ch nut na interwaÂ³
     if (prob_dist(rng) < MUTATION_RATE) {
         int first_note_index = index_dist(rng);
         int second_note_index;
         do {
             second_note_index = index_dist(rng);
-        } while (second_note_index == first_note_index); // Zapewniamy ró¿ne indeksy
+        } while (second_note_index == first_note_index); // Zapewniamy rÃ³Â¿ne indeksy
 
         int interval = interval_dist(rng);
         melody[second_note_index] = melody[first_note_index] + interval;
-        // Ustawienie noty w obrêbie dozwolonego zakresu
+        // Ustawienie noty w obrÃªbie dozwolonego zakresu
         melody[second_note_index] = std::min(std::max(melody[second_note_index], NOTES.front()), NOTES.back());
     }
 
     // ... (reszta mutacji)
 
-    // Przyk³ad kolejnej mutacji: transpozycja fragmentu melodii
+    // PrzykÂ³ad kolejnej mutacji: transpozycja fragmentu melodii
     if (prob_dist(rng) < MUTATION_RATE) {
         int start_index = index_dist(rng);
         int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
@@ -131,32 +131,32 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
 
         int transpose_value = interval_dist(rng);
 
-        // Transpozycja nut w obrêbie fragmentu
+        // Transpozycja nut w obrÃªbie fragmentu
         for (int i = start_index; i < end_index; ++i) {
-            if (melody[i] > 0) { // Sprawdzamy, czy nuta nie jest pauz¹
+            if (melody[i] > 0) { // Sprawdzamy, czy nuta nie jest pauzÂ¹
                 melody[i] += transpose_value;
                 melody[i] = std::min(std::max(melody[i], NOTES.front()), NOTES.back());
             }
         }
     }
 
-    // ... (reszta kodu powinna obs³ugiwaæ inne przypadki mutacji)
+    // ... (reszta kodu powinna obsÂ³ugiwaÃ¦ inne przypadki mutacji)
 }
 
 std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int note_amount) {
     std::vector<std::vector<int>> population;
-    std::uniform_int_distribution<int> note_dist(0, NOTES.size() - 1); // Dystrybucja dla indeksów NOTES
-    std::uniform_int_distribution<int> change_dist(-12, 12); // Dystrybucja dla zmiany wysokoœci dŸwiêku
+    std::uniform_int_distribution<int> note_dist(0, NOTES.size() - 1); // Dystrybucja dla indeksÃ³w NOTES
+    std::uniform_int_distribution<int> change_dist(-12, 12); // Dystrybucja dla zmiany wysokoÅ“ci dÅ¸wiÃªku
 
     for (int i = 0; i < populationSize; ++i) {
         std::vector<int> individual;
-        individual.push_back(NOTES[note_dist(rng)]); // Losowy pierwszy dŸwiêk
+        individual.push_back(NOTES[note_dist(rng)]); // Losowy pierwszy dÅ¸wiÃªk
 
         for (int j = 1; j < note_amount; ++j) {
             int change = change_dist(rng);
             int next_note = individual.back() + change;
 
-            // Upewnij siê, ¿e next_note jest w zakresie NOTES
+            // Upewnij siÃª, Â¿e next_note jest w zakresie NOTES
             next_note = std::max(NOTES.front(), std::min(next_note, NOTES.back()));
 
             if (next_note < NOTES.front() || next_note > NOTES.back()) {
@@ -172,7 +172,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int no
 }
 
 std::pair<std::vector<int>, std::vector<int>> GeneticMelodyGenerator::crossover(const std::vector<int>& parent1, const std::vector<int>& parent2) {
-    std::uniform_int_distribution<int> dist(1, parent1.size() - 2); // Zapobiegamy tworzeniu skrajnych przypadków
+    std::uniform_int_distribution<int> dist(1, parent1.size() - 2); // Zapobiegamy tworzeniu skrajnych przypadkÃ³w
     int index = dist(rng);
 
     std::vector<int> child1(parent1.begin(), parent1.begin() + index);
@@ -213,6 +213,12 @@ std::pair<double, double> GeneticMelodyGenerator::fitness_intervals(const std::v
     for (int note : melody) {
         if (note != -1 && note != -2 && previous_note != -1) { // Exclude pauses and extensions
             int interval = std::abs(note - previous_note);
+
+            // Large intervals
+            if (interval > 12) {
+                large_intervals += 1;
+            }
+            
             interval = interval % 12; // Wrap around octave
 
             // Dissonance values
@@ -228,10 +234,7 @@ std::pair<double, double> GeneticMelodyGenerator::fitness_intervals(const std::v
                 dissonant_intervals += 2;
             }
 
-            // Large intervals
-            if (interval > 12) {
-                large_intervals += 1;
-            }
+            
 
             intervals.push_back(interval);
             previous_note = note;
@@ -259,7 +262,7 @@ double GeneticMelodyGenerator::fitness(const std::vector<int>& melody) {
     // For now, we only consider the interval scores for the fitness value
     double fitness_value = weights["dissonance"] * std::exp(-0.5 * std::pow((dissonance_score - muValues["dissonance"]) / sigmaValues["dissonance"], 2))
         + weights["large_intervals"] * std::exp(-0.5 * std::pow((large_intervals_score - muValues["large_intervals"]) / sigmaValues["large_intervals"], 2));
-    // ... (tutaj bêdziemy dodawaæ kolejne sk³adowe wartoœci fitness)
+    // ... (tutaj bÃªdziemy dodawaÃ¦ kolejne skÂ³adowe wartoÅ“ci fitness)
 
     return fitness_value;
 }
