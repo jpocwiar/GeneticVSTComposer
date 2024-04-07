@@ -1,0 +1,24 @@
+﻿  genetic.cpp
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(104,68): warning C4267: "argument": konwersja z "size_t" do "_Ty", możliwa utrata danych
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(104,68): warning C4267:         with
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(104,68): warning C4267:         [
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(104,68): warning C4267:             _Ty=int
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(104,68): warning C4267:         ]
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(106,25): warning C4305: "inicjowanie": obcięcie z "double" do "float"
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(148,66): warning C4267: "argument": konwersja z "size_t" do "_Ty", możliwa utrata danych
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(148,66): warning C4267:         with
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(148,66): warning C4267:         [
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(148,66): warning C4267:             _Ty=int
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(148,66): warning C4267:         ]
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(175,63): warning C4267: "argument": konwersja z "size_t" do "_Ty", możliwa utrata danych
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(175,63): warning C4267:         with
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(175,63): warning C4267:         [
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(175,63): warning C4267:             _Ty=int
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(175,63): warning C4267:         ]
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(188,66): warning C4267: "argument": konwersja z "size_t" do "_Ty", możliwa utrata danych
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(188,66): warning C4267:         with
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(188,66): warning C4267:         [
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(188,66): warning C4267:             _Ty=int
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(188,66): warning C4267:         ]
+C:\Users\maxko\source\repos\GAinCpp\GAinCpp\genetic.cpp(274,24): warning C4244: "inicjowanie": konwersja z "double" do "int", możliwa utrata danych
+  GAinCpp.vcxproj -> C:\Users\maxko\source\repos\GAinCpp\x64\Debug\GAinCpp.exe
