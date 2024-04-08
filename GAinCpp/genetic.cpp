@@ -108,6 +108,12 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
     std::uniform_int_distribution<int> interval_dist(-12, 12);
     float MUTATION_RATE = 0.3;
+    std::vector<int> valid_indices;
+    for (int i = 0; i < melody.size(); ++i) {
+        if (melody[i] != -1 && melody[i] != -2) {
+            valid_indices.push_back(i);
+        }
+    }
 
     // Poni¿ej pokazujê jedn¹ z mutacji jako przyk³ad. Pozosta³e mutacje powinieneœ zaimplementowaæ analogicznie.
 
@@ -124,8 +130,6 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         // Ustawienie noty w obrêbie dozwolonego zakresu
         melody[second_note_index] = std::min(std::max(melody[second_note_index], NOTES.front()), NOTES.back());
     }
-
-    // ... (reszta mutacji)
 
     // Przyk³ad kolejnej mutacji: transpozycja fragmentu melodii
     if (prob_dist(rng) < MUTATION_RATE) {
@@ -144,7 +148,100 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         }
     }
 
-    // ... (reszta kodu powinna obs³ugiwaæ inne przypadki mutacji)
+    // Extension mutation
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !valid_indices.empty()) {
+        int extend_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
+
+        if (extend_index == 0) {
+            melody.insert(melody.begin() + 1, -2); // Insert an extension at the beginning
+            melody.pop_back(); // Remove the last note to keep the melody length the same
+        }
+        else {
+            // Swap the chosen note with an extension
+            melody[extend_index - 1] = melody[extend_index];
+            melody[extend_index] = -2;
+        }
+    }
+
+    // Replacement mutation
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE) {
+        int replace_index = std::uniform_int_distribution<int>(0, melody.size() - 1)(rng);
+        if (melody[replace_index] == -1) {
+            // Replace a pause with a random note
+            melody[replace_index] = NOTES[std::uniform_int_distribution<int>(0, NOTES.size() - 1)(rng)];
+        }
+        else {
+            // Replace a note with a pause
+            melody[replace_index] = -1;
+        }
+    }
+
+    // Extension mutation
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE) {
+        int start_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
+        int num_notes_to_extend = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
+        int end_index = std::min(start_index + num_notes_to_extend, static_cast<int>(melody.size()));
+        std::fill(melody.begin() + start_index, melody.begin() + end_index, -2);
+    }
+
+    // Recalculate valid_indices after extension mutation
+    valid_indices.clear();
+    for (int i = 0; i < melody.size(); ++i) {
+        if (melody[i] != -2) {
+            valid_indices.push_back(i);
+        }
+    }
+
+    // Note replacement mutation within extensions
+    //if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !valid_indices.empty()) {
+    //    int chosen_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
+    //    int chosen_note = melody[chosen_index];
+    //    int extension_count = 0;
+    //    int next_index = chosen_index + 1;
+
+    //    // Check extensions following the chosen index
+    //    while (next_index < melody.size() && melody[next_index] == -2) {
+    //        extension_count++;
+    //        next_index++;
+    //    }
+
+    //    // Ensure we have a valid range for the random number generator
+    //    if (chosen_index + 1 < melody.size()) {
+    //        if (extension_count + 1 > expectedLength) {
+    //            // The range for replace_index is chosen_index + 1 to chosen_index + 1 + extension_count
+    //            // This should not go beyond the size of the melody vector
+    //            int replace_index = std::uniform_int_distribution<int>(chosen_index + 1, std::min(chosen_index + 1 + extension_count, static_cast<int>(melody.size()) - 1))(rng);
+    //            melody[replace_index] = chosen_note;
+    //        }
+    //        else if (extension_count + 1 < expectedLength && chosen_index + 1 + extension_count < melody.size()) {
+    //            // If we're going to extend, ensure it doesn't go beyond the size of the melody
+    //            int additional_extensions = std::uniform_int_distribution<int>(1, std::min(expectedLength - extension_count, static_cast<int>(melody.size()) - chosen_index - extension_count - 1))(rng);
+    //            int end_index = std::min(chosen_index + 1 + additional_extensions, static_cast<int>(melody.size()));
+    //            std::fill(melody.begin() + chosen_index + 1, melody.begin() + end_index, -2);
+    //        }
+    //    }
+    //}
+
+    // Sort mutation
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE) {
+        int start_index = std::uniform_int_distribution<int>(0, static_cast<int>(melody.size()) - 1)(rng);
+        int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
+        int end_index = std::min(start_index + length, static_cast<int>(melody.size()) - 1);
+        std::vector<int> fragment(melody.begin() + start_index, melody.begin() + end_index);
+        fragment.erase(std::remove_if(fragment.begin(), fragment.end(), [](int note) { return note == -2 || note == -1; }), fragment.end());
+        if (fragment.size() > 1) {
+            bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
+            if (ascending) {
+                std::sort(fragment.begin(), fragment.end());
+            }
+            else {
+                std::sort(fragment.rbegin(), fragment.rend());
+            }
+            std::copy(fragment.begin(), fragment.end(), melody.begin() + start_index);
+        }
+    }
+
+   
 }
 
 std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int note_amount) {
@@ -739,4 +836,3 @@ std::vector<int> GeneticMelodyGenerator::run(int measures) {
     std::vector<int> best_melody = (best_it != population.end()) ? *best_it : std::vector<int>();
     return best_melody;
 }
-// Inne metody...
