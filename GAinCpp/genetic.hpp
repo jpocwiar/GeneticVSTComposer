@@ -41,6 +41,23 @@ private:
     int notesRange;
 
     std::pair<double, double> fitness_intervals(const std::vector<int>& melody);
+    double fitness_directional_changes(const std::vector<int>& melody);
+    double fitness_melodic_contour(const std::vector<int>& melody);
+    double fitness_note_range(const std::vector<int>& melody);
+    double fitness_average_pitch(const std::vector<int>& melody);
+    double fitness_pause_proportion(const std::vector<int>& melody);
+    std::pair<double, double> fitness_scale_and_chord(const std::vector<int>& melody);
+    double fitness_pitch_variation(const std::vector<int>& melody);
+    double fitness_odd_index_notes(const std::vector<int>& melody);
+    double fitness_note_diversity(const std::vector<int>& melody);
+    double fitness_diversity_intervals(const std::vector<int>& melody);
+    double fitness_rhythm(const std::vector<int>& melody);
+    std::pair<double, double> fitness_log_rhythmic_value(const std::vector<int>& melody);
+    double proportion_of_long_notes(const std::vector<int>& melody);
+    double fitness_average_intervals(const std::vector<int>& melody);
+    double fitness_small_intervals(const std::vector<int>& melody);
+    double fitness_repeated_short_notes(const std::vector<int>& melody);
+    double fitness_repeated_note_series(const std::vector<int>& melody, int max_sequence_length = 4);
 
     // Coefficients for the genetic algorithm
     std::map<std::string, double> muValues;
