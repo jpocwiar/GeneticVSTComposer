@@ -10,8 +10,7 @@ class GeneticMelodyGenerator {
 public:
     GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
         const std::pair<int, int>& meter = { 4, 4 }, float noteDuration = 0.5,
-        int populationSize = 64, int numGenerations = 50,
-        float mutationRate = 0.3, float crossoverRate = 0.9);
+        int populationSize = 128, int numGenerations = 100);
 
     void set_coefficients(const std::map<std::string, float>& mu_values = {},
         const std::map<std::string, float>& sigma_values = {},

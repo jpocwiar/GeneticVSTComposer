@@ -6,22 +6,21 @@
 #include <set>
 #include <unordered_set>
 
-// Konstruktor
 GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
     const std::pair<int, int>& meter, float noteDuration,
-    int populationSize, int numGenerations,
-    float mutationRate, float crossoverRate)
+    int populationSize, int numGenerations)
     : meter(meter), noteDuration(noteDuration), populationSize(populationSize),
-    numGenerations(numGenerations), mutationRate(mutationRate), crossoverRate(crossoverRate),
+    numGenerations(numGenerations), mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
     expectedLength(static_cast<int>(1 / noteDuration)), notesRange(noteRange.second - noteRange.first) {
 
-    std::random_device rd;  // Uzyskaj ziarno dla generatora liczb losowych
-    rng = std::mt19937(rd()); // U¿yj ziarna do inicjalizacji generatora
-    std::uniform_real_distribution<float> prob_dist{ 0.0, 1.0 };
-    // Przyk³adowe wype³nienie NOTES zakresem od 0 do 127
-    NOTES.resize(128);
-    for (int i = 0; i < 128; ++i) {
-        NOTES[i] = i;
+    std::random_device rd;  // Obtain a seed for the random number generator
+    rng = std::mt19937(rd()); // Use the seed to initialize the generator
+
+    // Fill NOTES with values from noteRange.first to noteRange.second, inclusive
+    int notesCount = noteRange.second - noteRange.first + 1;
+    NOTES.reserve(notesCount);
+    for (int i = noteRange.first; i <= noteRange.second; ++i) {
+        NOTES.push_back(i);
     }
 
     // Przyk³adowe wype³nienie scale_notes - to bêdzie wymaga³o prawdziwej implementacji
