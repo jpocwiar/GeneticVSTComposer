@@ -6,7 +6,7 @@ int main() {
     std::string scale = "A Minor";
     std::pair<int, int> noteRange = { 0, 127 }; // Zakładam przykładowy zakres MIDI dla "A-3" (57) do "A-7" (81)
     std::pair<int, int> meter = { 4, 4 };      // Metrum 4/4
-    double noteDuration = 0.25;              // Czas trwania nuty (przykładowo ćwierćnuta)
+    double noteDuration = 0.25;              // Czas trwania nuty podstawowej (najkrótszej możliwej). Tu: 0.25 ćwierćnuty, czyli szesnastka
     int populationSize = 100;                // Rozmiar populacji
     int numGenerations = 200;                // Liczba pokoleń
 
