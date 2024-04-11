@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "GA/genetic.hpp"
 
 //==============================================================================
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -129,34 +130,75 @@ bool GeneticVSTComposerJUCEAudioProcessor::isBusesLayoutSupported (const BusesLa
 }
 #endif
 
-void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    buffer.clear(); // Clear the audio buffer to prepare it for new audio data.
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    const int sampleRate = getSampleRate();
+    const double noteLengthSeconds = 0.5; // Example note length: 0.5 seconds for each note or pause
+    const int noteLengthSamples = static_cast<int>(noteLengthSeconds * sampleRate);
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    // Prepare to iterate over incoming MIDI messages
+    juce::MidiBuffer processedMidi;
+    juce::MidiMessage m;
+    int time;
 
-        // ..do something to the data...
+    // Variables to handle note off timing
+    int noteOffTime = -1;
+    int lastNoteValue = -1;
+
+    for (const auto metadata : midiMessages) {
+        m = metadata.getMessage();
+        time = metadata.samplePosition;
+
+        if (m.isNoteOn() && m.getNoteNumber() == 60 && !melodyReadyToPlay) {
+            // Initialize your GA here and generate the melody
+            melodyReadyToPlay = true;
+            currentNoteIndex = 0;
+            sampleCount = 0; // Reset sample count for the new melody playback
+        }
+    }
+
+    if (melodyReadyToPlay && currentNoteIndex < generatedMelody.size()) {
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
+            if (sampleCount <= 0) {
+                if (currentNoteIndex < generatedMelody.size()) {
+                    int noteValue = generatedMelody[currentNoteIndex++];
+
+                    if (noteValue >= 0) { // Start a new note
+                        processedMidi.addEvent(juce::MidiMessage::noteOn(1, noteValue, juce::uint8(127)), sample);
+                        noteOffTime = sample + noteLengthSamples;
+                        lastNoteValue = noteValue;
+                    }
+                    else if (noteValue == -2 && lastNoteValue != -1) { // Prolong the previous note
+                        noteOffTime += noteLengthSamples; // Extend the note off time
+                    } // -1 for pause is implicitly handled by just advancing the time
+
+                    sampleCount = noteLengthSamples; // Reset the sample counter after each note or pause
+                }
+            }
+            else {
+                sampleCount--;
+            }
+
+            // Turn off the last note if its time has come
+            if (sample == noteOffTime && lastNoteValue != -1) {
+                processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNoteValue), sample);
+                lastNoteValue = -1; // Reset the last note value
+            }
+        }
+    }
+
+    // Swap the midiMessages with processedMidi to include our generated notes and pauses
+    midiMessages.swapWith(processedMidi);
+
+    // If the melody is finished, reset the flag to allow new melody generation
+    if (currentNoteIndex >= generatedMelody.size()) {
+        melodyReadyToPlay = false;
     }
 }
+
 
 //==============================================================================
 bool GeneticVSTComposerJUCEAudioProcessor::hasEditor() const
