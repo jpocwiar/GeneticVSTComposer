@@ -56,4 +56,10 @@ public:
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessor)
+    std::vector<int> generatedMelody;
+    int sampleCount = 0;
+    int lastNoteValue = -1;
+    int noteOffSample = 0;            
+    bool melodyReadyToPlay = false;
+    int currentNoteIndex = 0;
 };
