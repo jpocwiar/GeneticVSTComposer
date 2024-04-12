@@ -131,7 +131,28 @@ bool GeneticVSTComposerJUCEAudioProcessor::isBusesLayoutSupported (const BusesLa
 
 void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ScopedNoDenormals noDenormals;
+    buffer.clear();
+
+    juce::MidiBuffer processedMidi;
+
+    for (const auto metadata : midiMessages)
+    {
+        auto message = metadata.getMessage();
+        const auto time = metadata.samplePosition;
+
+        if (message.isNoteOn())
+        {
+            message = juce::MidiMessage::noteOn(message.getChannel(),
+                message.getNoteNumber(),
+                (juce::uint8)80.0f);
+        }
+
+        processedMidi.addEvent(message, time);
+    }
+
+    midiMessages.swapWith(processedMidi);
+
+    /*juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
@@ -155,6 +176,21 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float
         auto* channelData = buffer.getWritePointer (channel);
 
         // ..do something to the data...
+    }*/
+}
+
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
+                                                          std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
+{
+    //run the genetic algorithm
+    GeneticMelodyGenerator generator(scale, noteRange, meter, noteDuration, populationSize, numGenerations);
+
+    melody = generator.run(1);
+
+    //DEBUG - for now just print some results to string
+    debugInfo = "Generated Melody:\n";
+    for (int note : melody) {
+        debugInfo += note + " ";
     }
 }
 

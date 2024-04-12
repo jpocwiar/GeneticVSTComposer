@@ -2,10 +2,13 @@
 
 <JUCERPROJECT id="cAmDdb" name="GeneticVSTComposer-JUCE" projectType="audioplug"
               useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1"
-              jucerFormatVersion="1" pluginCharacteristicsValue="pluginProducesMidiOut,pluginWantsMidiIn"
-              pluginFormats="buildVST3">
+              jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsMidiEffectPlugin"
+              pluginFormats="buildStandalone,buildVST3" pluginVST3Category="Fx">
   <MAINGROUP id="R6yz7R" name="GeneticVSTComposer-JUCE">
     <GROUP id="{C990335F-8FF4-29F1-1A20-77FBC2FC51B7}" name="Source">
+      <FILE id="VMLNth" name="GAinCpp.cpp" compile="1" resource="0" file="Source/GAinCpp.cpp"/>
+      <FILE id="jtrWKL" name="genetic.cpp" compile="1" resource="0" file="Source/genetic.cpp"/>
+      <FILE id="tQgZVe" name="genetic.hpp" compile="0" resource="0" file="Source/genetic.hpp"/>
       <FILE id="L2Uoq3" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="hD40dn" name="PluginProcessor.h" compile="0" resource="0"

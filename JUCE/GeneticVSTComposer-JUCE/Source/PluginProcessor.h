@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "genetic.hpp"
 
 //==============================================================================
 /**
@@ -29,6 +30,13 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    //          CUSTOM
+    //Method to generate melody and save it in the processor using Genetic Algorithms
+    void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
+        std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations);
+    std::vector<int> melody;
+    std::string debugInfo;
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
