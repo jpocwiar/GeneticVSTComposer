@@ -1,19 +1,17 @@
 from midiutil import MIDIFile
 import random
 from mingus.containers import Note
-import mingus.core.notes as NOTES
-import mingus.core.chords as Chords
 import numpy as np
 from notes_generator import NotesGenerator
 
 class GeneticMelodyGenerator:
     def __init__(self, scale, note_range, meter=(4, 4),
-                 note_duration=0.5, population_size=64, num_generations=50, mutation_rate=0.3, crossover_rate=0.9):
+                 note_duration=0.25, population_size=128, num_generations=100, mutation_rate=0.3, crossover_rate=0.9):
 
         notes_gen = NotesGenerator(scale)
         notes = notes_gen.generate_chromatic_notes(note_range)
         self.scale_notes = notes_gen.generate_notes(8,1)
-        self.NOTES = notes  # tu chyba w pluginie będziemy kontrolować zakres
+        self.NOTES = notes  # tu w pluginie będziemy kontrolować zakres
         self.meter = meter
         self.note_duration = note_duration
 
@@ -709,7 +707,7 @@ class GeneticMelodyGenerator:
         child2 = parent2[:index] + parent1[index:]
         return child1, child2
 
-    def tournament_selection(self, population, tournament_size=4):
+    def tournament_selection(self, population, tournament_size=2):
         tournament = random.sample(population, tournament_size)
         best = max(tournament, key=self.fitness)
         return best
@@ -735,7 +733,7 @@ class GeneticMelodyGenerator:
             population.append(individual)
         return population
 
-    def run(self, measures=1):
+    def run(self, measures=1, n=1):
 
         note_amount = int(self.meter[0] / self.note_duration * 4 / self.meter[1] * measures)
         population = self.generate_population(note_amount)
@@ -753,6 +751,7 @@ class GeneticMelodyGenerator:
                 new_population.extend([self.mutate(child1), self.mutate(child2)])
             population = new_population
 
-        best_melody = max(population, key=self.fitness)
+        population.sort(key=self.fitness, reverse=True)
+        best_melodies = population[:n]
 
-        return best_melody
+        return best_melodies
