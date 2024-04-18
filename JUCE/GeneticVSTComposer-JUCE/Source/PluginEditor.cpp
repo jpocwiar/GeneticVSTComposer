@@ -115,6 +115,8 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawFittedText("Population size", 50, 260, 100, 30, juce::Justification::centredLeft, 1);
     
     g.drawFittedText("no generations", 50, 295, 100, 30, juce::Justification::centredLeft, 1);
+
+    debugLabel.setText(audioProcessor.debugInfo, juce::NotificationType::dontSendNotification);
 }
 
 void GeneticVSTComposerJUCEAudioProcessorEditor::resized()

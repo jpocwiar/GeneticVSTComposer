@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="cAmDdb" name="GeneticVSTComposer-JUCE" projectType="audioplug"
               useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1"
-              jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsMidiEffectPlugin"
+              jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsMidiEffectPlugin,pluginWantsMidiIn"
               pluginFormats="buildStandalone,buildVST3" pluginVST3Category="Fx">
   <MAINGROUP id="R6yz7R" name="GeneticVSTComposer-JUCE">
     <GROUP id="{C990335F-8FF4-29F1-1A20-77FBC2FC51B7}" name="Source">
