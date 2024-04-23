@@ -798,7 +798,7 @@ std::vector<int> GeneticMelodyGenerator::run(int measures) {
     std::vector<std::vector<int>> new_population;
     int POPULATION_SIZE = 128;
     int NUM_GENERATIONS = 100;
-    int CROSSOVER_RATE = 0.9;
+    float CROSSOVER_RATE = 0.9;
     new_population.reserve(POPULATION_SIZE);
 
     for (int generation = 0; generation < NUM_GENERATIONS; ++generation) {
