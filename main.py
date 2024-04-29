@@ -74,29 +74,60 @@ def play_midi(filename="output.mid"):
 
 
 fundamental_note_length = 0.25 # wzgl ćwierćnuty
-meter = (3,4)
-generator = GeneticMelodyGenerator("A Minor", ('A-3', 'A-5'), meter, fundamental_note_length, 128, 100)
+meter = (7,8)
+generator = GeneticMelodyGenerator("A Minor", ('A-4', 'A-6'), meter, fundamental_note_length, 128, 100)
+
+diversity = 0.5 # notes div, rhythmic div, interval div
+dynamics = 0.5 # range, pause, pitch var, rhythmic div
+arousal = 0.5 # rhythmic av, range, pause, pitch av, short cons, velocity
+valence = 0.5 # dissonance, contour,
+jazziness = 0.5
+weirdness = 0.5 #large intervals, odd_index, all deviations
+
 coefficients_values = {
-    'diversity': 0.85,
-    'diversity_interval': 0.75,
-    'dissonance': 0.2,
-    'rhythmic_diversity': 0.65,
-    'rhythmic_average_value': 0.25,
+    'diversity': diversity,
+    'diversity_interval': diversity,
+    'dissonance': (1 - valence) * 0.4 + (jazziness) * 0.2,
+    'rhythmic_diversity': diversity * 0.5 + dynamics * 0.5,
+    'rhythmic_average_value': (1 - arousal),
     'very_long_notes_score': 0.05,
-    'deviation_rhythmic_value': 0.45,
-    'scale_conformance': 0.85,
-    'chord_conformance': 0.45,
-    'melodic_contour': 0.15,
-    'pitch_range': 0.35,
-    'pause_proportion': 0.05,
-    'large_intervals': 0.05,
-    'average_pitch': 0.65,
-    'pitch_variation': 0.45,
-    'odd_index_notes': 0.01,
-    'average_interval': 0.35,
-    'scale_playing': 0.85,
-    'short_consecutive_notes': 0.8
+    'deviation_rhythmic_value': dynamics,
+    'scale_conformance': (1 - jazziness) * 0.5 + 0.5,
+    'chord_conformance': (1 - jazziness),
+    'root_conformance': 0.45, #trzeba dodać
+    'melodic_contour': valence,
+    'pitch_range': dynamics * 0.5 + arousal * 0.5,
+    'pause_proportion': dynamics * 0.2 - arousal * 0.1,
+    'large_intervals': weirdness,
+    'average_pitch': arousal * 0.2 + valence * 0.3,
+    'pitch_variation': dynamics * 0.5,
+    'odd_index_notes': weirdness,
+    'average_interval': (1 - dynamics) * 0.5 + (1 - valence) * 0.5,
+    'scale_playing': jazziness * 0.3 + dynamics * 0.5,
+    'short_consecutive_notes': 0.5 * arousal + jazziness * 0.2
 }
+# coefficients_values = {
+#     'diversity': 0.85,
+#     'diversity_interval': 0.75,
+#     'dissonance': 0.2,
+#     'rhythmic_diversity': 0.65,
+#     'rhythmic_average_value': 0.25,
+#     'very_long_notes_score': 0.05,
+#     'deviation_rhythmic_value': 0.45,
+#     'scale_conformance': 0.85,
+#     'chord_conformance': 0.45,
+#     'root_conformance': 0.45, #trzeba dodać
+#     'melodic_contour': 0.15,
+#     'pitch_range': 0.35,
+#     'pause_proportion': 0.05,
+#     'large_intervals': 0.05,
+#     'average_pitch': 0.65,
+#     'pitch_variation': 0.45,
+#     'odd_index_notes': 0.01,
+#     'average_interval': 0.35,
+#     'scale_playing': 0.85,
+#     'short_consecutive_notes': 0.8
+# }
 
 generator.set_coefficients(**coefficients_values)
 n = 5
