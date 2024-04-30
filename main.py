@@ -88,7 +88,7 @@ coefficients_values = {
     'diversity': diversity,
     'diversity_interval': diversity,
     'dissonance': (1 - valence) * 0.4 + (jazziness) * 0.2,
-    'rhythmic_diversity': diversity * 0.5 + dynamics * 0.5,
+    'rhythmic_diversity': diversity * 0.2 + dynamics * 0.5 + arousal * 0.2,
     'rhythmic_average_value': (1 - arousal),
     'very_long_notes_score': 0.05,
     'deviation_rhythmic_value': dynamics,
