@@ -810,7 +810,7 @@ std::vector<int> GeneticMelodyGenerator::run(int measures) {
             std::vector<int> parent2 = tournament_selection(population);
             std::vector<int> child1, child2;
 
-            if (prob_dist(rng) < CROSSOVER_RATE) {
+            if (prob_dist(rng) < CROSSOVER_RATE && !parent1.empty() && !parent2.empty()) {
                 std::tie(child1, child2) = crossover(parent1, parent2);
             }
             else {
