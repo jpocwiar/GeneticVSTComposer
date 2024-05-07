@@ -94,7 +94,7 @@ coefficients_values = {
     'deviation_rhythmic_value': dynamics,
     'scale_conformance': (1 - jazziness) * 0.5 + 0.5,
     'chord_conformance': (1 - jazziness),
-    'root_conformance': 0.45, #trzeba dodać
+    #'root_conformance': 0.45, #trzeba dodać
     'melodic_contour': valence,
     'pitch_range': dynamics * 0.5 + arousal * 0.5,
     'pause_proportion': dynamics * 0.2 - arousal * 0.1,
