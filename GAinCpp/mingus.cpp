@@ -7,7 +7,7 @@ bool isLower(char c) {
     return (c >= 'a' && c <= 'z');
 }
 
-bool isLowerString(const std::string& str) {
+bool isLowerString(const std::string str) {
     for (auto it = str.begin(); it != str.end(); ++it) {
         if (!isLower(*it)) {
             return false;
@@ -16,10 +16,18 @@ bool isLowerString(const std::string& str) {
     return true;
 }
 
-std::string toLower(const std::string& str) {
+std::string toLower(const std::string str) {
     std::string result;
     for (auto it = str.begin(); it != str.end(); ++it) {
         result += std::tolower(*it);
+    }
+    return result;
+}
+
+std::string toUpper(const std::string str) {
+    std::string result;
+    for (auto it = str.begin(); it != str.end(); ++it) {
+        result += std::toupper(*it);
     }
     return result;
 }
@@ -53,6 +61,8 @@ const std::map<std::string, int> noteDict {
     {"A", 9},
     {"B", 11}
 };
+
+const std::vector<std::string> fifths = {"F", "C", "G", "D", "A", "E", "B"};
 
 // Return true if note is in a recognised format. False if not.
 bool isValidNote(std::string note) {
@@ -108,7 +118,7 @@ int Note::toInt() const {
 // MINGUS UTILITY FUNCTIONS FOR SCALES
 
 // Map of keys
-std::map<std::string, std::string> keys = {
+std::vector<std::pair<std::string, std::string> > keys = {
     {"Cb", "ab"},  //  7 b
     {"Gb", "eb"},  //  6 b
     {"Db", "bb"},  //  5 b
@@ -126,7 +136,7 @@ std::map<std::string, std::string> keys = {
     {"C#", "a#"}   //  7 #
 };
 
-std::vector<std::string> base_scale = {"C", "D", "E", "F", "G", "A", "B"};
+std::vector<std::string> baseScale = {"C", "D", "E", "F", "G", "A", "B"};
 
 std::map<std::string, std::vector<std::string>> _key_cache;
 
@@ -160,16 +170,12 @@ std::vector<std::string> getKeySignatureAccidentals(const std::string& key = "C"
     std::vector<std::string> res;
 
     if (accidentals < 0) {
-        for (int i = -accidentals - 1; i >= 0; --i) {
-            auto it = keys.begin();
-            std::advance(it, 6 - i);
-            res.push_back(it->first + "b");
+        for (int i = 0; i < accidentals * -1; ++i) {
+            res.push_back(fifths[fifths.size() - 1 - i] + "b");
         }
     } else if (accidentals > 0) {
         for (int i = 0; i < accidentals; ++i) {
-            auto it = keys.begin();
-            std::advance(it, 7 + i);
-            res.push_back(it->first + "#");
+            res.push_back(fifths[i] + "#");
         }
     }
     return res;
@@ -180,15 +186,17 @@ std::vector<std::string> getNotes(const std::string& key = "C") {
     if (_key_cache.find(key) != _key_cache.end()) {
         return _key_cache[key];
     }
-
     if (!isValidKey(key)) {
         throw std::invalid_argument("unrecognized format for key '" + key + "'");
     }
 
     std::vector<std::string> result;
 
-    // Calculate notes
-    std::vector<std::string> alteredNotes = getKeySignatureAccidentals(key);
+    std::vector<std::string> alteredNotes;
+    std::vector<std::string> accidentals = getKeySignatureAccidentals(key);
+    for (const auto& accidental : accidentals) {
+        alteredNotes.push_back(accidental.substr(0,1));
+    }
 
     std::string symbol;
     int keySignature = getKeySignature(key);
@@ -198,9 +206,11 @@ std::vector<std::string> getNotes(const std::string& key = "C") {
         symbol = "#";
     }
 
-    char rawTonicIndex = std::toupper(key[0]) - 'A';
+    auto rawTonicIndexIt = std::find(baseScale.begin(), baseScale.end(), toUpper(key.substr(0,1)));
+    int rawTonicIndex = std::distance(baseScale.begin(), rawTonicIndexIt);
+
     for (int i = rawTonicIndex; i < rawTonicIndex + 7; ++i) {
-        std::string note = base_scale[i % 7];
+        std::string note = baseScale[i % baseScale.size()];
         if (std::find(alteredNotes.begin(), alteredNotes.end(), note) != alteredNotes.end()) {
             result.push_back(note + symbol);
         } else {
