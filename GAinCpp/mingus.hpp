@@ -25,6 +25,10 @@ namespace Scales {
         std::string tonic;
         int octaves;
         Scale(const std::string& note_, int octaves_);
+
+    public:
+        virtual std::vector<std::string> ascending() const = 0;
+        std::vector<std::string> descending() const;
     };
 
 // THE DIATONIC SCALES
@@ -37,7 +41,7 @@ namespace Scales {
     Ascending:  C D E F G A B C
     Descending: C B A G F E D C
     */
-    class Diatonic : Scale {
+    class Diatonic : public Scale {
     public:
         const std::string type;
         const std::vector<int> semitones;
@@ -47,7 +51,7 @@ namespace Scales {
         // The second parameter is a vector representing the position of semitones.
         Diatonic(const std::string& note_, const std::vector<int>& semitones_, const int octaves_ = 1);
 
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
 // ANCIENT SCALES
@@ -60,7 +64,7 @@ namespace Scales {
     Ascending:  C D E F G A B C
     Descending: C B A G F E D C
     */
-    class Ionian : Scale {
+    class Ionian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -68,7 +72,7 @@ namespace Scales {
         // Create the ionian mode scale starting on the chosen note.
         Ionian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -79,7 +83,7 @@ namespace Scales {
     Ascending:  D E F G A B C D
     Descending: D C B A G F E D
     */
-    class Dorian : Scale {
+    class Dorian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -87,7 +91,7 @@ namespace Scales {
         // Create the dorian mode scale starting on the chosen note.
         Dorian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -98,7 +102,7 @@ namespace Scales {
     Ascending:  E F G A B C D E
     Descending: E D C B A G F E
     */
-    class Phrygian : Scale {
+    class Phrygian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -106,7 +110,7 @@ namespace Scales {
         // Create the phrygian mode scale starting on the chosen note.
         Phrygian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -117,7 +121,7 @@ namespace Scales {
     Ascending:  F G A B C D E F
     Descending: F E D C B A G F
     */
-    class Lydian : Scale {
+    class Lydian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -125,7 +129,7 @@ namespace Scales {
         // Create the lydian mode scale starting on the chosen note.
         Lydian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -136,7 +140,7 @@ namespace Scales {
     Ascending:  G A B C D E F G
     Descending: G F E D C B A G
     */
-    class Mixolydian : Scale {
+    class Mixolydian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -144,7 +148,7 @@ namespace Scales {
         // Create the mixolydian mode scale starting on the chosen note.
         Mixolydian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -155,7 +159,7 @@ namespace Scales {
     Ascending:  A B C D E F G A
     Descending: A G F E D C B A
     */
-    class Aeolian : Scale {
+    class Aeolian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -163,7 +167,7 @@ namespace Scales {
         // Create the aeolian mode scale starting on the chosen note.
         Aeolian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -174,7 +178,7 @@ namespace Scales {
     Ascending:  B C D E F G A B
     Descending: B A G F E D C B
     */
-    class Locrian : Scale {
+    class Locrian : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -182,7 +186,7 @@ namespace Scales {
         // Create the locrian mode scale starting on the chosen note.
         Locrian(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
 // MAJOR SCALES
@@ -195,7 +199,7 @@ namespace Scales {
     Ascending:  A B C# D E F# G# A
     Descending: A G# F# E D C# B A
     */
-    class Major : Scale {
+    class Major : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -203,7 +207,7 @@ namespace Scales {
         // Create the major scale starting on the chosen note.
         Major(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -214,7 +218,7 @@ namespace Scales {
     Ascending:  C D E F G Ab B C
     Descending: C B Ab G F E D C
     */
-    class HarmonicMajor : Scale {
+    class HarmonicMajor : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -222,12 +226,10 @@ namespace Scales {
         // Create the harmonic major scale starting on the chosen note.
         HarmonicMajor(const std::string& note_, const int octaves_ = 1);
         
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
-
-
-
+// MINOR SCALES
 
     /*
     The natural minor scale.
@@ -237,7 +239,7 @@ namespace Scales {
     Ascending:  A B C D E F G A
     Descending: A G F E D C B A
     */
-    class NaturalMinor : Scale {
+    class NaturalMinor : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -245,7 +247,7 @@ namespace Scales {
         // Return the natural minor scale starting on the chosen note.
         NaturalMinor(const std::string& note_, int octaves_ = 1);
 
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
     /*
@@ -256,7 +258,7 @@ namespace Scales {
     Ascending:  A B C D E F G# A
     Descending: A G# F E D C B A
     */
-    class HarmonicMinor : Scale {
+    class HarmonicMinor : public Scale {
     public:
         const std::string type;
         const std::string name;
@@ -264,7 +266,7 @@ namespace Scales {
         // Create the harmonic minor scale starting on the chosen note.
         HarmonicMinor(const std::string& note_, int octaves_ = 1);
 
-        std::vector<std::string> ascending() const;
+        std::vector<std::string> ascending() const override;
     };
 
 }

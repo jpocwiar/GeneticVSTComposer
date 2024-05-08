@@ -336,6 +336,11 @@ namespace Scales {
             throw std::invalid_argument("Unrecognized note '" + note_ + "'");
         }
     }
+    std::vector<std::string> Scale::descending() const {
+        std::vector<std::string> result = ascending();
+        std::reverse(result.begin(), result.end());
+        return result;
+    }
 
     Diatonic::Diatonic(const std::string& note_, const std::vector<int>& semitones_, const int octaves_) :
         Scale(note_, octaves_),
