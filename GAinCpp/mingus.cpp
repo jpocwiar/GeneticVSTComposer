@@ -32,6 +32,17 @@ std::vector<std::string> multiplyVectors(const std::vector<std::string>& vec, in
     return result;
 }
 
+std::string vectorToString(const std::vector<int>& data) {
+    if (data.empty()) {
+        return "";
+    }
+    std::string ss = std::to_string(data[0]);
+    for (int i = 1; i < data.size(); ++i) {
+        ss += ", " + std::to_string(data[i]);
+    }
+    return ss;
+}
+
 // MINGUS UTILITY FUNCTIONS FOR NOTES
 const std::map<std::string, int> noteDict {
     {"C", 0},
@@ -210,6 +221,112 @@ std::string augment(const std::string& note) {
     }
 }
 
+std::string diminish(const std::string& note) {
+    if (note.back() != '#') {
+        return note + 'b';
+    } else {
+        return note.substr(0, note.size() - 1);
+    }
+}
+
+int measure(const std::string& note1, const std::string& note2) {
+    int res = noteToInt(note2) - noteToInt(note1);
+    if (res < 0) {
+        return 12 - res * -1;
+    } else {
+        return res;
+    }
+}
+
+std::string augmentOrDiminishUntilTheIntervalIsRight(std::string note1, std::string note2, int interval) {
+    int cur = measure(note1, note2);
+    while (cur != interval) {
+        if (cur > interval) {
+            note2 = diminish(note2);
+        } else if (cur < interval) {
+            note2 = augment(note2);
+        }
+        cur = measure(note1, note2);
+    }
+
+    // Calculating the alteration value
+    int val = 0;
+    for (size_t i = 1; i < note2.size(); ++i) {
+        if (note2[i] == '#') {
+            val += 1;
+        } else if (note2[i] == 'b') {
+            val -= 1;
+        }
+    }
+
+    // Adjusting alteration value if necessary
+    if (val > 6) {
+        val %= 12;
+        val = -12 + val;
+    } else if (val < -6) {
+        val %= -12;
+        val = 12 + val;
+    }
+
+    // Rebuilding the note
+    std::string result = note2.substr(0, 1);
+    while (val > 0) {
+        result = augment(result);
+        val -= 1;
+    }
+    while (val < 0) {
+        result = diminish(result);
+        val += 1;
+    }
+    return result;
+}
+
+std::string interval(const std::string& key, const std::string& startNote, int interval) {
+    if (!isValidNote(startNote)) {
+        throw std::invalid_argument("The start note '" + startNote + "' is not a valid note");
+    }
+    std::vector<std::string> notesInKey = getNotes(key);
+    size_t index = 0;
+    for (size_t i = 0; i < notesInKey.size(); ++i) {
+        if (notesInKey[i][0] == startNote[0]) {
+            index = i;
+            break;
+        }
+    }
+    return notesInKey[(index + interval) % 7];
+}
+
+
+std::string unison(const std::string& note) { return interval(note, note, 0); }
+std::string minorUnison(const std::string& note) { return diminish(note); }
+std::string majorUnison(const std::string& note) { return note; }
+std::string augmentedUnison(const std::string& note) { return augment(note); }
+
+std::string second(const std::string& note, const std::string& key) { return interval(key, note, 1); }
+std::string minorSecond(const std::string& note) { std::string sec = second(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sec, 1); }
+std::string majorSecond(const std::string& note) { std::string sec = second(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sec, 2); }
+
+std::string third(const std::string& note, const std::string& key) { return interval(key, note, 2); }
+std::string minorThird(const std::string& note) { std::string trd = third(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, trd, 3); }
+std::string majorThird(const std::string& note) { std::string trd = third(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, trd, 4); }
+
+std::string fourth(const std::string& note, const std::string& key) { return interval(key, note, 3); }
+std::string minorFourth(const std::string& note) { std::string frt = fourth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, frt, 4); }
+std::string majorFourth(const std::string& note) { std::string frt = fourth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, frt, 5); }
+std::string perfectFourth(const std::string& note) { return majorFourth(note); }
+
+std::string fifth(const std::string& note, const std::string& key) { return interval(key, note, 4); }
+std::string minorFifth(const std::string& note) { std::string fif = fifth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, fif, 6); }
+std::string majorFifth(const std::string& note) { std::string fif = fifth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, fif, 7); }
+std::string perfectFifth(const std::string& note) { return majorFifth(note); }
+
+std::string sixth(const std::string& note, const std::string& key) { return interval(key, note, 5); }
+std::string minorSixth(const std::string& note) { std::string sth = sixth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sth, 8); }
+std::string majorSixth(const std::string& note) { std::string sth = sixth(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sth, 9); }
+
+std::string seventh(const std::string& note, const std::string& key) { return interval(key, note, 6); }
+std::string minorSeventh(const std::string& note) { std::string sth = seventh(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sth, 10); }
+std::string majorSeventh(const std::string& note) { std::string sth = seventh(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sth, 11); }
 
 
 // MINGUS SCALES
