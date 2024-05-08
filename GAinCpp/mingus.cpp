@@ -344,7 +344,7 @@ namespace Scales {
         type("diatonic") {}
     std::vector<std::string> Diatonic::ascending() const {
         std::vector<std::string> notes = { tonic };
-        for (int n = 1; n <= 7; ++n) {
+        for (int n = 1; n < 7; ++n) {
             if (std::find(semitones.begin(), semitones.end(), n) != semitones.end()) {
                 notes.push_back(minorSecond(notes.back()));
             } else {
