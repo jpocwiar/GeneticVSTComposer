@@ -27,11 +27,76 @@ namespace Scales {
         Scale(const std::string& note_, int octaves_);
     };
 
+// THE DIATONIC SCALES
+
+    /*
+    The diatonic scale.
+
+    Example:
+    >>> std::cout << Diatonic("C", {3, 7}) << std::endl;
+    Ascending:  C D E F G A B C
+    Descending: C B A G F E D C
+    */
+    class Diatonic : Scale {
+    public:
+        const std::string type;
+        const std::vector<int> semitones;
+        const std::string name;
+
+        // Create the diatonic scale starting on the chosen note.
+        // The second parameter is a vector representing the position of semitones.
+        Diatonic(const std::string& note_, const std::vector<int>& semitones_, const int octaves_ = 1);
+
+        std::vector<std::string> ascending() const;
+    };
+
+// ANCIENT SCALES
+
+    /*
+    The ionian scale.
+
+    Example:
+    >>> std::cout << Ionian("C") << std::endl;
+    Ascending:  C D E F G A B C
+    Descending: C B A G F E D C
+    */
+    class Ionian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the ionian mode scale starting on the chosen note.
+        Ionian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The dorian scale.
+
+    Example:
+    >>> std::cout << Dorian("D") << std::endl;
+    Ascending:  D E F G A B C D
+    Descending: D C B A G F E D
+    */
+    class Dorian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the dorian mode scale starting on the chosen note.
+        Dorian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+
+
     /*
     The natural minor scale.
 
     Example:
-    >>> std::cout<<NaturalMinor('A')
+    >>> std::cout << NaturalMinor("A") << std::endl;
     Ascending:  A B C D E F G A
     Descending: A G F E D C B A
     */
@@ -40,16 +105,17 @@ namespace Scales {
         const std::string type;
         const std::string name;
 
-        NaturalMinor(const std::string& note_, int octaves = 1);
+        // Return the natural minor scale starting on the chosen note.
+        NaturalMinor(const std::string& note_, int octaves_ = 1);
 
-        std::vector<std::string> ascending();
+        std::vector<std::string> ascending() const;
     };
 
     /*
     The harmonic minor scale.
 
     Example:
-    >>> std::cout<<HarmonicMinor('A')
+    >>> std::cout << HarmonicMinor("A") << std::endl;
     Ascending:  A B C D E F G# A
     Descending: A G# F E D C B A
     */
@@ -58,9 +124,10 @@ namespace Scales {
         const std::string type;
         const std::string name;
 
-        HarmonicMinor(const std::string& note_, int octaves = 1);
+        // Create the harmonic minor scale starting on the chosen note.
+        HarmonicMinor(const std::string& note_, int octaves_ = 1);
 
-        std::vector<std::string> ascending();
+        std::vector<std::string> ascending() const;
     };
 
 }

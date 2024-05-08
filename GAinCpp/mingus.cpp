@@ -331,22 +331,72 @@ std::string majorSeventh(const std::string& note) { std::string sth = seventh(no
 
 // MINGUS SCALES
 namespace Scales {
-    Scale::Scale(const std::string& note_, int octaves_) : tonic(note_), octaves(octaves_) {
+    Scale::Scale(const std::string& note_, const int octaves_) : tonic(note_), octaves(octaves_) {
         if (isLowerString(note_)) {
             throw std::invalid_argument("Unrecognized note '" + note_ + "'");
         }
     }
 
-    NaturalMinor::NaturalMinor(const std::string& note_, int octaves) : Scale(note_, octaves), name(tonic + " natural minor") {}
-    std::vector<std::string> NaturalMinor::ascending() {
+    Diatonic::Diatonic(const std::string& note_, const std::vector<int>& semitones_, const int octaves_) :
+        Scale(note_, octaves_),
+        semitones(semitones_),
+        name(tonic + " diatonic, semitones in (" + vectorToString(semitones_) + ")"),
+        type("diatonic") {}
+    std::vector<std::string> Diatonic::ascending() const {
+        std::vector<std::string> notes = { tonic };
+        for (int n = 1; n <= 7; ++n) {
+            if (std::find(semitones.begin(), semitones.end(), n) != semitones.end()) {
+                notes.push_back(minorSecond(notes.back()));
+            } else {
+                notes.push_back(majorSecond(notes.back()));
+            }
+        }
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Ionian::Ionian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " ionian"),
+        type("ancient") {}
+    std::vector<std::string> Ionian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {3, 7}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Dorian::Dorian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " dorian"),
+        type("ancient") {}
+    std::vector<std::string> Dorian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {2, 6}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+        
+
+    NaturalMinor::NaturalMinor(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " natural minor"),
+        type("minor") {}
+    std::vector<std::string> NaturalMinor::ascending() const {
         std::vector<std::string> notes = getNotes(toLower(tonic));
         std::vector<std::string> result = multiplyVectors(notes, octaves);
         result.push_back(notes[0]);
         return result;
     }
 
-    HarmonicMinor::HarmonicMinor(const std::string& note_, int octaves) : Scale(note_, octaves), name(tonic + " harmonic minor") {}
-    std::vector<std::string> HarmonicMinor::ascending() {
+    HarmonicMinor::HarmonicMinor(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " harmonic minor"),
+        type("minor") {}
+    std::vector<std::string> HarmonicMinor::ascending() const {
         std::vector<std::string> notes = NaturalMinor(tonic).ascending();
         notes.pop_back();
         notes[6] = augment(notes[6]);
