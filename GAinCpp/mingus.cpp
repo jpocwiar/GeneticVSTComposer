@@ -379,6 +379,70 @@ namespace Scales {
         result.push_back(notes[0]);
         return result;
     }
+
+    Phrygian::Phrygian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " phrygian"),
+        type("ancient") {}
+    std::vector<std::string> Phrygian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {1, 5}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Lydian::Lydian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " lydian"),
+        type("ancient") {}
+    std::vector<std::string> Lydian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {4, 7}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Mixolydian::Mixolydian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " mixolydian"),
+        type("ancient") {}
+    std::vector<std::string> Mixolydian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {3, 6}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Aeolian::Aeolian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " aeolian"),
+        type("ancient") {}
+    std::vector<std::string> Aeolian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {2, 5}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Locrian::Locrian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " locrian"),
+        type("ancient") {}
+    std::vector<std::string> Locrian::ascending() const {
+        std::vector<std::string> notes = Diatonic(tonic, {1, 4}).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+
+
+
         
 
     NaturalMinor::NaturalMinor(const std::string& note_, const int octaves_) :

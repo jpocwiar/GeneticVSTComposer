@@ -90,6 +90,105 @@ namespace Scales {
         std::vector<std::string> ascending() const;
     };
 
+    /*
+    The phrygian scale.
+
+    Example:
+    >>> std::cout << Phrygian("E") << std::endl;
+    Ascending:  E F G A B C D E
+    Descending: E D C B A G F E
+    */
+    class Phrygian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the phrygian mode scale starting on the chosen note.
+        Phrygian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The lydian scale.
+
+    Example:
+    >>> std::cout << Lydian("F") << std::endl;
+    Ascending:  F G A B C D E F
+    Descending: F E D C B A G F
+    */
+    class Lydian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the lydian mode scale starting on the chosen note.
+        Lydian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The mixolydian scale.
+
+    Example:
+    >>> std::cout << Mixolydian("G") << std::endl;
+    Ascending:  G A B C D E F G
+    Descending: G F E D C B A G
+    */
+    class Mixolydian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the mixolydian mode scale starting on the chosen note.
+        Mixolydian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The aeolian scale.
+
+    Example:
+    >>> std::cout << Aeolian("A") << std::endl;
+    Ascending:  A B C D E F G A
+    Descending: A G F E D C B A
+    */
+    class Aeolian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the aeolian mode scale starting on the chosen note.
+        Aeolian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The locrian scale.
+
+    Example:
+    >>> std::cout << Locrian("B") << std::endl;
+    Ascending:  B C D E F G A B
+    Descending: B A G F E D C B
+    */
+    class Locrian : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the locrian mode scale starting on the chosen note.
+        Locrian(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+
+
+
+
 
 
     /*
