@@ -440,10 +440,29 @@ namespace Scales {
         return result;
     }
 
+    Major::Major(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " major"),
+        type("major") {}
+    std::vector<std::string> Major::ascending() const {
+        std::vector<std::string> notes = getNotes(tonic);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
 
-
-
-        
+    HarmonicMajor::HarmonicMajor(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " harmonic major"),
+        type("major") {}
+    std::vector<std::string> HarmonicMajor::ascending() const {
+        std::vector<std::string> notes = Major(tonic).ascending();
+        notes.pop_back();
+        notes[5] = diminish(notes[5]);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }   
 
     NaturalMinor::NaturalMinor(const std::string& note_, const int octaves_) :
         Scale(note_, octaves_),

@@ -185,7 +185,45 @@ namespace Scales {
         std::vector<std::string> ascending() const;
     };
 
+// MAJOR SCALES
 
+    /*
+    The major scale.
+
+    Example:
+    >>> std::cout << Major("A") << std::endl;
+    Ascending:  A B C# D E F# G# A
+    Descending: A G# F# E D C# B A
+    */
+    class Major : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the major scale starting on the chosen note.
+        Major(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
+
+    /*
+    The harmonic major scale.
+
+    Example:
+    >>> std::cout << HarmonicMajor("C") << std::endl;
+    Ascending:  C D E F G Ab B C
+    Descending: C B Ab G F E D C
+    */
+    class HarmonicMajor : Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the harmonic major scale starting on the chosen note.
+        HarmonicMajor(const std::string& note_, const int octaves_ = 1);
+        
+        std::vector<std::string> ascending() const;
+    };
 
 
 
