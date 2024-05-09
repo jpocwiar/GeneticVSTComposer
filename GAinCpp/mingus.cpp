@@ -351,6 +351,16 @@ namespace Scales {
         std::reverse(result.begin(), result.end());
         return result;
     }
+    std::ostream& operator<<( std::ostream& outs, const Scale& scale ) {
+        outs << "Ascending:\t";
+        for (std::string i: scale.ascending())
+            outs << i << ' ';
+        std::cout<<std::endl<<"Descending:\t";
+        for (std::string i: scale.descending())
+            outs << i << ' ';
+        return outs;
+    }
+
 
     Diatonic::Diatonic(const std::string& note_, const std::vector<int>& semitones_, const int octaves_) :
         Scale(note_, octaves_),

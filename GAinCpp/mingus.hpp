@@ -27,6 +27,7 @@ namespace Scales {
         Scale(const std::string& note_, int octaves_);
 
     public:
+        friend std::ostream& operator<<( std::ostream& outs, const Scale& scale );
         virtual std::vector<std::string> ascending() const = 0;
         std::vector<std::string> descending() const;
     };
