@@ -29,7 +29,7 @@ namespace Scales {
     public:
         friend std::ostream& operator<<( std::ostream& outs, const Scale& scale );
         virtual std::vector<std::string> ascending() const = 0;
-        std::vector<std::string> descending() const;
+        virtual std::vector<std::string> descending() const;
     };
 
 // THE DIATONIC SCALES
@@ -287,7 +287,7 @@ namespace Scales {
         MelodicMinor(const std::string& note_, int octaves_ = 1);
 
         std::vector<std::string> ascending() const override;
-        std::vector<std::string> descending() const;
+        std::vector<std::string> descending() const override;
     };
 
     /*
@@ -326,7 +326,7 @@ namespace Scales {
         MinorNeapolitan(const std::string& note_, int octaves_ = 1);
 
         std::vector<std::string> ascending() const override;
-        std::vector<std::string> descending() const;
+        std::vector<std::string> descending() const override;
     };
 
 // OTHER SCALES
@@ -352,7 +352,7 @@ namespace Scales {
         Chromatic(const std::string& key_, int octaves_ = 1);
 
         std::vector<std::string> ascending() const override;
-        std::vector<std::string> descending() const;
+        std::vector<std::string> descending() const override;
     };
 
     /*

@@ -575,6 +575,9 @@ namespace Scales {
     std::vector<std::string> Chromatic::ascending() const {
         throw std::invalid_argument("NOT IMPLEMENTED");
     }
+    std::vector<std::string> Chromatic::descending() const {
+        throw std::invalid_argument("NOT IMPLEMENTED");
+    }
 
     WholeTone::WholeTone(const std::string& note_, const int octaves_) :
         Scale(note_, octaves_),
