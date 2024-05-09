@@ -66,7 +66,7 @@ const std::vector<std::string> fifths = {"F", "C", "G", "D", "A", "E", "B"};
 
 // Return true if note is in a recognised format. False if not.
 bool isValidNote(std::string note) {
-    auto it = noteDict.find(note);
+    auto it = noteDict.find(note.substr(0,1));
     if (it == noteDict.end()) {
         return false;
     }
@@ -562,6 +562,47 @@ namespace Scales {
         std::vector<std::string> notes = NaturalMinor(tonic).descending();
         notes.pop_back();
         notes[6] = diminish(notes[6]);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Chromatic::Chromatic(const std::string& key_, const int octaves_) :
+        key(key_),
+        Scale(getNotes(key_)[0], octaves_),
+        name(tonic + " chromatic"),
+        type("other") {}
+    std::vector<std::string> Chromatic::ascending() const {
+        throw std::invalid_argument("NOT IMPLEMENTED");
+    }
+
+    WholeTone::WholeTone(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " whole tone"),
+        type("other") {}
+    std::vector<std::string> WholeTone::ascending() const {
+        std::vector<std::string> notes = { tonic };
+        for (int i = 0; i < 5; ++i) {
+            notes.push_back(majorSecond(notes.back()));
+        }
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Octatonic::Octatonic(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " octatonic"),
+        type("other") {}
+    std::vector<std::string> Octatonic::ascending() const {
+        std::vector<std::string> notes = { tonic };
+        for (int i = 0; i < 3; ++i) {
+            std::string backNote = notes.back();
+            notes.push_back(majorSecond(backNote));
+            notes.push_back(minorThird(backNote));
+        }
+        notes.push_back(majorSeventh(notes[0]));
+        notes[notes.size()-2] = majorSixth(notes[0]);
         std::vector<std::string> result = multiplyVectors(notes, octaves);
         result.push_back(notes[0]);
         return result;

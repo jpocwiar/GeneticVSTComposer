@@ -22,8 +22,8 @@ public:
 namespace Scales {
     class Scale {
     protected:
-        std::string tonic;
-        int octaves;
+        const std::string tonic;
+        const int octaves;
         Scale(const std::string& note_, int octaves_);
 
     public:
@@ -327,6 +327,70 @@ namespace Scales {
 
         std::vector<std::string> ascending() const override;
         std::vector<std::string> descending() const;
+    };
+
+// OTHER SCALES
+
+    /*
+    The chromatic scale.
+
+    Examples:
+    >>> std::cout << Chromatic("C") << std::endl;
+    Ascending:  C C# D D# E F F# G G# A A# B C
+    Descending: C B Bb A Ab G Gb F E Eb D Db C
+    >>> std::cout << Chromatic("f") << std::endl;
+    Ascending:  F F# G Ab A Bb B C Db D Eb E F
+    Descending: F E Eb D Db C B Bb A Ab G Gb F
+    */
+    class Chromatic : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+        const std::string key;
+
+        // Create the chromatic scale in the chosen key.
+        Chromatic(const std::string& key_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
+        std::vector<std::string> descending() const;
+    };
+
+    /*
+    The whole tone scale.
+
+    Example:
+    >>> std::cout << WholeTone("C") << std::endl;
+    Ascending:  C D E F# G# A# C
+    Descending: C A# G# F# E D C
+    */
+    class WholeTone : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the whole tone scale starting on the chosen note.
+        WholeTone(const std::string& note_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
+    };
+
+    /*
+    The octatonic scale.
+
+    Example:
+    >>> std::cout << Octatonic("C") << std::endl;
+    Ascending:  C D Eb F Gb Ab A B C
+    Descending: C B A Ab Gb F Eb D C
+    */
+    class Octatonic : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the octatonic (also known as "diminished") scale starting on the chosen note.
+        Octatonic(const std::string& note_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
     };
 
 }
