@@ -98,6 +98,21 @@ int noteToInt(std::string note) {
     return val;
 }
 
+std::string intToNote(int noteInt, const std::string& accidentals = "#") {
+    if (noteInt < 0 || noteInt > 11) {
+        throw std::out_of_range("int out of bounds (0-11): " + std::to_string(noteInt));
+    }
+    const std::vector<std::string> ns = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    const std::vector<std::string> nf = {"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"};
+    if (accidentals == "#") {
+        return ns[noteInt];
+    } else if (accidentals == "b") {
+        return nf[noteInt];
+    } else {
+        throw std::invalid_argument("'" + accidentals + "' not valid as accidental");
+    }
+}
+
 // MINGUS NOTE
 Note::Note(const std::string& name_, int octave_) : name(name_), octave(octave_) {}
 int Note::toInt() const {
@@ -339,6 +354,127 @@ std::string minorSeventh(const std::string& note) { std::string sth = seventh(no
 std::string majorSeventh(const std::string& note) { std::string sth = seventh(note.substr(0, 1), "C"); return augmentOrDiminishUntilTheIntervalIsRight(note, sth, 11); }
 
 
+
+std::string determine(const std::string& note1, const std::string& note2, bool shorthand = false) {
+    // Corner case for unisons
+    if (note1[0] == note2[0]) {
+        auto getVal = [](const std::string& note) {
+            int r = 0;
+            for (size_t i = 1; i < note.size(); ++i) {
+                if (note[i] == 'b') { --r; }
+                else if (note[i] == '#') { ++r; }
+            }
+            return r;
+        };
+
+        int x = getVal(note1);
+        int y = getVal(note2);
+
+        if (x == y) {
+            if (!shorthand) {
+                return "major unison";
+            }
+            return "1";
+        } else if (x < y) {
+            if (!shorthand) {
+                return "augmented unison";
+            }
+            return "#1";
+        } else if (x - y == 1) {
+            if (!shorthand) {
+                return "minor unison";
+            }
+            return "b1";
+        } else {
+            if (!shorthand) {
+                return "diminished unison";
+            }
+            return "bb1";
+        }
+    }
+
+    // Other intervals
+    size_t n1 = std::find(fifths.begin(), fifths.end(), note1.substr(0, 1)) - fifths.begin();
+    size_t n2 = std::find(fifths.begin(), fifths.end(), note2.substr(0, 1)) - fifths.begin();
+    int numberOfFifthSteps = static_cast<int>(n2 - n1);
+    if (n2 < n1) {
+        numberOfFifthSteps += fifths.size();
+    }
+
+    // [name, shorthand_name, half notes for major version of this interval]
+    std::vector<std::vector<std::string> > fifthSteps = {
+        {"unison", "1", "0"},
+        {"fifth", "5", "7"},
+        {"second", "2", "2"},
+        {"sixth", "6", "9"},
+        {"third", "3", "4"},
+        {"seventh", "7", "11"},
+        {"fourth", "4", "5"},
+    };
+
+    // Count half steps between note1 and note2
+    int halfNotes = measure(note1, note2);
+
+    // Get the proper list from the number of fifth steps
+    auto current = fifthSteps[numberOfFifthSteps];
+
+    // maj = number of major steps for this interval
+    int maj = std::stoi(current[2]);
+
+    // if maj is equal to the half steps between note1 and note2 the interval is major or perfect
+    if (maj == halfNotes) {
+        // Corner cases for perfect fifths and fourths
+        if (current[0] == "fifth") {
+            if (!shorthand) {
+                return "perfect fifth";
+            }
+        } else if (current[0] == "fourth") {
+            if (!shorthand) {
+                return "perfect fourth";
+            }
+        }
+        if (!shorthand) {
+            return "major " + current[0];
+        }
+        return current[1];
+    } else if (maj + 1 <= halfNotes) {
+        // if maj + 1 is equal to half_notes, the interval is augmented.
+        if (!shorthand) {
+            return "augmented " + current[0];
+        }
+        return std::string(halfNotes - maj, '#') + current[1];
+    } else if (maj - 1 == halfNotes) {
+        // etc.
+        if (!shorthand) {
+            return "minor " + current[0];
+        }
+        return "b" + current[1];
+    } else if (maj - 2 >= halfNotes) {
+        if (!shorthand) {
+            return "diminished " + current[0];
+        }
+        return std::string(maj - halfNotes, 'b') + current[1];
+    }
+}
+
+std::string reduceAccidentals(const std::string& note) {
+    int val = noteToInt(note.substr(0, 1));
+    for (size_t i = 1; i < note.size(); ++i) {
+        if (note[i] == 'b') {
+            --val;
+        } else if (note[i] == '#') {
+            ++val;
+        } else {
+            throw std::invalid_argument("Unknown note format '" + note + "'");
+        }
+    }
+    if (val >= noteToInt(note.substr(0, 1))) {
+        return intToNote(val % 12);
+    } else {
+        return intToNote(val % 12, "b");
+    }
+}
+
 // MINGUS SCALES
 namespace Scales {
     Scale::Scale(const std::string& note_, const int octaves_) : tonic(note_), octaves(octaves_) {
@@ -573,10 +709,38 @@ namespace Scales {
         name(tonic + " chromatic"),
         type("other") {}
     std::vector<std::string> Chromatic::ascending() const {
-        throw std::invalid_argument("NOT IMPLEMENTED");
+        std::vector<std::string> notes = { tonic };
+        std::vector<std::string> iterNotes = getNotes(key);
+        iterNotes.push_back(tonic);
+        for (size_t i = 1; i < iterNotes.size(); ++i) {
+            if (determine(notes.back(), iterNotes[i]) == "major second") {
+                notes.push_back(augment(notes.back()));
+                notes.push_back(iterNotes[i]);
+            } else {
+                notes.push_back(iterNotes[i]);
+            }
+        }
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
     }
     std::vector<std::string> Chromatic::descending() const {
-        throw std::invalid_argument("NOT IMPLEMENTED");
+        std::vector<std::string> notes = { tonic };
+        std::vector<std::string> iterNotes = getNotes(key);
+        std::reverse(iterNotes.begin(), iterNotes.end());
+        for (size_t i = 0; i < iterNotes.size(); ++i) {
+            if (determine(iterNotes[i], notes.back()) == "major second") {
+                notes.push_back(reduceAccidentals(diminish(notes.back())));
+                notes.push_back(iterNotes[i]);
+            } else {
+                notes.push_back(iterNotes[i]);
+            }
+        }
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
     }
 
     WholeTone::WholeTone(const std::string& note_, const int octaves_) :
@@ -585,7 +749,7 @@ namespace Scales {
         type("other") {}
     std::vector<std::string> WholeTone::ascending() const {
         std::vector<std::string> notes = { tonic };
-        for (int i = 0; i < 5; ++i) {
+        for (size_t i = 0; i < 5; ++i) {
             notes.push_back(majorSecond(notes.back()));
         }
         std::vector<std::string> result = multiplyVectors(notes, octaves);
@@ -599,7 +763,7 @@ namespace Scales {
         type("other") {}
     std::vector<std::string> Octatonic::ascending() const {
         std::vector<std::string> notes = { tonic };
-        for (int i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < 3; ++i) {
             std::string backNote = notes.back();
             notes.push_back(majorSecond(backNote));
             notes.push_back(minorThird(backNote));
