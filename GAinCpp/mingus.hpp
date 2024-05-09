@@ -269,6 +269,65 @@ namespace Scales {
         std::vector<std::string> ascending() const override;
     };
 
+    /*
+    The melodic minor scale.
+
+    Example:
+    >>> std::cout << MelodicMinor("A") << std::endl;
+    Ascending:  A B C D E F# G# A
+    Descending: A G F E D C B A
+    */
+    class MelodicMinor : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the melodic minor scale starting on the chosen note.
+        MelodicMinor(const std::string& note_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
+        std::vector<std::string> descending() const;
+    };
+
+    /*
+    The Bachian scale.
+
+    Example:
+    >>> std::cout << Bachian("A") << std::endl;
+    Ascending:  A B C D E F# G# A
+    Descending: A G# F# E D C B A
+    */
+    class Bachian : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the Bachian (also known as "real melodic minor" and "jazz") scale starting on the chosen note.
+        Bachian(const std::string& note_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
+    };
+
+    /*
+    The minor Neapolitan scale.
+
+    Example:
+    >>> std::cout << MinorNeapolitan("A") << std::endl; 
+    Ascending:  A Bb C D E F G# A
+    Descending: A G F E D C Bb A
+    */
+    class MinorNeapolitan : public Scale {
+    public:
+        const std::string type;
+        const std::string name;
+
+        // Create the minor Neapolitan scale starting on the chosen note.
+        MinorNeapolitan(const std::string& note_, int octaves_ = 1);
+
+        std::vector<std::string> ascending() const override;
+        std::vector<std::string> descending() const;
+    };
+
 }
 
 #endif // MINGUS_HPP

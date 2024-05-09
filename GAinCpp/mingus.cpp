@@ -502,4 +502,58 @@ namespace Scales {
         result.push_back(notes[0]);
         return result;
     }
+
+    MelodicMinor::MelodicMinor(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " melodic minor"),
+        type("minor") {}
+    std::vector<std::string> MelodicMinor::ascending() const {
+        std::vector<std::string> notes = NaturalMinor(tonic).ascending();
+        notes.pop_back();
+        notes[5] = augment(notes[5]);
+        notes[6] = augment(notes[6]);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+    std::vector<std::string> MelodicMinor::descending() const {
+        std::vector<std::string> notes = NaturalMinor(tonic).descending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    Bachian::Bachian(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " Bachian"),
+        type("minor") {}
+    std::vector<std::string> Bachian::ascending() const {
+        std::vector<std::string> notes = MelodicMinor(tonic).ascending();
+        notes.pop_back();
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+
+    MinorNeapolitan::MinorNeapolitan(const std::string& note_, const int octaves_) :
+        Scale(note_, octaves_),
+        name(tonic + " minor Neapolitan"),
+        type("minor") {}
+    std::vector<std::string> MinorNeapolitan::ascending() const {
+        std::vector<std::string> notes = HarmonicMinor(tonic).ascending();
+        notes.pop_back();
+        notes[1] = diminish(notes[1]);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
+    std::vector<std::string> MinorNeapolitan::descending() const {
+        std::vector<std::string> notes = NaturalMinor(tonic).descending();
+        notes.pop_back();
+        notes[6] = diminish(notes[6]);
+        std::vector<std::string> result = multiplyVectors(notes, octaves);
+        result.push_back(notes[0]);
+        return result;
+    }
 }
