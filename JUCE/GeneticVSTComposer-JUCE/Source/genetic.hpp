@@ -16,13 +16,13 @@ public:
         const std::map<std::string, float>& sigma_values = {},
         const std::map<std::string, int>& weights = {});
 
-    // Metoda do krzy縪wania dw骳h osobnik體 (rodzic體)
+    // Metoda do krzy驴owania dw贸ch osobnik贸w (rodzic贸w)
     std::pair<std::vector<int>, std::vector<int>> crossover(const std::vector<int>& parent1, const std::vector<int>& parent2);
 
     // Metoda do selekcji turniejowej
     std::vector<int> tournament_selection(const std::vector<std::vector<int>>& population, int tournament_size = 4);
 
-    // Deklaracja funkcji oceny (fitness), kt髍a b阣zie potrzebna do metody tournament_selection
+    // Deklaracja funkcji oceny (fitness), kt贸ra b锚dzie potrzebna do metody tournament_selection
     float fitness(const std::vector<int>& individual);
     void mutate(std::vector<int>& melody);
     std::vector<int> run(int measures = 1);
