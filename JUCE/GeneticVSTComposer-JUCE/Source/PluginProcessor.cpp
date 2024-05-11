@@ -161,21 +161,33 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float
     const auto numSamples = buffer.getNumSamples();
     juce::MidiBuffer processedMidi;
 
+    // Obtain the playhead from the host to fetch current BPM
+    juce::AudioPlayHead* playHead = getPlayHead();
+    juce::AudioPlayHead::CurrentPositionInfo playHeadInfo;
+
+    if (playHead && playHead->getCurrentPosition(playHeadInfo)) {
+        // Calculate the duration of a sixteenth note based on the current BPM
+        double beatsPerSecond = playHeadInfo.bpm / 60.0;
+        double secondsPerBeat = 1.0 / beatsPerSecond;
+        double secondsPerSixteenth = secondsPerBeat / 4.0;
+        samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+    }
+
     for (const auto metadata : midiMessages) {
         const auto message = metadata.getMessage();
         const auto time = metadata.samplePosition;
 
-        if (message.isNoteOn() && message.getVelocity() > 0) {  // Checking velocity to ensure it's a true note on
-            if (activeNotesCount == 0) {  // Sequence starts only on the first note on
+        if (message.isNoteOn() && message.getVelocity() > 0) {
+            if (activeNotesCount == 0) {  // Only start new if no notes are currently active
                 currentNoteIndex = 0;     // Restart the sequence
                 nextNoteTime = time;      // Start now
             }
             activeNotesCount++;
             isSequencePlaying = true;
-        } else if (message.isNoteOff() || (message.isNoteOn() && message.getVelocity() == 0)) {  // Also handles "note on with zero velocity" as note off
+        } else if (message.isNoteOff() || (message.isNoteOn() && message.getVelocity() == 0)) {
             if (--activeNotesCount == 0) {
                 isSequencePlaying = false;  // Stop the sequence when all keys are released
-                processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Send all notes off to avoid hanging notes
+                processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Ensure no hanging notes
             }
         }
     }
@@ -184,19 +196,19 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float
         while (nextNoteTime < numSamples) {
             if (currentNoteIndex < notes.size()) {
                 const int note = notes[currentNoteIndex];
-                if (nextNoteTime >= 0 && nextNoteTime < numSamples) {  // Check range to be within the current buffer
+                if (nextNoteTime >= 0 && nextNoteTime < numSamples) {  // Ensure within current buffer
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
                 }
                 nextNoteTime += samplesBetweenNotes;
                 currentNoteIndex = (currentNoteIndex + 1) % notes.size();
             } else {
-                break;  // Break if we run out of notes
+                break;  // Exit if no more notes to play
             }
         }
     }
 
-    // Adjust nextNoteTime for the next processing block
+    // Adjust for next block
     nextNoteTime -= numSamples;
     midiMessages.swapWith(processedMidi);
 }
