@@ -35,6 +35,7 @@ public:
     //Method to generate melody and save it in the processor using Genetic Algorithms
     void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
         std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations);
+    int calculateSixteenthNoteSamples();
     std::vector<int> melody;
     std::string debugInfo;
 
@@ -66,12 +67,13 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessor)
     juce::AudioPlayHead::CurrentPositionInfo lastPosInfo;
     std::vector<std::pair<int, int>> noteOffTimes; // To track note offs outside the current block
-    std::array<int, 3> notes {60, 61, 62};
+    std::array<int, 16> notes {60, 61, 62, -2, -2, -2, 65, -1, 66, 68, -1, 61, 62,63,70, 80};
     int currentNoteIndex = 0;
     int nextNoteTime = 0;
     int samplesBetweenNotes = 48000;
     bool isSequencePlaying = false;
     int activeNotesCount = 0; // Track how many keys are pressed
+    int lastNote = -1;
     
 
 };

@@ -154,11 +154,11 @@ static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
     return juce::String::toHexString(m.getRawData(), m.getRawDataSize());
 }
 
-void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     jassert(buffer.getNumChannels() == 0);  // It's a MIDI plugin, no audio data should be processed.
 
-    const auto numSamples = buffer.getNumSamples();
+    const int numSamples = buffer.getNumSamples();
     juce::MidiBuffer processedMidi;
 
     // Obtain the playhead from the host to fetch current BPM
@@ -178,40 +178,47 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float
         const auto time = metadata.samplePosition;
 
         if (message.isNoteOn() && message.getVelocity() > 0) {
-            if (activeNotesCount == 0) {  // Only start new if no notes are currently active
-                currentNoteIndex = 0;     // Restart the sequence
-                nextNoteTime = time;      // Start now
+            if (activeNotesCount == 0 && !melody.empty()) { // Ensure melody is not empty when starting
+                currentNoteIndex = 0;  // Restart the sequence
+                nextNoteTime = time;   // Start now
             }
             activeNotesCount++;
             isSequencePlaying = true;
         } else if (message.isNoteOff() || (message.isNoteOn() && message.getVelocity() == 0)) {
             if (--activeNotesCount == 0) {
-                isSequencePlaying = false;  // Stop the sequence when all keys are released
-                processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Ensure no hanging notes
+                isSequencePlaying = false;
+                processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Stop all notes to avoid hanging notes
             }
         }
     }
 
-    if (isSequencePlaying) {
-        while (nextNoteTime < numSamples) {
-            if (currentNoteIndex < notes.size()) {
-                const int note = notes[currentNoteIndex];
-                if (nextNoteTime >= 0 && nextNoteTime < numSamples) {  // Ensure within current buffer
+    if (isSequencePlaying && !melody.empty()) {
+        while (nextNoteTime < numSamples && isSequencePlaying) {
+            if (currentNoteIndex < melody.size()) {  // Ensure the index is within the array bounds
+                const int note = melody[currentNoteIndex];
+                if (note >= 0) {
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
+                } else if (note == -1) {
+                // Pause, do nothing
+                } else if (note == -2 && lastNote != -1) {
+                // Extend the last note, adjust the note off time
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote), nextNoteTime + samplesBetweenNotes - 1);
                 }
+
                 nextNoteTime += samplesBetweenNotes;
-                currentNoteIndex = (currentNoteIndex + 1) % notes.size();
+                currentNoteIndex = (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
             } else {
-                break;  // Exit if no more notes to play
+                break;  // Break the loop if index is out of range
             }
         }
     }
 
-    // Adjust for next block
+    // Adjust for the next block
     nextNoteTime -= numSamples;
     midiMessages.swapWith(processedMidi);
 }
+
 
 void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
                                                           std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
