@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <random>
+#include "mingus.hpp"
 
 class GeneticMelodyGenerator {
 public:
