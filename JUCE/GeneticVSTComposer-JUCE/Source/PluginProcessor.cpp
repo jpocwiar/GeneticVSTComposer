@@ -129,32 +129,126 @@ bool GeneticVSTComposerJUCEAudioProcessor::isBusesLayoutSupported (const BusesLa
 }
 #endif
 
-void GeneticVSTComposerJUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
 {
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    if (m.isNoteOn())           return "Note on " + juce::MidiMessage::getMidiNoteName(m.getNoteNumber(), true, true, 3);
+    if (m.isNoteOff())          return "Note off " + juce::MidiMessage::getMidiNoteName(m.getNoteNumber(), true, true, 3);
+    if (m.isProgramChange())    return "Program change " + juce::String(m.getProgramChangeNumber());
+    if (m.isPitchWheel())       return "Pitch wheel " + juce::String(m.getPitchWheelValue());
+    if (m.isAftertouch())       return "After touch " + juce::MidiMessage::getMidiNoteName(m.getNoteNumber(), true, true, 3) + ": " + juce::String(m.getAfterTouchValue());
+    if (m.isChannelPressure())  return "Channel pressure " + juce::String(m.getChannelPressureValue());
+    if (m.isAllNotesOff())      return "All notes off";
+    if (m.isAllSoundOff())      return "All sound off";
+    if (m.isMetaEvent())        return "Meta event";
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    if (m.isController())
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        juce::String name(juce::MidiMessage::getControllerName(m.getControllerNumber()));
 
-        // ..do something to the data...
+        if (name.isEmpty())
+            name = "[" + juce::String(m.getControllerNumber()) + "]";
+
+        return "Controller " + name + ": " + juce::String(m.getControllerValue());
+    }
+
+    return juce::String::toHexString(m.getRawData(), m.getRawDataSize());
+}
+
+void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    jassert(buffer.getNumChannels() == 0);  // It's a MIDI plugin, no audio data should be processed.
+
+    const int numSamples = buffer.getNumSamples();
+    juce::MidiBuffer processedMidi;
+
+    // Obtain the playhead from the host to fetch current BPM
+    juce::AudioPlayHead* playHead = getPlayHead();
+    juce::AudioPlayHead::CurrentPositionInfo playHeadInfo;
+
+    if (playHead && playHead->getCurrentPosition(playHeadInfo)) {
+        // Calculate the duration of a sixteenth note based on the current BPM
+        double beatsPerSecond = playHeadInfo.bpm / 60.0;
+        double secondsPerBeat = 1.0 / beatsPerSecond;
+        double secondsPerSixteenth = secondsPerBeat / 4.0;
+        samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+    }
+
+    for (const auto metadata : midiMessages) {
+        const auto message = metadata.getMessage();
+        const auto time = metadata.samplePosition;
+
+        if (message.isNoteOn() && message.getVelocity() > 0) {
+            int noteNumber = message.getNoteNumber();
+            if (noteNumber >= 48 && noteNumber < 60) {
+                int melodyIndex = noteNumber - 48;
+                if (melodyIndex < melodies.size()) {
+                    melody = melodies[melodyIndex];
+                    currentNoteIndex = 0;  // Restart the sequence
+                    nextNoteTime = time;   // Start now
+                    isSequencePlaying = true;
+                }
+            } else if (noteNumber >= 60) {
+                transposition = noteNumber - 60; // Set the transposition based on the key pressed
+            }
+        } else if (message.isNoteOff()) {
+            if (message.getNoteNumber() == (60 + transposition)) {
+                transposition = 0; // Reset transposition when the transposing key is released
+            }
+            else if (message.getNoteNumber() >= 48 && message.getNoteNumber() < 60) {
+                if (isSequencePlaying) {
+                    isSequencePlaying = false;
+                    processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Stop all notes to avoid hanging notes
+                }
+            }
+        }
+    }
+
+    if (isSequencePlaying && !melody.empty()) {
+        while (nextNoteTime < numSamples && isSequencePlaying) {
+            if (currentNoteIndex < melody.size()) {
+                const int note = melody[currentNoteIndex] + transposition;
+                if (note >= 0) {
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
+                } else if (note == -1) {
+                    // Pause, do nothing
+                } else if (note == -2 && lastNote != -1) {
+                    // Extend the last note, adjust the note off time
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote), nextNoteTime + samplesBetweenNotes - 1);
+                }
+
+                nextNoteTime += samplesBetweenNotes;
+                currentNoteIndex = (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
+            } else {
+                break;  // Break the loop if index is out of range
+            }
+        }
+    }
+
+    // Adjust for the next block
+    nextNoteTime -= numSamples;
+    midiMessages.swapWith(processedMidi);
+}
+
+
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
+                                                          std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
+{
+    //run the genetic algorithm
+    GeneticMelodyGenerator generator(scale, noteRange, meter, noteDuration, populationSize, numGenerations);
+
+    //melody = generator.run(1);
+    melodies = generator.run(1);
+
+    //DEBUG - for now just print some results to string
+    debugInfo = "Generated Melodies:\n";
+    int melodyCount = 0;
+    for (const auto& melody : melodies) {
+        debugInfo += "Melody " + std::to_string(++melodyCount) + ": ";
+        for (int note : melody) {
+            debugInfo += std::to_string(note) + " ";
+        }
+        debugInfo += "\n";  // Append a newline after each melody for better readability
     }
 }
 

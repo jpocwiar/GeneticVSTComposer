@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "genetic.hpp"
 
 //==============================================================================
 /**
@@ -29,6 +30,14 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    //          CUSTOM
+    //Method to generate melody and save it in the processor using Genetic Algorithms
+    void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
+        std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations);
+    std::vector<int> melody;
+    std::vector<std::vector<int>> melodies;
+    std::string debugInfo;
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -56,4 +65,16 @@ public:
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessor)
+    juce::AudioPlayHead::CurrentPositionInfo lastPosInfo;
+    std::vector<std::pair<int, int>> noteOffTimes; // To track note offs outside the current block
+    std::array<int, 16> notes {60, 61, 62, -2, -2, -2, 65, -1, 66, 68, -1, 61, 62,63,70, 80};
+    int currentNoteIndex = 0;
+    int nextNoteTime = 0;
+    int samplesBetweenNotes = 48000;
+    bool isSequencePlaying = false;
+    int activeNotesCount = 0; // Track how many keys are pressed
+    int lastNote = -1;
+    int selectedMelodyIndex = -1;
+    int transposition = 0;
+
 };
