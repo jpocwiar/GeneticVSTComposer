@@ -235,12 +235,12 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
                                                           std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
 {
 
-    float diversity = 0.0;
-    float dynamics = 0.0;
-    float arousal = 0.0;
-    float valence = 0.0;
-    float jazziness = 0.1;
-    float weirdness = 0.0;
+    float diversity = 0.8;
+    float dynamics = 0.8;
+    float arousal = 0.8;
+    float valence = 0.8;
+    float jazziness = 0.5;
+    float weirdness = 0.5;
     //run the genetic algorithm
     GeneticMelodyGenerator generator(scale, noteRange, diversity, dynamics, arousal, valence,
         jazziness, weirdness, meter, noteDuration, populationSize, numGenerations);
