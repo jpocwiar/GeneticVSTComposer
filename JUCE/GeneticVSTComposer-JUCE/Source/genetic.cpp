@@ -8,11 +8,17 @@
 #include <unordered_set>
 
 GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
+    float diversity, float dynamics, float arousal,
+    float valence, float jazziness, float weirdness,
     const std::pair<int, int>& meter, float noteDuration,
     int populationSize, int numGenerations)
-    : meter(meter), noteDuration(noteDuration), populationSize(populationSize),
-    numGenerations(numGenerations), mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
-    expectedLength(static_cast<int>(1 / noteDuration)), notesRange(noteRange.second - noteRange.first) {
+    : diversity(diversity), dynamics(dynamics), arousal(arousal),
+    valence(valence), jazziness(jazziness), weirdness(weirdness), meter(meter), noteDuration(noteDuration),
+    populationSize(populationSize), numGenerations(numGenerations),
+    mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
+    expectedLength(static_cast<int>(1 / noteDuration)),
+    notesRange(noteRange.second - noteRange.first)
+     {
 
     std::random_device rd;  // Obtain a seed for the random number generator
     rng = std::mt19937(rd()); // Use the seed to initialize the generator
@@ -27,33 +33,35 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     // Przyk³adowe wype³nienie scale_notes - to bêdzie wymaga³o prawdziwej implementacji
     scale_notes = { 1, 3, 4, 6, 8, 10, 11, 13 }; // C-dur dla przyk³adu
 
-    set_coefficients();
+    set_coefficients(diversity, dynamics, arousal, valence,
+        jazziness, weirdness);
 }
 
-void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>& mu_values,
+void GeneticMelodyGenerator::set_coefficients(float diversity, float dynamics, float arousal,
+    float valence, float jazziness, float weirdness, const std::map<std::string, float>& mu_values,
     const std::map<std::string, float>& sigma_values,
     const std::map<std::string, int>& weights) {
     // Ustaw wartoœci domyœlne, jeœli nie przekazano ¿adnych map
     this->muValues = mu_values.empty() ? std::map<std::string, float>{
-        {"diversity", 0.8},
-        { "diversity_interval", 0.8 },
-        { "dissonance", 0.25 },
-        { "rhythmic_diversity", 0.7 },
-        { "rhythmic_average_value", 0.5 },
-        { "very_long_notes_score", 0 },
-        { "deviation_rhythmic_value", 0.5 },
-        { "scale_conformance", 0.9 },
-        { "root_conformance", 0.3 },
-        { "melodic_contour", 0.1 },
-        { "pitch_range", 0.3 },
-        { "pause_proportion", 0.3 },
-        { "large_intervals", 0.0 },
-        { "average_pitch", 0.6 },
-        { "pitch_variation", 0.4 },
-        { "odd_index_notes", 0.1 },
-        { "average_interval", 0.3 },
-        { "scale_playing", 0.8 },
-        { "short_consecutive_notes", 0.75 }
+        {"diversity", diversity},
+        { "diversity_interval", diversity },
+        { "dissonance", (1 - valence) * 0.4 + jazziness * 0.2 },
+        { "rhythmic_diversity", diversity * 0.2 + dynamics * 0.5 + arousal * 0.2 },
+        { "rhythmic_average_value", (1 - arousal) },
+        { "very_long_notes_score", 0.05 },
+        { "deviation_rhythmic_value", dynamics },
+        { "scale_conformance", (1 - jazziness) * 0.5 + 0.5 },
+        { "root_conformance", 0.3 }, 
+        { "melodic_contour", valence },
+        { "pitch_range", dynamics * 0.5 + arousal * 0.5 },
+        { "pause_proportion", dynamics * 0.2 - arousal * 0.1 },
+        { "large_intervals", weirdness },
+        { "average_pitch", arousal * 0.2 + valence * 0.3 },
+        { "pitch_variation", dynamics * 0.5 },
+        { "odd_index_notes", weirdness },
+        { "average_interval", (1 - dynamics) * 0.5 + (1 - valence) * 0.5 },
+        { "scale_playing", jazziness * 0.3 + dynamics * 0.5 },
+        { "short_consecutive_notes", 0.5 * arousal + jazziness * 0.2 }
     } : mu_values;
 
     this->sigmaValues = sigma_values.empty() ? std::map<std::string, float>{

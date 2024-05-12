@@ -9,11 +9,13 @@
 
 class GeneticMelodyGenerator {
 public:
-    GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
+    GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange, float diversity, float dynamics, float arousal, float valence,
+        float jazziness, float weirdness,
         const std::pair<int, int>& meter = { 4, 4 }, float noteDuration = 0.5,
         int populationSize = 128, int numGenerations = 100);
 
-    void set_coefficients(const std::map<std::string, float>& mu_values = {},
+    void set_coefficients(float diversity, float dynamics, float arousal,
+        float valence, float jazziness, float weirdness, const std::map<std::string, float>& mu_values = {},
         const std::map<std::string, float>& sigma_values = {},
         const std::map<std::string, int>& weights = {});
 
@@ -39,6 +41,12 @@ private:
     float crossoverRate;
     int expectedLength;
     int notesRange;
+    float diversity;
+    float dynamics;
+    float arousal;
+    float valence;
+    float jazziness;
+    float weirdness;
 
     std::pair<float, float> fitness_intervals(const std::vector<int>& melody);
     float fitness_directional_changes(const std::vector<int>& melody);
