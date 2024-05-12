@@ -24,7 +24,7 @@ public:
     std::vector<int> tournament_selection(const std::vector<std::vector<int>>& population, int tournament_size = 4);
 
     // Deklaracja funkcji oceny (fitness), która bêdzie potrzebna do metody tournament_selection
-    float fitness(const std::vector<int>& individual);
+    float fitness(const std::vector<int>& individual, const std::vector<std::vector<int>>& population);
     void mutate(std::vector<int>& melody);
     std::vector<std::vector<int>> run(int measures = 1);
 
@@ -57,6 +57,7 @@ private:
     float fitness_average_intervals(const std::vector<int>& melody);
     float fitness_small_intervals(const std::vector<int>& melody);
     float fitness_repeated_short_notes(const std::vector<int>& melody);
+    float calculate_similarity_penalty(const std::vector<int>& melody, const std::vector<std::vector<int>>& population);
 
     // Coefficients for the genetic algorithm
     std::map<std::string, float> muValues;
