@@ -29,7 +29,6 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     set_coefficients();
 }
 
-// set_coefficients - implementacja jak powy¿ej...
 void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>& mu_values,
     const std::map<std::string, float>& sigma_values,
     const std::map<std::string, int>& weights) {
