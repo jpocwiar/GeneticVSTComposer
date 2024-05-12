@@ -75,5 +75,6 @@ private:
     int activeNotesCount = 0; // Track how many keys are pressed
     int lastNote = -1;
     int selectedMelodyIndex = -1;
+    int transposition = 0;
 
 };
