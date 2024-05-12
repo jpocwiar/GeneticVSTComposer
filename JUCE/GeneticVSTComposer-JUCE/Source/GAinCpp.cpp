@@ -15,11 +15,11 @@ int main() {
         populationSize, numGenerations);
 
     // Wywołanie metody run bez argumentów (zakładając, że run nie przyjmuje parametrów)
-    std::vector<int> melody = generator.run(1);
+    std::vector<std::vector<int>> melody = generator.run(1);
 
     // Wypisanie wygenerowanej melodii
     std::cout << "Generated Melody: ";
-    for (int note : melody) {
+    for (int note : melody[0]) {
         std::cout << note << " ";
     }
     std::cout << std::endl;

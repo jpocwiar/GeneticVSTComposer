@@ -178,37 +178,48 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
         const auto time = metadata.samplePosition;
 
         if (message.isNoteOn() && message.getVelocity() > 0) {
-            if (activeNotesCount == 0 && !melody.empty()) { // Ensure melody is not empty when starting
-                currentNoteIndex = 0;  // Restart the sequence
-                nextNoteTime = time;   // Start now
+            int noteNumber = message.getNoteNumber();
+            if (noteNumber >= 48 && noteNumber < 60) {
+                int melodyIndex = noteNumber - 48;
+                if (melodyIndex < melodies.size()) {
+                    melody = melodies[melodyIndex];
+                    currentNoteIndex = 0;  // Restart the sequence
+                    nextNoteTime = time;   // Start now
+                    isSequencePlaying = true;
+                }
             }
-            activeNotesCount++;
-            isSequencePlaying = true;
-        } else if (message.isNoteOff() || (message.isNoteOn() && message.getVelocity() == 0)) {
-            if (--activeNotesCount == 0) {
-                isSequencePlaying = false;
-                processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Stop all notes to avoid hanging notes
+        }
+        else if (message.isNoteOff()) {
+            if (message.getNoteNumber() >= 48 && message.getNoteNumber() < 60) {
+                int melodyIndex = message.getNoteNumber() - 48;
+                if (melodyIndex < melodies.size() && melody == melodies[melodyIndex]) {
+                    isSequencePlaying = false;
+                    processedMidi.addEvent(juce::MidiMessage::allNotesOff(1), time);  // Stop all notes to avoid hanging notes
+                }
             }
         }
     }
 
     if (isSequencePlaying && !melody.empty()) {
         while (nextNoteTime < numSamples && isSequencePlaying) {
-            if (currentNoteIndex < melody.size()) {  // Ensure the index is within the array bounds
+            if (currentNoteIndex < melody.size()) {
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
-                } else if (note == -1) {
-                // Pause, do nothing
-                } else if (note == -2 && lastNote != -1) {
-                // Extend the last note, adjust the note off time
+                }
+                else if (note == -1) {
+                    // Pause, do nothing
+                }
+                else if (note == -2 && lastNote != -1) {
+                    // Extend the last note, adjust the note off time
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote), nextNoteTime + samplesBetweenNotes - 1);
                 }
 
                 nextNoteTime += samplesBetweenNotes;
                 currentNoteIndex = (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
-            } else {
+            }
+            else {
                 break;  // Break the loop if index is out of range
             }
         }
@@ -226,12 +237,18 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
     //run the genetic algorithm
     GeneticMelodyGenerator generator(scale, noteRange, meter, noteDuration, populationSize, numGenerations);
 
-    melody = generator.run(1);
+    //melody = generator.run(1);
+    melodies = generator.run(1);
 
     //DEBUG - for now just print some results to string
-    debugInfo = "Generated Melody:\n";
-    for (int note : melody) {
-        debugInfo += std::to_string(note) + " ";
+    debugInfo = "Generated Melodies:\n";
+    int melodyCount = 0;
+    for (const auto& melody : melodies) {
+        debugInfo += "Melody " + std::to_string(++melodyCount) + ": ";
+        for (int note : melody) {
+            debugInfo += std::to_string(note) + " ";
+        }
+        debugInfo += "\n";  // Append a newline after each melody for better readability
     }
 }
 

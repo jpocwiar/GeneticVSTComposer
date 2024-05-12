@@ -25,7 +25,7 @@ public:
     // Deklaracja funkcji oceny (fitness), która bêdzie potrzebna do metody tournament_selection
     float fitness(const std::vector<int>& individual);
     void mutate(std::vector<int>& melody);
-    std::vector<int> run(int measures = 1);
+    std::vector<std::vector<int>> run(int measures = 1);
 
 private:
     std::vector<int> NOTES;

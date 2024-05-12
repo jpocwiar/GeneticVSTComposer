@@ -792,7 +792,7 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody) {
 }
 
 // Metoda run
-std::vector<int> GeneticMelodyGenerator::run(int measures) {
+std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures) {
     int note_amount = static_cast<int>(meter.first / noteDuration * 4.0 / meter.second * measures);
     std::vector<std::vector<int>> population = generate_population(note_amount);
     std::vector<std::vector<int>> new_population;
@@ -827,11 +827,17 @@ std::vector<int> GeneticMelodyGenerator::run(int measures) {
         population = std::move(new_population);
     }
 
-    auto best_it = std::max_element(population.begin(), population.end(),
-        [this](const std::vector<int>& a, const std::vector<int>& b) {
-            return fitness(a) < fitness(b);
-        });
+    // Sort the population by fitness in descending order
+    std::sort(population.begin(), population.end(), [this](const std::vector<int>& a, const std::vector<int>& b) {
+        return fitness(a) > fitness(b);
+    });
 
-    std::vector<int> best_melody = (best_it != population.end()) ? *best_it : std::vector<int>();
-    return best_melody;
+    // Collect the top 12 best melodies
+    std::vector<std::vector<int>> best_melodies;
+    int count = std::min(12, static_cast<int>(population.size()));  // Ensure there are enough melodies
+    for (int i = 0; i < count; ++i) {
+        best_melodies.push_back(population[i]);
+    }
+
+    return best_melodies;
 }
