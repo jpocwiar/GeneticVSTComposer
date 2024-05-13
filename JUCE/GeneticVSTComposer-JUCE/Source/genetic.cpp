@@ -1,5 +1,6 @@
 #include "genetic.hpp"
 #include "mingus.hpp"
+#include "notes_generator.hpp"
 #include <algorithm>
 #include <iostream>
 #include <numeric>
@@ -23,15 +24,13 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     std::random_device rd;  // Obtain a seed for the random number generator
     rng = std::mt19937(rd()); // Use the seed to initialize the generator
 
-    // Fill NOTES with values from noteRange.first to noteRange.second, inclusive
-    int notesCount = noteRange.second - noteRange.first + 1;
-    NOTES.reserve(notesCount);
-    for (int i = noteRange.first; i <= noteRange.second; ++i) {
-        NOTES.push_back(i);
-    }
 
-    // Przyk³adowe wype³nienie scale_notes - to bêdzie wymaga³o prawdziwej implementacji
-    scale_notes = { 1, 3, 4, 6, 8, 10, 11, 13 }; // C-dur dla przyk³adu
+    NotesGenerator generator = NotesGenerator(scale);
+
+    int notesCount = noteRange.second - noteRange.first + 1;
+
+    NOTES = generator.generateChromaticNotes(noteRange);
+    scale_notes = NotesGenerator(scale).generateNotes(8, 1);
 
     set_coefficients(diversity, dynamics, arousal, valence,
         jazziness, weirdness);
