@@ -30,7 +30,7 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     int notesCount = noteRange.second - noteRange.first + 1;
 
     NOTES = generator.generateChromaticNotes(noteRange);
-    scale_notes = NotesGenerator(scale).generateNotes(8, 1);
+    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is no octaves, second is start octave (duh)
 
     set_coefficients(diversity, dynamics, arousal, valence,
         jazziness, weirdness);
