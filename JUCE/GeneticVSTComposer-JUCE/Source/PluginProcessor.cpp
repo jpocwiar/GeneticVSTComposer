@@ -206,10 +206,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     if (isSequencePlaying && !melody.empty()) {
         while (nextNoteTime < numSamples && isSequencePlaying) {
             if (currentNoteIndex < melody.size()) {
-                const int note = melody[currentNoteIndex] + transposition;
+                const int note = melody[currentNoteIndex];
                 if (note >= 0) {
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note + transposition, (juce::uint8)100), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note + transposition), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
                     // Pause, do nothing
                 } else if (note == -2 && lastNote != -1) {
