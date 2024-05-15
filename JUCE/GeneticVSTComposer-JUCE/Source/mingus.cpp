@@ -454,6 +454,8 @@ std::string determine(const std::string& note1, const std::string& note2, bool s
             return "diminished " + current[0];
         }
         return std::string(maj - halfNotes, 'b') + current[1];
+    } else {
+        throw std::invalid_argument("Cannot determine note interval between '" + note1 + "' and '" + note2 + "'");
     }
 }
 

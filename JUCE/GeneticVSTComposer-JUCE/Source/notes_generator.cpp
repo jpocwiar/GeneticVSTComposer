@@ -38,35 +38,40 @@ std::pair<std::string, std::string> NotesGenerator::parseScaleName() {
 }
 
 std::vector<std::string> NotesGenerator::chooseScale() {
-    auto [note, scaleType] = parseScaleName();
+    std::pair<std::string, std::string> scaleNameData = parseScaleName();
+    std::string note = scaleNameData.first;
+    std::string scaleType = scaleNameData.second;
 
-    std::map<std::string, Scales::Scale (*)(const std::string&) > scaleMethods = {
-        {"Harmonic Minor", [](const std::string& str) -> Scales::Scale { return Scales::HarmonicMinor(str); } },
-        {"Natural Minor", [](const std::string& str) -> Scales::Scale { return Scales::NaturalMinor(str); } },
-        {"Melodic Minor", [](const std::string& str) -> Scales::Scale { return Scales::MelodicMinor(str); } },
-        {"Major", [](const std::string& str) -> Scales::Scale { return Scales::Major(str); } },
-        {"Ionian", [](const std::string& str) -> Scales::Scale { return Scales::Ionian(str); } },
-        {"Dorian", [](const std::string& str) -> Scales::Scale { return Scales::Dorian(str); } },
-        {"Phrygian", [](const std::string& str) -> Scales::Scale { return Scales::Phrygian(str); } },
-        {"Lydian", [](const std::string& str) -> Scales::Scale { return Scales::Lydian(str); } },
-        {"Mixolydian", [](const std::string& str) -> Scales::Scale { return Scales::Mixolydian(str); } },
-        {"Aeolian", [](const std::string& str) -> Scales::Scale { return Scales::Aeolian(str); } },
-        {"Locrian", [](const std::string& str) -> Scales::Scale { return Scales::Locrian(str); } },
-        {"Chromatic", [](const std::string& str) -> Scales::Scale { return Scales::Chromatic(str); } },
-        {"Whole Tone", [](const std::string& str) -> Scales::Scale { return Scales::WholeTone(str); } },
-        {"Octatonic", [](const std::string& str) -> Scales::Scale { return Scales::Octatonic(str); } },
+    std::map<std::string, std::function<Scales::Scale*(const std::string&)> > scaleMethods = {
+        {"Harmonic Minor", [](const std::string& str) { return new Scales::HarmonicMinor(str); } },
+        {"Natural Minor", [](const std::string& str) { return new Scales::NaturalMinor(str); } },
+        {"Melodic Minor", [](const std::string& str) { return new Scales::MelodicMinor(str); } },
+        {"Major", [](const std::string& str) { return new Scales::Major(str); } },
+        {"Ionian", [](const std::string& str) { return new Scales::Ionian(str); } },
+        {"Dorian", [](const std::string& str) { return new Scales::Dorian(str); } },
+        {"Phrygian", [](const std::string& str) { return new Scales::Phrygian(str); } },
+        {"Lydian", [](const std::string& str) { return new Scales::Lydian(str); } },
+        {"Mixolydian", [](const std::string& str) { return new Scales::Mixolydian(str); } },
+        {"Aeolian", [](const std::string& str) { return new Scales::Aeolian(str); } },
+        {"Locrian", [](const std::string& str) { return new Scales::Locrian(str); } },
+        {"Chromatic", [](const std::string& str) { return new Scales::Chromatic(str); } },
+        {"Whole Tone", [](const std::string& str) { return new Scales::WholeTone(str); } },
+        {"Octatonic", [](const std::string& str) { return new Scales::Octatonic(str); } },
     };
 
     if (scaleMethods.find(scaleType) != scaleMethods.end()) {
-        auto scale = scaleMethods[scaleType](note).ascending();
+        auto scale = scaleMethods[scaleType](note)->ascending();
         scale.pop_back();
         return scale;
     } else {
-        std::vector scaleTypeSplitted = split(scaleType, ' ');
+        std::vector<std::string> scaleTypeSplitted = split(scaleType, ' ');
         for (const std::string& word : scaleTypeSplitted) {
-            for (const auto& [key, value] : scaleMethods) {
+            for (auto it = scaleMethods.begin(); it != scaleMethods.end(); ++it) {
+                const std::string& key = it->first;
+                const std::function<Scales::Scale*(const std::string&)>& value = it->second;
+
                 if (key.find(word) != std::string::npos) {
-                    std::vector<std::string> scale = value(note).ascending();
+                    std::vector<std::string> scale = value(note)->ascending();
                     scale.pop_back();
                     return scale;
                 }
