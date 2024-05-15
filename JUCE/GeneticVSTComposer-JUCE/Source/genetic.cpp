@@ -556,20 +556,17 @@ float GeneticMelodyGenerator::fitness_small_intervals(const std::vector<int>& me
 
 std::pair<float, float> GeneticMelodyGenerator::fitness_scale_and_chord(const std::vector<int>& melody) {
     int scale_length_counter = 0;
-    int root_length_counter = 0; // We'll set this aside for now since it's not implemented
+    int root_length_counter = 0;
     int total_length_counter = 0;
 
     for (int note : melody) {
         if (note != -2) {
-            // Check if the note is in the scale notes
             if (std::find(scale_notes.begin(), scale_notes.end(), note % 12) != scale_notes.end()) {
                 scale_length_counter++;
             }
             if (note % 12 == scale_notes[0]) {
                 root_length_counter++;
             }
-            // For chords, you will need to implement a way to check if a note is in the current chord
-            // ...
 
             total_length_counter++;
         }

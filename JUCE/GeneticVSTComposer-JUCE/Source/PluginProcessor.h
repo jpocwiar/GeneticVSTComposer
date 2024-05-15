@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "genetic.hpp"
+#include "notes_generator.hpp"
 
 //==============================================================================
 /**

@@ -97,7 +97,7 @@ std::vector<int> NotesGenerator::generateNotes(int numberOfOctaves, int startOct
             if (!notes.empty() && noteValue <= notes.back()) {
                 noteValue += 12;
             }
-            notes.push_back(noteValue);
+            notes.push_back(noteValue % 12);
         }
     }
 
