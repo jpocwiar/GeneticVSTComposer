@@ -4,6 +4,7 @@
 #include <regex>
 #include <stdexcept>
 #include <map>
+#include <functional>
 #include "mingus.hpp"
 #include "notes_generator.hpp"
 

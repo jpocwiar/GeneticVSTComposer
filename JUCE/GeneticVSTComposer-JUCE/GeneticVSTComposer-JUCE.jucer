@@ -6,9 +6,12 @@
               pluginFormats="buildStandalone,buildVST3" pluginVST3Category="Fx">
   <MAINGROUP id="R6yz7R" name="GeneticVSTComposer-JUCE">
     <GROUP id="{C990335F-8FF4-29F1-1A20-77FBC2FC51B7}" name="Source">
+      <FILE id="W4G80r" name="notes_generator.cpp" compile="1" resource="0"
+            file="Source/notes_generator.cpp"/>
+      <FILE id="lwpaWJ" name="notes_generator.hpp" compile="0" resource="0"
+            file="Source/notes_generator.hpp"/>
       <FILE id="iEShd7" name="mingus.cpp" compile="1" resource="0" file="Source/mingus.cpp"/>
       <FILE id="qK1CAB" name="mingus.hpp" compile="0" resource="0" file="Source/mingus.hpp"/>
-      <FILE id="VMLNth" name="GAinCpp.cpp" compile="1" resource="0" file="Source/GAinCpp.cpp"/>
       <FILE id="jtrWKL" name="genetic.cpp" compile="1" resource="0" file="Source/genetic.cpp"/>
       <FILE id="tQgZVe" name="genetic.hpp" compile="0" resource="0" file="Source/genetic.hpp"/>
       <FILE id="L2Uoq3" name="PluginProcessor.cpp" compile="1" resource="0"
