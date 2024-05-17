@@ -139,7 +139,8 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Source\GAinCpp.cpp"/>
+    <ClCompile Include="..\..\Source\notes_generator.cpp"/>
+    <ClCompile Include="..\..\Source\mingus.cpp"/>
     <ClCompile Include="..\..\Source\genetic.cpp"/>
     <ClCompile Include="..\..\Source\PluginProcessor.cpp"/>
     <ClCompile Include="..\..\Source\PluginEditor.cpp"/>
@@ -2442,6 +2443,8 @@
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_gui_extra.cpp"/>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\notes_generator.hpp"/>
+    <ClInclude Include="..\..\Source\mingus.hpp"/>
     <ClInclude Include="..\..\Source\genetic.hpp"/>
     <ClInclude Include="..\..\Source\PluginProcessor.h"/>
     <ClInclude Include="..\..\Source\PluginEditor.h"/>

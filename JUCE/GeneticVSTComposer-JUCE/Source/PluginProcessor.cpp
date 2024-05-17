@@ -206,10 +206,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     if (isSequencePlaying && !melody.empty()) {
         while (nextNoteTime < numSamples && isSequencePlaying) {
             if (currentNoteIndex < melody.size()) {
-                const int note = melody[currentNoteIndex] + transposition;
+                const int note = melody[currentNoteIndex];
                 if (note >= 0) {
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)100), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note), nextNoteTime + samplesBetweenNotes - 1);
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note + transposition, (juce::uint8)100), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note + transposition), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
                     // Pause, do nothing
                 } else if (note == -2 && lastNote != -1) {
@@ -234,21 +234,25 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
 void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
                                                           std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
 {
+    NotesGenerator generator_nut = NotesGenerator(scale);
+    std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
+    float diversity = 0.8;
+    float dynamics = 0.8;
+    float arousal = 0.8;
+    float valence = 0.8;
+    float jazziness = 0.5;
+    float weirdness = 0.5;
     //run the genetic algorithm
-    GeneticMelodyGenerator generator(scale, noteRange, meter, noteDuration, populationSize, numGenerations);
+    GeneticMelodyGenerator generator(scale, noteRange, diversity, dynamics, arousal, valence,
+        jazziness, weirdness, meter, noteDuration, populationSize, numGenerations);
 
     //melody = generator.run(1);
     melodies = generator.run(1);
 
     //DEBUG - for now just print some results to string
-    debugInfo = "Generated Melodies:\n";
-    int melodyCount = 0;
-    for (const auto& melody : melodies) {
-        debugInfo += "Melody " + std::to_string(++melodyCount) + ": ";
-        for (int note : melody) {
-            debugInfo += std::to_string(note) + " ";
-        }
-        debugInfo += "\n";  // Append a newline after each melody for better readability
+    debugInfo = "Scale notes:\n";
+    for (int note : scale_notes) {
+        debugInfo += std::to_string(note) + " ";
     }
 }
 

@@ -5,14 +5,17 @@
 #include <map>
 #include <string>
 #include <random>
+#include "mingus.hpp"
 
 class GeneticMelodyGenerator {
 public:
-    GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
+    GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange, float diversity, float dynamics, float arousal, float valence,
+        float jazziness, float weirdness,
         const std::pair<int, int>& meter = { 4, 4 }, float noteDuration = 0.5,
         int populationSize = 128, int numGenerations = 100);
 
-    void set_coefficients(const std::map<std::string, float>& mu_values = {},
+    void set_coefficients(float diversity, float dynamics, float arousal,
+        float valence, float jazziness, float weirdness, const std::map<std::string, float>& mu_values = {},
         const std::map<std::string, float>& sigma_values = {},
         const std::map<std::string, int>& weights = {});
 
@@ -23,7 +26,7 @@ public:
     std::vector<int> tournament_selection(const std::vector<std::vector<int>>& population, int tournament_size = 4);
 
     // Deklaracja funkcji oceny (fitness), która bêdzie potrzebna do metody tournament_selection
-    float fitness(const std::vector<int>& individual);
+    float fitness(const std::vector<int>& individual, const std::vector<std::vector<int>>& population);
     void mutate(std::vector<int>& melody);
     std::vector<std::vector<int>> run(int measures = 1);
 
@@ -38,6 +41,12 @@ private:
     float crossoverRate;
     int expectedLength;
     int notesRange;
+    float diversity;
+    float dynamics;
+    float arousal;
+    float valence;
+    float jazziness;
+    float weirdness;
 
     std::pair<float, float> fitness_intervals(const std::vector<int>& melody);
     float fitness_directional_changes(const std::vector<int>& melody);
@@ -56,6 +65,7 @@ private:
     float fitness_average_intervals(const std::vector<int>& melody);
     float fitness_small_intervals(const std::vector<int>& melody);
     float fitness_repeated_short_notes(const std::vector<int>& melody);
+    float calculate_similarity_penalty(const std::vector<int>& melody, const std::vector<std::vector<int>>& population);
 
     // Coefficients for the genetic algorithm
     std::map<std::string, float> muValues;

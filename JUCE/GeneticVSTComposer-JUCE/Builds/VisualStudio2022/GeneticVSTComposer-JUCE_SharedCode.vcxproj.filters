@@ -601,7 +601,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Source\GAinCpp.cpp">
+    <ClCompile Include="..\..\Source\notes_generator.cpp">
+      <Filter>GeneticVSTComposer-JUCE\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\mingus.cpp">
       <Filter>GeneticVSTComposer-JUCE\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\genetic.cpp">
@@ -3078,6 +3081,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\notes_generator.hpp">
+      <Filter>GeneticVSTComposer-JUCE\Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\mingus.hpp">
+      <Filter>GeneticVSTComposer-JUCE\Source</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\genetic.hpp">
       <Filter>GeneticVSTComposer-JUCE\Source</Filter>
     </ClInclude>

@@ -1,4 +1,6 @@
 #include "genetic.hpp"
+#include "mingus.hpp"
+#include "notes_generator.hpp"
 #include <algorithm>
 #include <iostream>
 #include <numeric>
@@ -7,52 +9,58 @@
 #include <unordered_set>
 
 GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
+    float diversity, float dynamics, float arousal,
+    float valence, float jazziness, float weirdness,
     const std::pair<int, int>& meter, float noteDuration,
     int populationSize, int numGenerations)
-    : meter(meter), noteDuration(noteDuration), populationSize(populationSize),
-    numGenerations(numGenerations), mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
-    expectedLength(static_cast<int>(1 / noteDuration)), notesRange(noteRange.second - noteRange.first) {
+    : diversity(diversity), dynamics(dynamics), arousal(arousal),
+    valence(valence), jazziness(jazziness), weirdness(weirdness), meter(meter), noteDuration(noteDuration),
+    populationSize(populationSize), numGenerations(numGenerations),
+    mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
+    expectedLength(static_cast<int>(1 / noteDuration)),
+    notesRange(noteRange.second - noteRange.first)
+     {
 
     std::random_device rd;  // Obtain a seed for the random number generator
     rng = std::mt19937(rd()); // Use the seed to initialize the generator
 
-    // Fill NOTES with values from noteRange.first to noteRange.second, inclusive
+
+    NotesGenerator generator = NotesGenerator(scale);
+
     int notesCount = noteRange.second - noteRange.first + 1;
-    NOTES.reserve(notesCount);
-    for (int i = noteRange.first; i <= noteRange.second; ++i) {
-        NOTES.push_back(i);
-    }
 
-    // Przyk³adowe wype³nienie scale_notes - to bêdzie wymaga³o prawdziwej implementacji
-    scale_notes = { 0, 2, 4, 5, 7, 9, 11, 12 }; // C-dur dla przyk³adu
+    NOTES = generator.generateChromaticNotes(noteRange);
+    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is no octaves, second is start octave (duh)
 
-    set_coefficients();
+    set_coefficients(diversity, dynamics, arousal, valence,
+        jazziness, weirdness);
 }
 
-void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>& mu_values,
+void GeneticMelodyGenerator::set_coefficients(float diversity, float dynamics, float arousal,
+    float valence, float jazziness, float weirdness, const std::map<std::string, float>& mu_values,
     const std::map<std::string, float>& sigma_values,
     const std::map<std::string, int>& weights) {
     // Ustaw wartoœci domyœlne, jeœli nie przekazano ¿adnych map
     this->muValues = mu_values.empty() ? std::map<std::string, float>{
-        {"diversity", 0.8},
-        { "diversity_interval", 0.8 },
-        { "dissonance", 0.25 },
-        { "rhythmic_diversity", 0.7 },
-        { "rhythmic_average_value", 0.5 },
-        { "very_long_notes_score", 0 },
-        { "deviation_rhythmic_value", 0.5 },
-        { "scale_conformance", 0.9 },
-        { "chord_conformance", 0.5 },
-        { "melodic_contour", 0.1 },
-        { "pitch_range", 0.3 },
-        { "pause_proportion", 0.3 },
-        { "large_intervals", 0.0 },
-        { "average_pitch", 0.6 },
-        { "pitch_variation", 0.4 },
-        { "odd_index_notes", 0.1 },
-        { "average_interval", 0.3 },
-        { "scale_playing", 0.8 },
-        { "short_consecutive_notes", 0.75 }
+        {"diversity", diversity},
+        { "diversity_interval", diversity },
+        { "dissonance", (1 - valence) * 0.4 + jazziness * 0.2 },
+        { "rhythmic_diversity", diversity * 0.2 + dynamics * 0.5 + arousal * 0.2 },
+        { "rhythmic_average_value", (1 - arousal) },
+        { "very_long_notes_score", 0.05 },
+        { "deviation_rhythmic_value", dynamics },
+        { "scale_conformance", (1 - jazziness) * 0.5 + 0.5 },
+        { "root_conformance", 0.3 }, 
+        { "melodic_contour", valence },
+        { "pitch_range", dynamics * 0.5 + arousal * 0.5 },
+        { "pause_proportion", dynamics * 0.2 - arousal * 0.1 },
+        { "large_intervals", weirdness },
+        { "average_pitch", arousal * 0.2 + valence * 0.3 },
+        { "pitch_variation", dynamics * 0.5 },
+        { "odd_index_notes", weirdness },
+        { "average_interval", (1 - dynamics) * 0.5 + (1 - valence) * 0.5 },
+        { "scale_playing", jazziness * 0.3 + dynamics * 0.5 },
+        { "short_consecutive_notes", 0.5 * arousal + jazziness * 0.2 }
     } : mu_values;
 
     this->sigmaValues = sigma_values.empty() ? std::map<std::string, float>{
@@ -64,7 +72,7 @@ void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>
         { "deviation_rhythmic_value", 0.1 },
         { "very_long_notes_score", 0.1 },
         { "scale_conformance", 0.1 },
-        { "chord_conformance", 0.1 },
+        { "root_conformance", 0.1 },
         { "melodic_contour", 0.1 },
         { "pitch_range", 0.1 },
         { "pause_proportion", 0.1 },
@@ -86,7 +94,7 @@ void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>
         { "deviation_rhythmic_value", 2 },
         { "very_long_notes_score", 3 },
         { "scale_conformance", 3 },
-        { "chord_conformance", 3 },
+        { "root_conformance", 3 },
         { "melodic_contour", 1 },
         { "pitch_range", 1 },
         { "pause_proportion", 1 },
@@ -103,7 +111,6 @@ void GeneticMelodyGenerator::set_coefficients(const std::map<std::string, float>
 
 void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     std::uniform_real_distribution<float> prob_dist(0.0, 1.0);
-    std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
     std::uniform_int_distribution<int> interval_dist(-12, 12);
     float MUTATION_RATE = 0.3;
     std::vector<int> valid_indices;
@@ -113,10 +120,9 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         }
     }
 
-    // Poni¿ej pokazujê jedn¹ z mutacji jako przyk³ad. Pozosta³e mutacje powinieneœ zaimplementowaæ analogicznie.
-
     // Pierwsza mutacja: zamiana dwóch nut na interwa³
-    if (prob_dist(rng) < MUTATION_RATE) {
+    if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
+        std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
         int first_note_index = index_dist(rng);
         int second_note_index;
         do {
@@ -130,7 +136,8 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     }
 
     // Przyk³ad kolejnej mutacji: transpozycja fragmentu melodii
-    if (prob_dist(rng) < MUTATION_RATE) {
+    if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
+        std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
         int start_index = index_dist(rng);
         int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
         int end_index = std::min(start_index + length, static_cast<int>(melody.size()));
@@ -147,7 +154,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     }
 
     // Extension mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1 && !melody.empty()) {
     // Adjust the range for uniform_int_distribution to exclude the first index
         int extend_index = valid_indices[std::uniform_int_distribution<int>(1, valid_indices.size() - 1)(rng)];
 
@@ -156,7 +163,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     }
 
     // Replacement mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty() ) {
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
         int replace_index = std::uniform_int_distribution<int>(0, melody.size() - 1)(rng);
         if (melody[replace_index] == -1) {
             // Replace a pause with a random note
@@ -189,7 +196,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
     }
 
     // Note replacement mutation within extensions
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !valid_indices.empty()) {
+    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
         int chosen_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
         int chosen_note = melody[chosen_index];
         int extension_count = 0;
@@ -202,16 +209,17 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         }
 
         // Ensure we have a valid range for the random number generator
-        if(chosen_index + 1 < melody.size()) {
+        if (chosen_index + 1 < melody.size()) {
             if (extension_count + 1 > expectedLength) {
-                int maxIndex = std::min(chosen_index + 1 + extension_count, static_cast<int>(melody.size()));
-                int replace_index = std::uniform_int_distribution<int>(chosen_index + 1, maxIndex - 1)(rng);
+                // The range for replace_index is chosen_index + 1 to chosen_index + 1 + extension_count
+                // This should not go beyond the size of the melody vector
+                int replace_index = std::uniform_int_distribution<int>(chosen_index + 1, std::min(chosen_index + 1 + extension_count, static_cast<int>(melody.size()) - 1))(rng);
                 melody[replace_index] = chosen_note;
             }
-            else {
-                int spaceLeft = std::min(expectedLength - extension_count, static_cast<int>(melody.size()) - chosen_index - 1);
-                int additional_extensions = std::uniform_int_distribution<int>(1, spaceLeft)(rng);
-                int end_index = chosen_index + 1 + additional_extensions;
+            else if (extension_count + 1 < expectedLength && chosen_index + 1 + extension_count < melody.size()) {
+                // If we're going to extend, ensure it doesn't go beyond the size of the melody
+                int additional_extensions = std::uniform_int_distribution<int>(1, std::min(expectedLength - extension_count, static_cast<int>(melody.size()) - chosen_index - extension_count - 1))(rng);
+                int end_index = std::min(chosen_index + 1 + additional_extensions, static_cast<int>(melody.size()));
                 std::fill(melody.begin() + chosen_index + 1, melody.begin() + end_index, -2);
             }
         }
@@ -290,7 +298,7 @@ std::vector<int> GeneticMelodyGenerator::tournament_selection(const std::vector<
 
     for (int i = 0; i < tournament_size; ++i) {
         const std::vector<int>& candidate = population[dist(rng)];
-        float candidate_fitness = fitness(candidate);
+        float candidate_fitness = fitness(candidate, population);
         if (candidate_fitness > best_fitness) {
             best_fitness = candidate_fitness;
             best = candidate;
@@ -548,34 +556,34 @@ float GeneticMelodyGenerator::fitness_small_intervals(const std::vector<int>& me
 
 std::pair<float, float> GeneticMelodyGenerator::fitness_scale_and_chord(const std::vector<int>& melody) {
     int scale_length_counter = 0;
-    int chord_length_counter = 0; // We'll set this aside for now since it's not implemented
+    int root_length_counter = 0;
     int total_length_counter = 0;
 
     for (int note : melody) {
         if (note != -2) {
-            // Check if the note is in the scale notes
             if (std::find(scale_notes.begin(), scale_notes.end(), note % 12) != scale_notes.end()) {
                 scale_length_counter++;
             }
-            // For chords, you will need to implement a way to check if a note is in the current chord
-            // ...
+            if (note % 12 == scale_notes[0]) {
+                root_length_counter++;
+            }
 
             total_length_counter++;
         }
     }
 
     float scale_conformance_score = 0.0;
-    float chord_conformance_score = 0.0; // We'll leave this as 0 until chord checking is implemented
+    float root_conformance_score = 0.0; // We'll leave this as 0 until chord checking is implemented
 
     if (total_length_counter != 0) {
         scale_conformance_score = static_cast<float>(scale_length_counter) / total_length_counter;
-        // chord_conformance_score would be calculated here if chord checking is implemented
+        root_conformance_score = static_cast<float>(root_length_counter) / total_length_counter;
     }
     else {
         return { 0.0, 0.0 };
     }
 
-    return { scale_conformance_score, chord_conformance_score };
+    return { scale_conformance_score, root_conformance_score };
 }
 
 float GeneticMelodyGenerator::fitness_pause_proportion(const std::vector<int>& melody) {
@@ -738,7 +746,26 @@ std::pair<float, float> GeneticMelodyGenerator::fitness_intervals(const std::vec
     return { dissonance_score, large_intervals_score };
 }
 
-float GeneticMelodyGenerator::fitness(const std::vector<int>& melody) {
+float GeneticMelodyGenerator::calculate_similarity_penalty(const std::vector<int>& melody, const std::vector<std::vector<int>>& population) {
+    int total_similarity = 0;
+    int total_notes = (melody.size() - 1) * (population.size() - 1);
+
+    for (const auto& other_melody : population) {
+        if (&melody != &other_melody) {  // Unikamy porównania z samą sobą
+            for (size_t i = 1; i < melody.size() && i < other_melody.size(); ++i) {
+                if (melody[i] == other_melody[i]) {
+                    total_similarity++;
+                }
+            }
+        }
+    }
+    if (total_notes > 0) {
+        return static_cast<float>(total_similarity) / total_notes;
+    }
+    return 0.0f;
+}
+
+float GeneticMelodyGenerator::fitness(const std::vector<int>& melody, const std::vector<std::vector<int>>& population) {
     // Scores from individual fitness functions
     std::pair<float, float> intervals_score = fitness_intervals(melody);
     std::pair<float, float> scale_chord_score = fitness_scale_and_chord(melody);
@@ -766,7 +793,7 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody) {
         {"rhythmic_average_value", log_rhythmic_values.first},
         {"deviation_rhythmic_value", log_rhythmic_values.second},
         {"scale_conformance", scale_chord_score.first},
-        // {"chord_conformance", scale_chord_score.second},
+        {"root_conformance", scale_chord_score.second},
         {"melodic_contour", melodic_contour_score},
         {"pitch_range", pitch_range_score},
         {"pause_proportion", pause_proportion_score},
@@ -786,7 +813,9 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody) {
             fitness_value += weights[feature] * std::exp(-0.5 * std::pow((score - muValues[feature]) / sigmaValues[feature], 2));
         }
     }
-
+    int similarity_weight = 10;
+    float similarity_penalty = calculate_similarity_penalty(melody, population);
+    fitness_value -= similarity_penalty * similarity_weight;
     return fitness_value;
 }
 
@@ -797,7 +826,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures) {
     std::vector<std::vector<int>> new_population;
     int POPULATION_SIZE = 128;
     int NUM_GENERATIONS = 100;
-    int CROSSOVER_RATE = 0.9;
+    float CROSSOVER_RATE = 0.9;
     new_population.reserve(POPULATION_SIZE);
 
     for (int generation = 0; generation < NUM_GENERATIONS; ++generation) {
@@ -809,7 +838,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures) {
             std::vector<int> parent2 = tournament_selection(population);
             std::vector<int> child1, child2;
 
-            if (prob_dist(rng) < CROSSOVER_RATE) {
+            if (prob_dist(rng) < CROSSOVER_RATE && !parent1.empty() && !parent2.empty()) {
                 std::tie(child1, child2) = crossover(parent1, parent2);
             }
             else {
@@ -827,8 +856,8 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures) {
     }
 
     // Sort the population by fitness in descending order
-    std::sort(population.begin(), population.end(), [this](const std::vector<int>& a, const std::vector<int>& b) {
-        return fitness(a) > fitness(b);
+    std::sort(population.begin(), population.end(), [this, &population](const std::vector<int>& a, const std::vector<int>& b) {
+        return fitness(a, population) > fitness(b, population);
     });
 
     // Collect the top 12 best melodies
