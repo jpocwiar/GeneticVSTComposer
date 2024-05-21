@@ -37,6 +37,33 @@ private:
     int counter = 1;
 
     juce::TextButton startGenBtn;
+
+    //===NEW DATA===
+    juce::ComboBox scaleBox1;
+    juce::ComboBox scaleBox2;
+    juce::ComboBox seqLenBox;
+    juce::Slider diversitySlid;
+    juce::Slider dynamicsSlid;
+    juce::Slider arousalSlid;
+    juce::Slider valenceSlid;
+    juce::Slider jazzinessSlid;
+    juce::Slider weirdnessSlid;
+    juce::Slider noteRangeSlid;
+    juce::Slider speedQualitySlid;
+
+    juce::Label scaleLbl;
+    juce::Label seqLenLbl;
+    juce::Label diversityLbl;
+    juce::Label dynamicsLbl;
+    juce::Label arousalLbl;
+    juce::Label valenceLbl;
+    juce::Label jazzinessLbl;
+    juce::Label weirdnessLbl;
+    juce::Label noteRangeLbl;
+    juce::Label speedLbl;
+    juce::Label qualityLbl;
+
+    //===OLD DATA===
     //main data
     juce::TextEditor scaleTxt;//string
     juce::TextEditor minNoteRangeTxt;//int
