@@ -34,6 +34,8 @@ private:
 
     void buttonClicked(juce::Button* button) override;
 
+    std::pair<int, int> SpeedQualityValues[3] = { {64, 50}, {128, 100}, {256, 200} };//populations, generations (speed <--> quality)
+
     int counter = 1;
 
     juce::TextButton startGenBtn;
@@ -42,6 +44,7 @@ private:
     juce::ComboBox scaleBox1;
     juce::ComboBox scaleBox2;
     juce::ComboBox seqLenBox;
+    juce::ComboBox noteDurationBox;
     juce::Slider diversitySlid;
     juce::Slider dynamicsSlid;
     juce::Slider arousalSlid;
@@ -53,6 +56,7 @@ private:
 
     juce::Label scaleLbl;
     juce::Label seqLenLbl;
+    juce::Label noteDurationLbl;
     juce::Label diversityLbl;
     juce::Label dynamicsLbl;
     juce::Label arousalLbl;
@@ -64,16 +68,16 @@ private:
     juce::Label qualityLbl;
 
     //===OLD DATA===
-    //main data
-    juce::TextEditor scaleTxt;//string
-    juce::TextEditor minNoteRangeTxt;//int
-    juce::TextEditor maxNoteRangeTxt;//int
+    //---main data
+    //juce::TextEditor scaleTxt;//string
+    //juce::TextEditor minNoteRangeTxt;//int
+    //juce::TextEditor maxNoteRangeTxt;//int
     juce::TextEditor minMeterTxt;//int
     juce::TextEditor maxMeterTxt;//int
-    juce::TextEditor noteDurationTxt;//float
-    //GA data
-    juce::TextEditor populationSizeTxt;//int
-    juce::TextEditor genNumberTxt;//int
+    //juce::TextEditor noteDurationTxt;//float
+    //---GA data
+    //juce::TextEditor populationSizeTxt;//int
+    //juce::TextEditor genNumberTxt;//int
 
     juce::Label debugLabel;
 

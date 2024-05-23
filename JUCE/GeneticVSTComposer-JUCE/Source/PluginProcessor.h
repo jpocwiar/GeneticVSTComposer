@@ -34,8 +34,18 @@ public:
 
     //          CUSTOM
     //Method to generate melody and save it in the processor using Genetic Algorithms
-    void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
-        std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations);
+    void GenerateMelody(std::string scale,
+        std::pair<int, int> noteRange,
+        std::pair<int, int> meter,
+        float diversity,
+        float dynamics,
+        float arousal,
+        float valence,
+        float jazziness,
+        float weirdness,
+        double noteDuration,
+        int populationSize,
+        int numGenerations);
     std::vector<int> melody;
     std::vector<std::vector<int>> melodies;
     std::string debugInfo;

@@ -231,20 +231,34 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
 }
 
 
-void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
-                                                          std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
+                                                            std::pair<int, int> noteRange,
+                                                            std::pair<int, int> meter,
+                                                            float diversity,
+                                                            float dynamics,
+                                                            float arousal,
+                                                            float valence,
+                                                            float jazziness,
+                                                            float weirdness,
+                                                            double noteDuration,
+                                                            int populationSize,
+                                                            int numGenerations)
 {
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
-    float diversity = 0.8;
-    float dynamics = 0.8;
-    float arousal = 0.8;
-    float valence = 0.8;
-    float jazziness = 0.5;
-    float weirdness = 0.5;
     //run the genetic algorithm
-    GeneticMelodyGenerator generator(scale, noteRange, diversity, dynamics, arousal, valence,
-        jazziness, weirdness, meter, noteDuration, populationSize, numGenerations);
+    GeneticMelodyGenerator generator(   scale,
+                                        noteRange,
+                                        diversity,
+                                        dynamics,
+                                        arousal,
+                                        valence,
+                                        jazziness,
+                                        weirdness,
+                                        meter,
+                                        noteDuration,
+                                        populationSize,
+                                        numGenerations);
 
     //melody = generator.run(1);
     melodies = generator.run(1);
@@ -254,6 +268,20 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
     for (int note : scale_notes) {
         debugInfo += std::to_string(note) + " ";
     }
+
+    debugInfo += "\n===Sent data:";
+    debugInfo += "\n\nScale: " + scale;
+    debugInfo += "\nNote range: " + std::to_string(noteRange.first) + "," + std::to_string(noteRange.second);
+    debugInfo += "\nDiversity: " + std::to_string(diversity);
+    debugInfo += "\nDynamics: " + std::to_string(dynamics);
+    debugInfo += "\narousal: " + std::to_string(arousal);
+    debugInfo += "\nValence: " + std::to_string(valence);
+    debugInfo += "\nJazziness: " + std::to_string(jazziness);
+    debugInfo += "\nWeirdness: " + std::to_string(weirdness);
+    debugInfo += "\nMeter: " + std::to_string(meter.first) + "," + std::to_string(meter.second);
+    debugInfo += "\nNote duration: " + std::to_string(noteDuration);
+    debugInfo += "\nPopulation size: " + std::to_string(populationSize);
+    debugInfo += "\nNumber of Generations: " + std::to_string(numGenerations);
 }
 
 //==============================================================================
