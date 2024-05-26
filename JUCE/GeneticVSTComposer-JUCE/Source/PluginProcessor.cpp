@@ -154,6 +154,25 @@ static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
     return juce::String::toHexString(m.getRawData(), m.getRawDataSize());
 }
 
+int distanceToClosest(int targetNote) {
+    std::vector<int> notes(NotesGenerator::g_scale_notes);
+    if (notes.empty()) {
+        return 0;
+    }
+
+    notes.push_back(notes.front() + 12);
+    int current = 0;
+    while (targetNote > notes[current+1]) {
+        ++current;
+    }
+    if (targetNote - notes[current] < notes[current + 1] - targetNote) {
+        return notes[current] - targetNote;
+    }
+    else {
+        return notes[current + 1] - targetNote;
+    }
+}
+
 void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     jassert(buffer.getNumChannels() == 0);  // It's a MIDI plugin, no audio data should be processed.
@@ -208,8 +227,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
             if (currentNoteIndex < melody.size()) {
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note + transposition, (juce::uint8)100), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note + transposition), nextNoteTime + samplesBetweenNotes - 1);
+                    int transposedNote = note + transposition;
+                    int transposedNoteSnapped = transposedNote + distanceToClosest(transposedNote);
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)100), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
                     // Pause, do nothing
                 } else if (note == -2 && lastNote != -1) {
@@ -236,6 +257,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
 {
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
+    NotesGenerator::g_scale_notes = scale_notes;
     float diversity = 0.8;
     float dynamics = 0.8;
     float arousal = 0.8;
