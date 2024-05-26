@@ -228,7 +228,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
                     int transposedNote = note + transposition;
-                    int transposedNoteSnapped = transposedNote + distanceToClosest(transposedNote);
+                    int transposedNoteSnapped = transposedNote + distanceToClosest(transposedNote % 12);
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)100), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
