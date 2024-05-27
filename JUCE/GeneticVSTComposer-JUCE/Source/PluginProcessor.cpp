@@ -154,22 +154,23 @@ static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
     return juce::String::toHexString(m.getRawData(), m.getRawDataSize());
 }
 
-int distanceToClosest(int targetNote) {
+int snapNoteToScale(int targetNote) {
     std::vector<int> notes(NotesGenerator::g_scale_notes);
     if (notes.empty()) {
-        return 0;
+        return targetNote;
     }
 
     notes.push_back(notes.front() + 12);
     int current = 0;
-    while (targetNote > notes[current+1]) {
+    int targetNoteBaseScale = targetNote % 12;
+    while (targetNoteBaseScale > notes[current+1]) {
         ++current;
     }
-    if (targetNote - notes[current] < notes[current + 1] - targetNote) {
-        return notes[current] - targetNote;
+    if (targetNoteBaseScale - notes[current] < notes[current + 1] - targetNoteBaseScale) {
+        return targetNote + notes[current] - targetNoteBaseScale;
     }
     else {
-        return notes[current + 1] - targetNote;
+        return targetNote + notes[current + 1] - targetNoteBaseScale;
     }
 }
 
@@ -228,7 +229,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
                     int transposedNote = note + transposition;
-                    int transposedNoteSnapped = transposedNote + distanceToClosest(transposedNote % 12);
+                    int transposedNoteSnapped = snapNoteToScale(transposedNote);
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)100), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
