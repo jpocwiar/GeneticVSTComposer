@@ -15,6 +15,7 @@ private:
     std::vector<std::string> chooseScale();
 
 public:
+    static std::vector<int> g_scale_notes;
     NotesGenerator(const std::string& key = "C Major");
 
     std::vector<int> generateNotes(int numberOfOctaves = 1, int startOctave = 4);

@@ -95,6 +95,7 @@ std::vector<std::string> NotesGenerator::chooseScale() {
     }
 }
 
+std::vector<int> NotesGenerator::g_scale_notes = {};
 NotesGenerator::NotesGenerator(const std::string& key) : key(key) {}
 
 std::vector<int> NotesGenerator::generateNotes(int numberOfOctaves, int startOctave) {

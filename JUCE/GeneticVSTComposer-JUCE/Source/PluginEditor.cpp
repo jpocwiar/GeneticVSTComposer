@@ -84,7 +84,7 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
     {
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
         audioProcessor.GenerateMelody(scaleTxt.getText().toStdString(), { minNoteRangeTxt.getText().getIntValue(), maxNoteRangeTxt.getText().getIntValue() },
-            { minMeterTxt.getText().getIntValue(), maxMeterTxt.getText().getIntValue() }, noteDurationTxt.getText().getDoubleValue(),
+            noteDurationTxt.getText().getDoubleValue(),
             populationSizeTxt.getText().getIntValue(), genNumberTxt.getText().getIntValue());
 
         //update the debug info on the plugin window
