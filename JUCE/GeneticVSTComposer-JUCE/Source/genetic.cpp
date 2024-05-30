@@ -30,7 +30,7 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     int notesCount = noteRange.second - noteRange.first + 1;
 
     NOTES = generator.generateChromaticNotes(noteRange);
-    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is no octaves, second is start octave (duh)
+    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is n.o. octaves, second is start octave (duh)
 
     set_coefficients(diversity, dynamics, arousal, valence,
         jazziness, weirdness);
@@ -135,7 +135,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         melody[second_note_index] = std::min(std::max(melody[second_note_index], NOTES.front()), NOTES.back());
     }
 
-    // Przyk³ad kolejnej mutacji: transpozycja fragmentu melodii
+    // transpozycja fragmentu melodii
     if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
         std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
         int start_index = index_dist(rng);

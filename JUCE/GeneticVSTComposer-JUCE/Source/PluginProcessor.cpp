@@ -156,6 +156,7 @@ static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
 
 int snapNoteToScale(int targetNote) {
     std::vector<int> notes(NotesGenerator::g_scale_notes);
+    std::sort(notes.begin(), notes.end());
     if (notes.empty()) {
         return targetNote;
     }
@@ -273,9 +274,19 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
     melodies = generator.run(1);
 
     //DEBUG - for now just print some results to string
-    debugInfo = "Scale notes:\n";
-    for (int note : scale_notes) {
-        debugInfo += std::to_string(note) + " ";
+    //debugInfo = "Scale notes:\n";
+    //for (int note : scale_notes) {
+    //    debugInfo += std::to_string(note) + " ";
+    //}
+
+    debugInfo = "Generated Melodies:\n";
+    int melodyCount = 0;
+    for (const auto& melody : melodies) {
+        debugInfo += "Melody " + std::to_string(++melodyCount) + ": ";
+        for (int note : melody) {
+            debugInfo += std::to_string(note) + " ";
+        }
+        debugInfo += "\n";  // Append a newline after each melody for better readability
     }
 }
 

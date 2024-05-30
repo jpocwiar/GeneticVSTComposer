@@ -2,6 +2,7 @@
 generated_midi/
 generation/generated_outputs/
 test_scripts/
+JUCE/GeneticVSTComposer-JUCE/Builds/
 .vs/
 *.mid
 *.json
