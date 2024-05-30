@@ -210,6 +210,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                     currentNoteIndex = 0;  // Restart the sequence
                     nextNoteTime = time;   // Start now
                     isSequencePlaying = true;
+                    initialVelocity = message.getVelocity();
                 }
             } else if (noteNumber >= 60) {
                 transposition = noteNumber - 60; // Set the transposition based on the key pressed
@@ -234,7 +235,14 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 if (note >= 0) {
                     int transposedNote = note + transposition;
                     int transposedNoteSnapped = snapNoteToScale(transposedNote);
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)100), nextNoteTime);
+
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    std::uniform_int_distribution<> dis(initialVelocity - 5, initialVelocity + 5);
+                    int velocity = dis(gen);
+                    velocity = std::clamp(velocity, 0, 127);
+
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)velocity), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
                 } else if (note == -1) {
                     // Pause, do nothing
