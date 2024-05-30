@@ -36,6 +36,7 @@ public:
     //Method to generate melody and save it in the processor using Genetic Algorithms
     void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
         double noteDuration, int populationSize, int numGenerations);
+    std::vector<int> originalMelody;
     std::vector<int> melody;
     std::vector<std::vector<int>> melodies;
     std::string debugInfo;
@@ -80,5 +81,32 @@ private:
     int selectedMelodyIndex = -1;
     int transposition = 0;
     int initialVelocity;
+
+    void adjustMelodyForMeter()
+    {
+        if (originalMelody.empty())
+            return;
+
+        // Calculate the number of notes in the melody for one measure
+        int currentMeasureLength = meter.first * 4 / meter.second;
+        int newMeasureLength = meter.first * 4 / meter.second;
+
+        // Adjust melody length
+        std::vector<int> newMelody;
+        if (newMeasureLength < currentMeasureLength) {
+            // Cut the melody to fit the new meter
+            for (int i = 0; i < newMeasureLength; ++i) {
+                newMelody.push_back(originalMelody[i % originalMelody.size()]);
+            }
+        }
+        else {
+            // Extend the melody to fit the new meter
+            newMelody = originalMelody;
+            for (int i = originalMelody.size(); i < newMeasureLength; ++i) {
+                newMelody.push_back(originalMelody[i % originalMelody.size()]);
+            }
+        }
+        melody = newMelody;
+    }
 
 };

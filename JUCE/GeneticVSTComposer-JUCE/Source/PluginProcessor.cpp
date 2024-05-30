@@ -193,11 +193,16 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
         double secondsPerSixteenth = secondsPerBeat / 4.0;
         samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
 
-        meter.first = playHeadInfo.timeSigNumerator;
-        meter.second = playHeadInfo.timeSigDenominator;
+        int newNumerator = playHeadInfo.timeSigNumerator;
+        int newDenominator = playHeadInfo.timeSigDenominator;
+
+        meter.first = newNumerator;
+        meter.second = newDenominator;
+
+        adjustMelodyForMeter();
     }
 
-    for (const auto metadata : midiMessages) {
+    for (const auto& metadata : midiMessages) {
         const auto message = metadata.getMessage();
         const auto time = metadata.samplePosition;
 
@@ -207,15 +212,18 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 int melodyIndex = noteNumber - 48;
                 if (melodyIndex < melodies.size()) {
                     melody = melodies[melodyIndex];
+                    originalMelody = melody;  // Store the original melody
                     currentNoteIndex = 0;  // Restart the sequence
                     nextNoteTime = time;   // Start now
                     isSequencePlaying = true;
                     initialVelocity = message.getVelocity();
                 }
-            } else if (noteNumber >= 60) {
+            }
+            else if (noteNumber >= 60) {
                 transposition = noteNumber - 60; // Set the transposition based on the key pressed
             }
-        } else if (message.isNoteOff()) {
+        }
+        else if (message.isNoteOff()) {
             if (message.getNoteNumber() == (60 + transposition)) {
                 transposition = 0; // Reset transposition when the transposing key is released
             }
@@ -244,16 +252,21 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
 
                     processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)velocity), nextNoteTime);
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
-                } else if (note == -1) {
+
+                    lastNote = transposedNoteSnapped; // Track the last played note
+                }
+                else if (note == -1) {
                     // Pause, do nothing
-                } else if (note == -2 && lastNote != -1) {
+                }
+                else if (note == -2 && lastNote != -1) {
                     // Extend the last note, adjust the note off time
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote), nextNoteTime + samplesBetweenNotes - 1);
                 }
 
                 nextNoteTime += samplesBetweenNotes;
                 currentNoteIndex = (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
-            } else {
+            }
+            else {
                 break;  // Break the loop if index is out of range
             }
         }
