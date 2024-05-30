@@ -192,6 +192,9 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
         double secondsPerBeat = 1.0 / beatsPerSecond;
         double secondsPerSixteenth = secondsPerBeat / 4.0;
         samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+
+        meter.first = playHeadInfo.timeSigNumerator;
+        meter.second = playHeadInfo.timeSigDenominator;
     }
 
     for (const auto metadata : midiMessages) {
@@ -253,9 +256,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     midiMessages.swapWith(processedMidi);
 }
 
-
-void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange,
-                                                          std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations)
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std::pair<int, int> noteRange, double noteDuration, int populationSize, int numGenerations)
 {
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);

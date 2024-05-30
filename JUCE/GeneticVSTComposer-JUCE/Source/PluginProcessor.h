@@ -35,7 +35,7 @@ public:
     //          CUSTOM
     //Method to generate melody and save it in the processor using Genetic Algorithms
     void GenerateMelody(std::string scale, std::pair<int, int> noteRange,
-        std::pair<int, int> meter, double noteDuration, int populationSize, int numGenerations);
+        double noteDuration, int populationSize, int numGenerations);
     std::vector<int> melody;
     std::vector<std::vector<int>> melodies;
     std::string debugInfo;
@@ -72,6 +72,7 @@ private:
     int currentNoteIndex = 0;
     int nextNoteTime = 0;
     std::vector<int> g_scale_notes;
+    std::pair<int, int> meter{ 4, 4 };
     int samplesBetweenNotes = 48000;
     bool isSequencePlaying = false;
     int activeNotesCount = 0; // Track how many keys are pressed
