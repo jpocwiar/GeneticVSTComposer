@@ -131,7 +131,8 @@ coefficients_values = {
 
 generator.set_coefficients(**coefficients_values)
 n = 5
-melodies = generator.run(1, n)
+# melodies = generator.run(1, n)
+melodies = generator.run_for_rhythm([57, -2, -2, -2, 57, -2, 65, -2, 60, -1, -2, 66, 57, -2], 1, n)
 
 while True:
     print(f"Available melodies (1-{n}):")

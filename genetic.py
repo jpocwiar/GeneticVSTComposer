@@ -586,55 +586,6 @@ class GeneticMelodyGenerator:
             melody_np[start_index:end_index][notes_mask] += transpose_value
             melody_np[start_index:end_index][notes_mask] = np.clip(melody_np[start_index:end_index][notes_mask],
                                                                    self.NOTES[0], self.NOTES[-1])
-        valid_indices = np.where(melody_np != -2)[0]
-
-        if random.random() < self.MUTATION_RATE and len(valid_indices) > 0:
-            extend_index = np.random.choice(valid_indices)
-
-            if extend_index == 0:
-                melody_np = np.insert(melody_np, 1, -2)
-                melody_np = np.delete(melody_np, -1)
-            else:
-
-                melody_np[extend_index - 1], melody_np[extend_index] = melody_np[extend_index], -2
-
-        if random.random() < self.MUTATION_RATE:
-            replace_index = np.random.choice(indices)
-            if melody_np[replace_index] == -1:
-
-                melody_np[replace_index] = np.random.choice(self.NOTES)
-            else:
-
-                melody_np[replace_index] = -1
-
-        if random.random() < self.MUTATION_RATE:
-            start_index = np.random.choice(indices)
-            num_notes_to_extend = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
-            end_index = min(start_index + num_notes_to_extend, len(melody) - 1)
-
-            melody_np[start_index:end_index] = -2
-
-        valid_indices = np.where(melody_np != -2)[0]
-
-        if len(valid_indices) > 0 and random.random() < self.MUTATION_RATE:
-            chosen_index = np.random.choice(valid_indices)
-            chosen_note = melody_np[chosen_index]
-
-            extension_count = 0
-            next_index = chosen_index + 1
-            while next_index < len(melody_np) and melody_np[next_index] == -2:
-                extension_count += 1
-                next_index += 1
-
-            if extension_count + 1 > self.expected_length:
-
-                replace_index = np.random.randint(chosen_index + 1, chosen_index + 1 + extension_count)
-                melody_np[replace_index] = chosen_note
-            elif extension_count + 1 < self.expected_length:
-
-                additional_extensions = np.random.randint(1, self.expected_length - extension_count + 1)
-                end_index = min(chosen_index + 1 + additional_extensions, len(melody_np))
-                melody_np[chosen_index + 1:end_index] = -2
 
         if random.random() < self.MUTATION_RATE:
 
@@ -699,6 +650,62 @@ class GeneticMelodyGenerator:
 
                 melody_np[replace_start:replace_end] = melody_np[start:end]
 
+        rhythm_mutation = False
+        if rhythm_mutation:
+            valid_indices = np.where(melody_np != -2)[0]
+
+            # przedłużenie?
+            if random.random() < self.MUTATION_RATE and len(valid_indices) > 0:
+                extend_index = np.random.choice(valid_indices)
+
+                if extend_index == 0:
+                    melody_np = np.insert(melody_np, 1, -2)
+                    melody_np = np.delete(melody_np, -1)
+                else:
+
+                    melody_np[extend_index - 1], melody_np[extend_index] = melody_np[extend_index], -2
+
+            # pauza?
+            if random.random() < self.MUTATION_RATE:
+                replace_index = np.random.choice(indices)
+                if melody_np[replace_index] == -1:
+
+                    melody_np[replace_index] = np.random.choice(self.NOTES)
+                else:
+
+                    melody_np[replace_index] = -1
+
+            # długa nuta?
+            if random.random() < self.MUTATION_RATE:
+                start_index = np.random.choice(indices)
+                num_notes_to_extend = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
+                end_index = min(start_index + num_notes_to_extend, len(melody) - 1)
+
+                melody_np[start_index:end_index] = -2
+
+            valid_indices = np.where(melody_np != -2)[0]
+
+            # też coś z długością nut
+            if len(valid_indices) > 0 and random.random() < self.MUTATION_RATE:
+                chosen_index = np.random.choice(valid_indices)
+                chosen_note = melody_np[chosen_index]
+
+                extension_count = 0
+                next_index = chosen_index + 1
+                while next_index < len(melody_np) and melody_np[next_index] == -2:
+                    extension_count += 1
+                    next_index += 1
+
+                if extension_count + 1 > self.expected_length:
+
+                    replace_index = np.random.randint(chosen_index + 1, chosen_index + 1 + extension_count)
+                    melody_np[replace_index] = chosen_note
+                elif extension_count + 1 < self.expected_length:
+
+                    additional_extensions = np.random.randint(1, self.expected_length - extension_count + 1)
+                    end_index = min(chosen_index + 1 + additional_extensions, len(melody_np))
+                    melody_np[chosen_index + 1:end_index] = -2
+
         return melody_np.tolist()
 
     def crossover(self, parent1, parent2):
@@ -755,3 +762,42 @@ class GeneticMelodyGenerator:
         best_melodies = population[:n]
 
         return best_melodies
+
+    def generate_population_on_rhythm(self, template_individual):
+        population = []
+        for _ in range(self.POPULATION_SIZE):
+            individual = []
+            for note in template_individual:
+                if note in [-1, -2]:
+                    individual.append(note)
+                else:
+                    change = random.randint(-12, 12)
+                    next_note = note + change
+                    if next_note < self.NOTES[0] or next_note > self.NOTES[-1]:
+                        next_note = note - 2 * change
+                    individual.append(next_note)
+            population.append(individual)
+        return population
+
+    def run_for_rhythm(self, template_individual, measures=1, n=1):
+        note_amount = int(self.meter[0] / self.note_duration * 4 / self.meter[1] * measures)
+        population = self.generate_population_on_rhythm(template_individual)
+        for generation in range(self.NUM_GENERATIONS):
+            print(f'Generation {generation + 1}/{self.NUM_GENERATIONS}')
+            new_population = []
+            while len(new_population) < self.POPULATION_SIZE:
+                parent1 = self.tournament_selection(population)
+                parent2 = self.tournament_selection(population)
+                if random.random() < self.CROSSOVER_RATE:
+                    child1, child2 = self.crossover(parent1, parent2)
+                else:
+                    child1, child2 = parent1, parent2
+
+                new_population.extend([self.mutate(child1), self.mutate(child2)])
+            population = new_population
+
+        population.sort(key=self.fitness, reverse=True)
+        best_melodies = population[:n]
+
+        return best_melodies
+
