@@ -213,6 +213,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 if (melodyIndex < melodies.size()) {
                     melody = melodies[melodyIndex];
                     originalMelody = melody;  // Store the original melody
+                    melodyTemplate = melody;  // Store the template
                     currentNoteIndex = 0;  // Restart the sequence
                     nextNoteTime = time;   // Start now
                     isSequencePlaying = true;
@@ -289,11 +290,14 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(std::string scale, std
     float jazziness = 0.5;
     float weirdness = 0.5;
     //run the genetic algorithm
-    GeneticMelodyGenerator generator(scale, noteRange, diversity, dynamics, arousal, valence,
+
+    // to ma byæ z gui brane; 0 - Craft whole melody. 2 - Craft Rhythm 3 - Build melody on rhythm
+    composeMode=0;
+    GeneticMelodyGenerator generator(composeMode, scale, noteRange, diversity, dynamics, arousal, valence,
         jazziness, weirdness, meter, noteDuration, populationSize, numGenerations);
 
     //melody = generator.run(1);
-    melodies = generator.run(1);
+    melodies = generator.run(1, melodyTemplate);
 
     //DEBUG - for now just print some results to string
     //debugInfo = "Scale notes:\n";
