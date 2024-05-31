@@ -13,7 +13,7 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(int mode, const std::string& scal
     float valence, float jazziness, float weirdness,
     const std::pair<int, int>& meter, float noteDuration,
     int populationSize, int numGenerations)
-    : diversity(diversity), dynamics(dynamics), arousal(arousal),
+    : mode(mode), diversity(diversity), dynamics(dynamics), arousal(arousal),
     valence(valence), jazziness(jazziness), weirdness(weirdness), meter(meter), noteDuration(noteDuration),
     populationSize(populationSize), numGenerations(numGenerations),
     mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
@@ -136,7 +136,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
             int replace_index = std::uniform_int_distribution<int>(0, melody.size() - 1)(rng);
             if (melody[replace_index] == -1) {
                 // Replace a pause with a random note
-                if (mode == 1) melody[replace_index] = 60 + scale_notes[0];
+                if (mode == 1) melody[replace_index] = NOTES[0];
                 else melody[replace_index] = NOTES[std::uniform_int_distribution<int>(0, NOTES.size() - 1)(rng)];
             }
             else {
@@ -287,7 +287,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int no
 
 std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population_from_template(const std::vector<int>& template_individual) {
     std::vector<std::vector<int>> population;
-    std::uniform_int_distribution<int> change_dist(-12, 12);
+    std::uniform_int_distribution<int> note_dist(0, NOTES.size() - 1);
 
     for (int i = 0; i < populationSize; ++i) {
         std::vector<int> individual;
@@ -296,9 +296,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population_from_t
                 individual.push_back(note);
             }
             else {
-                int change = change_dist(rng);
-                int next_note = note + change;
-                next_note = std::max(NOTES.front(), std::min(next_note, NOTES.back()));
+                int next_note = NOTES[note_dist(rng)];
                 individual.push_back(next_note);
             }
         }
@@ -312,7 +310,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population_fixed(
     std::vector<std::vector<int>> population;
 
     for (int i = 0; i < populationSize; ++i) {
-        std::vector<int> individual(note_amount, 60 + scale_notes[0]); // Wszystkie dźwięki to 60 + pierwszy z scale_notes
+        std::vector<int> individual(note_amount, NOTES[0]);
         population.push_back(individual);
     }
 
