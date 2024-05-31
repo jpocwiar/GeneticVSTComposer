@@ -38,6 +38,7 @@ public:
         double noteDuration, int populationSize, int numGenerations);
     std::vector<int> originalMelody;
     std::vector<int> melody;
+    std::vector<int> melodyTemplate;
     std::vector<std::vector<int>> melodies;
     std::string debugInfo;
 
@@ -81,6 +82,7 @@ private:
     int selectedMelodyIndex = -1;
     int transposition = 0;
     int initialVelocity;
+    int composeMode = 0;
 
     void adjustMelodyForMeter()
     {
