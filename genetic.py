@@ -78,7 +78,7 @@ class GeneticMelodyGenerator:
             'diversity_interval': 2,
             'dissonance': 3,
             'rhythmic_diversity': 1,
-            'rhythmic_average_value': 3,
+            'rhythmic_average_value': 5,
             'deviation_rhythmic_value': 2,
             'very_long_notes_score': 3,
             'scale_conformance': 3,
@@ -569,86 +569,88 @@ class GeneticMelodyGenerator:
         indices = np.arange(len(melody))
         valid_indices = np.where((melody_np != -1) & (melody_np != -2))[0]
 
-        if random.random() < self.MUTATION_RATE and len(valid_indices) > 1:
-            first_note_index, second_note_index = np.random.choice(valid_indices, 2, replace=False)
-            interval = random.randint(-12, 12)
-            melody_np[second_note_index] = melody_np[first_note_index] + interval
+        melody_mutation = True
+        if melody_mutation:
+            if random.random() < self.MUTATION_RATE and len(valid_indices) > 1:
+                first_note_index, second_note_index = np.random.choice(valid_indices, 2, replace=False)
+                interval = random.randint(-12, 12)
+                melody_np[second_note_index] = melody_np[first_note_index] + interval
 
-        if random.random() < self.MUTATION_RATE:
-            start_index = np.random.randint(0, len(melody))
-            length = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
-            end_index = min(start_index + length, len(melody_np) - 1)
+            if random.random() < self.MUTATION_RATE:
+                start_index = np.random.randint(0, len(melody))
+                length = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
+                end_index = min(start_index + length, len(melody_np) - 1)
 
-            transpose_value = random.randint(-12, 12)
+                transpose_value = random.randint(-12, 12)
 
-            notes_mask = (melody_np[start_index:end_index] > 0)
+                notes_mask = (melody_np[start_index:end_index] > 0)
 
-            melody_np[start_index:end_index][notes_mask] += transpose_value
-            melody_np[start_index:end_index][notes_mask] = np.clip(melody_np[start_index:end_index][notes_mask],
-                                                                   self.NOTES[0], self.NOTES[-1])
+                melody_np[start_index:end_index][notes_mask] += transpose_value
+                melody_np[start_index:end_index][notes_mask] = np.clip(melody_np[start_index:end_index][notes_mask],
+                                                                       self.NOTES[0], self.NOTES[-1])
 
-        if random.random() < self.MUTATION_RATE:
+            if random.random() < self.MUTATION_RATE:
 
-            start_index = np.random.randint(0, len(melody) - 1)
-            length = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
-            end_index = min(start_index + length, len(melody_np) - 1)
+                start_index = np.random.randint(0, len(melody) - 1)
+                length = np.random.randint(1, min(self.meter[0] * 8 / self.meter[1], len(melody)))
+                end_index = min(start_index + length, len(melody_np) - 1)
 
-            fragment = melody_np[start_index:end_index]
-            valid_notes_fragment = fragment[(fragment != -2) & (fragment != -1)]
+                fragment = melody_np[start_index:end_index]
+                valid_notes_fragment = fragment[(fragment != -2) & (fragment != -1)]
 
-            if len(valid_notes_fragment) > 1:
-                ascending = random.choice([True, False])
-                sorted_fragment = np.sort(valid_notes_fragment) if ascending else np.sort(valid_notes_fragment)[
-                                                                                  ::-1]
+                if len(valid_notes_fragment) > 1:
+                    ascending = random.choice([True, False])
+                    sorted_fragment = np.sort(valid_notes_fragment) if ascending else np.sort(valid_notes_fragment)[
+                                                                                      ::-1]
 
-                valid_notes_indices = indices[start_index:end_index][(fragment != -2) & (fragment != -1)]
-                melody_np[valid_notes_indices] = sorted_fragment
+                    valid_notes_indices = indices[start_index:end_index][(fragment != -2) & (fragment != -1)]
+                    melody_np[valid_notes_indices] = sorted_fragment
 
-        if random.random() < self.MUTATION_RATE:
+            if random.random() < self.MUTATION_RATE:
 
-            beat_length = int(self.meter[0] / self.note_duration * 4 / self.meter[1])
+                beat_length = int(self.meter[0] / self.note_duration * 4 / self.meter[1])
 
-            num_beats = len(melody) // beat_length
+                num_beats = len(melody) // beat_length
 
-            if num_beats > 1:
-                beat1, beat2 = np.random.choice(num_beats, 2, replace=False)
-                start1 = beat1 * beat_length
-                start2 = beat2 * beat_length
+                if num_beats > 1:
+                    beat1, beat2 = np.random.choice(num_beats, 2, replace=False)
+                    start1 = beat1 * beat_length
+                    start2 = beat2 * beat_length
 
-                num_notes_to_copy = np.random.randint(0, beat_length)
+                    num_notes_to_copy = np.random.randint(0, beat_length)
 
-                end1 = min(start1 + num_notes_to_copy, len(melody))
-                end2 = min(start2 + num_notes_to_copy, len(melody))
+                    end1 = min(start1 + num_notes_to_copy, len(melody))
+                    end2 = min(start2 + num_notes_to_copy, len(melody))
 
-                melody_np[start2:end2] = melody_np[start1:end1]
+                    melody_np[start2:end2] = melody_np[start1:end1]
 
-                if random.random() < self.MUTATION_RATE:
-                    transpose_values = [0, 12, 5, 7, -12, -5, -7]
-                    transpose_value = random.choice(transpose_values)
+                    if random.random() < self.MUTATION_RATE:
+                        transpose_values = [0, 12, 5, 7, -12, -5, -7]
+                        transpose_value = random.choice(transpose_values)
 
-                    notes_mask = (melody_np[start2:end2] > 0)
+                        notes_mask = (melody_np[start2:end2] > 0)
 
-                    melody_np[start2:end2][notes_mask] += transpose_value
+                        melody_np[start2:end2][notes_mask] += transpose_value
 
-                    melody_np[start2:end2][notes_mask] = np.clip(melody_np[start2:end2][notes_mask], self.NOTES[0],
-                                                                 self.NOTES[len(self.NOTES) - 1])
+                        melody_np[start2:end2][notes_mask] = np.clip(melody_np[start2:end2][notes_mask], self.NOTES[0],
+                                                                     self.NOTES[len(self.NOTES) - 1])
 
-        if random.random() < self.MUTATION_RATE:
+            if random.random() < self.MUTATION_RATE:
 
-            beat_length = int(self.meter[0] / self.note_duration * 4 / self.meter[1])
-            num_beats = len(melody) // beat_length
+                beat_length = int(self.meter[0] / self.note_duration * 4 / self.meter[1])
+                num_beats = len(melody) // beat_length
 
-            if num_beats > 1:
-                selected_beat = np.random.choice(num_beats, 1)[0]
-                start = selected_beat * beat_length
+                if num_beats > 1:
+                    selected_beat = np.random.choice(num_beats, 1)[0]
+                    start = selected_beat * beat_length
 
-                num_notes_to_copy = np.random.randint(1, beat_length // 2 + 1)
+                    num_notes_to_copy = np.random.randint(1, beat_length // 2 + 1)
 
-                end = min(start + num_notes_to_copy, len(melody))
-                replace_start = start + num_notes_to_copy
-                replace_end = min(replace_start + num_notes_to_copy, len(melody))
+                    end = min(start + num_notes_to_copy, len(melody))
+                    replace_start = start + num_notes_to_copy
+                    replace_end = min(replace_start + num_notes_to_copy, len(melody))
 
-                melody_np[replace_start:replace_end] = melody_np[start:end]
+                    melody_np[replace_start:replace_end] = melody_np[start:end]
 
         rhythm_mutation = False
         if rhythm_mutation:
@@ -669,8 +671,10 @@ class GeneticMelodyGenerator:
             if random.random() < self.MUTATION_RATE:
                 replace_index = np.random.choice(indices)
                 if melody_np[replace_index] == -1:
-
-                    melody_np[replace_index] = np.random.choice(self.NOTES)
+                    if rhythm_mutation:
+                        melody_np[replace_index] = 60
+                    else:
+                        melody_np[replace_index] = np.random.choice(self.NOTES)
                 else:
 
                     melody_np[replace_index] = -1
@@ -782,6 +786,40 @@ class GeneticMelodyGenerator:
     def run_for_rhythm(self, template_individual, measures=1, n=1):
         note_amount = int(self.meter[0] / self.note_duration * 4 / self.meter[1] * measures)
         population = self.generate_population_on_rhythm(template_individual)
+        for generation in range(self.NUM_GENERATIONS):
+            print(f'Generation {generation + 1}/{self.NUM_GENERATIONS}')
+            new_population = []
+            while len(new_population) < self.POPULATION_SIZE:
+                parent1 = self.tournament_selection(population)
+                parent2 = self.tournament_selection(population)
+                if random.random() < self.CROSSOVER_RATE:
+                    child1, child2 = self.crossover(parent1, parent2)
+                else:
+                    child1, child2 = parent1, parent2
+
+                new_population.extend([self.mutate(child1), self.mutate(child2)])
+            population = new_population
+
+        population.sort(key=self.fitness, reverse=True)
+        best_melodies = population[:n]
+
+        return best_melodies
+
+    def generate_population_varying(self, note_amount):
+        population = []
+        for _ in range(self.POPULATION_SIZE):
+            individual = [60] + [self.weighted_random_choice() for _ in range(note_amount - 1)]
+            population.append(individual)
+        return population
+
+    def weighted_random_choice(self):
+        choices = [60, -1, -2]
+        weights = [1, 0.0, 0.0]  # Higher probability for 60, lower for -1 and -2
+        return random.choices(choices, weights)[0]
+
+    def run_varying(self, measures=1, n=1):
+        note_amount = int(self.meter[0] / self.note_duration * 4 / self.meter[1] * measures)
+        population = self.generate_population_varying(note_amount)
         for generation in range(self.NUM_GENERATIONS):
             print(f'Generation {generation + 1}/{self.NUM_GENERATIONS}')
             new_population = []

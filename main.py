@@ -77,12 +77,13 @@ fundamental_note_length = 0.25 # wzgl ćwierćnuty
 meter = (7,8)
 generator = GeneticMelodyGenerator("A Minor", ('A-4', 'A-6'), meter, fundamental_note_length, 128, 100)
 
-diversity = 0.5 # notes div, rhythmic div, interval div
-dynamics = 0.5 # range, pause, pitch var, rhythmic div
-arousal = 0.5 # rhythmic av, range, pause, pitch av, short cons, velocity
+diversity = 0.8 # notes div, rhythmic div, interval div
+dynamics = 0.7 # range, pause, pitch var, rhythmic div
+arousal = 0.8 # rhythmic av, range, pause, pitch av, short cons, velocity
 valence = 0.5 # dissonance, contour,
-jazziness = 0.5
-weirdness = 0.5 #large intervals, odd_index, all deviations
+jazziness = 0.2
+weirdness = 0.0 #large intervals, odd_index, all deviations
+pauses = 0
 
 coefficients_values = {
     'diversity': diversity,
@@ -97,7 +98,7 @@ coefficients_values = {
     #'root_conformance': 0.45, #trzeba dodać
     'melodic_contour': valence,
     'pitch_range': dynamics * 0.5 + arousal * 0.5,
-    'pause_proportion': dynamics * 0.2 - arousal * 0.1,
+    'pause_proportion': (dynamics * 0.2 - arousal * 0.1) * pauses,
     'large_intervals': weirdness,
     'average_pitch': arousal * 0.2 + valence * 0.3,
     'pitch_variation': dynamics * 0.5,
@@ -132,7 +133,8 @@ coefficients_values = {
 generator.set_coefficients(**coefficients_values)
 n = 5
 # melodies = generator.run(1, n)
-melodies = generator.run_for_rhythm([57, -2, -2, -2, 57, -2, 65, -2, 60, -1, -2, 66, 57, -2], 1, n)
+melodies = generator.run_for_rhythm([60, -1, 60, -2, 60, -2, 60, -2, 60, -2, -2, 60, 60, -2], 1, n)
+# melodies = generator.run_varying(1, n)
 
 while True:
     print(f"Available melodies (1-{n}):")
