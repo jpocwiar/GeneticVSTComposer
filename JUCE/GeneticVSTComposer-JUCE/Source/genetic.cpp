@@ -3,6 +3,7 @@
 #include "notes_generator.hpp"
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <numeric>
 #include <cmath>
 #include <set>
@@ -279,17 +280,17 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
 std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int note_amount) {
     std::vector<std::vector<int>> population;
     std::uniform_int_distribution<int> note_dist(0, NOTES.size() - 1); // Dystrybucja dla indeksów NOTES
-    std::uniform_int_distribution<int> change_dist(-12, 12); // Dystrybucja dla zmiany wysokoœci dŸwiêku
+    std::uniform_int_distribution<int> change_dist(-12, 12); // Dystrybucja dla zmiany wysokości dźwięku
 
     for (int i = 0; i < populationSize; ++i) {
         std::vector<int> individual;
-        individual.push_back(NOTES[note_dist(rng)]); // Losowy pierwszy dŸwiêk
+        individual.push_back(NOTES[note_dist(rng)]); // Losowy pierwszy dźwięk
 
         for (int j = 1; j < note_amount; ++j) {
             int change = change_dist(rng);
             int next_note = individual.back() + change;
 
-            // Upewnij siê, ¿e next_note jest w zakresie NOTES
+            // Upewnij się, że next_note jest w zakresie NOTES
             next_note = std::max(NOTES.front(), std::min(next_note, NOTES.back()));
 
             if (next_note < NOTES.front() || next_note > NOTES.back()) {
@@ -543,16 +544,38 @@ std::pair<float, float> GeneticMelodyGenerator::fitness_log_rhythmic_value(const
     for (int value : rhythmic_values) {
         log_rhythmic_values.push_back(std::log2(value));
     }
+    if (rhythmic_values.empty()) {
+        std::cout<<"\nEMPTY!!!!\n";
+    }
 
     float average_rhythmic_value = std::accumulate(rhythmic_values.begin(), rhythmic_values.end(), 0.0) / rhythmic_values.size();
     float log_average_rhythmic_value = std::log2(average_rhythmic_value);
 
     float normalized_log_rhythmic_value = (log_average_rhythmic_value - std::log2(1)) / (std::log2(4 * expectedLength) - std::log2(1));
+    // normalized_log_rhythmic_value = (log_average_rhythmic_value - np.log2(1)) / (
+    //       np.log2(4 * self.expected_length) - np.log2(1))
+    // std_log_rhythmic_value = np.std(log_rhythmic_values)
+    // normalized_std_log_rhythmic_value = std_log_rhythmic_value / np.std([0, np.log2(4 * self.expected_length)])
 
+    
+    
     float sq_sum_log = std::inner_product(log_rhythmic_values.begin(), log_rhythmic_values.end(), log_rhythmic_values.begin(), 0.0);
     float stdev_log = std::sqrt(sq_sum_log / log_rhythmic_values.size() - log_average_rhythmic_value * log_average_rhythmic_value);
 
+
+
+
+    // if (stdev_log != stdev_log) {
+    //     std::cout<<"\nNAN DETECTED!!! stdev_log " << sq_sum_log / log_rhythmic_values.size() - log_average_rhythmic_value * log_average_rhythmic_value << "\n";
+    //     // std::cout<<"Standart deviation: "
+    //     std::cout<<"Rythmic values:\n";
+    //     for(int i=0; i< rhythmic_values.size(); ++i) {
+    //         std::cout<<rhythmic_values[i]<<", ";
+    //     }
+    //     std::cout<<"\n";
+    // }
     float normalized_std_log_rhythmic_value = stdev_log / std::log2(4 * expectedLength);
+
 
     return { normalized_log_rhythmic_value, normalized_std_log_rhythmic_value };
 }
@@ -849,7 +872,8 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody, const std:
         {"dissonance", intervals_score.first},
         {"rhythmic_diversity", rhythmic_diversity_score},
         {"rhythmic_average_value", log_rhythmic_values.first},
-        {"deviation_rhythmic_value", log_rhythmic_values.second},
+        {"deviation_rhythmic_value", 0.0},
+        // {"deviation_rhythmic_value", log_rhythmic_values.second},
         {"scale_conformance", scale_chord_score.first},
         {"root_conformance", scale_chord_score.second},
         {"melodic_contour", melodic_contour_score},
@@ -873,7 +897,8 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody, const std:
     }
     int similarity_weight = 10;
     float similarity_penalty = calculate_similarity_penalty(melody, population);
-    fitness_value -= similarity_penalty * similarity_weight;
+
+    // fitness_value -= similarity_penalty * similarity_weight;
     return fitness_value;
 }
 
@@ -935,4 +960,83 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::run(float measures, const 
     }
 
     return best_melodies;
+}
+
+// Metoda test
+void GeneticMelodyGenerator::test(int measures, const std::string file_name) {
+    std::ofstream file;
+    file.open(file_name);
+
+    if (!file.is_open()) {
+        std::cout << "Can't open file '" << file_name << "'" << std::endl;
+    }
+    file << "generation avg_fitness min_fitness max_fitness" << std::endl;
+
+
+    int note_amount = static_cast<int>(meter.first / noteDuration * 4.0 / meter.second * measures);
+    std::vector<std::vector<int>> population = generate_population(note_amount);
+    std::vector<std::vector<int>> new_population;
+    float CROSSOVER_RATE = 0.9;
+    new_population.reserve(populationSize);
+
+    std::vector<int> fitness_vector;
+
+    for (int generation = 0; generation < numGenerations; ++generation) {
+        std::cout << "Generation " << generation + 1 << "/" << numGenerations;
+        file << generation + 1 << " ";
+        new_population.clear();
+
+        while (new_population.size() < populationSize) {
+            std::vector<int> parent1 = tournament_selection(population);
+            std::vector<int> parent2 = tournament_selection(population);
+            std::vector<int> child1, child2;
+
+            if (prob_dist(rng) < crossoverRate && !parent1.empty() && !parent2.empty()) {
+                std::tie(child1, child2) = crossover(parent1, parent2);
+            }
+            else {
+                child1 = parent1;
+                child2 = parent2;
+            }
+
+            mutate(child1);
+            mutate(child2);
+            new_population.push_back(std::move(child1));
+            new_population.push_back(std::move(child2));
+        }
+
+        population = std::move(new_population);
+        float population_fitness = average_fitness(population);
+        std::pair<float, float> min_and_max = min_max_fitness(population);
+        fitness_vector.push_back(population_fitness);
+        std::cout << ": Fitness = " << population_fitness << '\n';
+        file << population_fitness << " " << min_and_max.first << " " << min_and_max.second << std::endl;
+    }
+
+    file.close();
+    return;
+}
+
+float GeneticMelodyGenerator::average_fitness(const std::vector<std::vector<int>>& population) {
+    float fitness_sum = 0.0;
+    for (int i = 0; i< population.size(); ++i) {
+        float current_fitness = fitness(population[i], population);
+        fitness_sum += current_fitness;
+    }
+    return fitness_sum / population.size();
+}
+
+std::pair<float, float> GeneticMelodyGenerator::min_max_fitness(const std::vector<std::vector<int>>& population) {
+    float min_fitness = 100000.0;
+    float max_fitness = 0.0;
+    for (int i = 0; i< population.size(); ++i) {
+        float current_fitness = fitness(population[i], population);
+        if (min_fitness > current_fitness) {
+            min_fitness = current_fitness;
+        }
+        if (max_fitness < current_fitness) {
+            max_fitness = current_fitness;
+        }
+    }
+    return {min_fitness, max_fitness};
 }

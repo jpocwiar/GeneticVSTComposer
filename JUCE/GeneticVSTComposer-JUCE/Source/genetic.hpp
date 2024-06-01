@@ -26,8 +26,11 @@ public:
 
     // Deklaracja funkcji oceny (fitness), która bêdzie potrzebna do metody tournament_selection
     float fitness(const std::vector<int>& individual, const std::vector<std::vector<int>>& population);
+    float average_fitness(const std::vector<std::vector<int>>& population);
+    std::pair<float, float> min_max_fitness(const std::vector<std::vector<int>>& population);
     void mutate(std::vector<int>& melody);
     std::vector<std::vector<int>> run(float measures = 1, const std::vector<int>& template_individual = {});
+    void test(int measures = 1, const std::string file_name = "fitness.txt");
 
 private:
     std::vector<int> NOTES;
