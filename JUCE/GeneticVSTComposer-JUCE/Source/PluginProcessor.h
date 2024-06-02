@@ -47,7 +47,8 @@ public:
         float weirdness,
         double noteDuration,
         int populationSize,
-        int numGenerations);
+        int numGenerations,
+        float sequenceLength);
     std::vector<int> originalMelody;
     std::vector<int> melody;
     std::vector<int> melodyTemplate;

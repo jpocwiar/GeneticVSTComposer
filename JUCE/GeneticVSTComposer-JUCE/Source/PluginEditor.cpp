@@ -127,11 +127,11 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- sequence length
     seqLenBox.setBounds(130, currentHeight, 60, 30);
     seqLenBox.setLookAndFeel(mainLookAndFeel);
-    seqLenBox.addItemList({ "1/2", "1", "2" }, 1);
+    seqLenBox.addItemList({ "1", "2", "3", "4" }, 1);
     seqLenBox.setSelectedId(1);
     addAndMakeVisible(seqLenBox);
 
-    seqLenLbl.setText("Sequence length", juce::dontSendNotification);
+    seqLenLbl.setText("Measures", juce::dontSendNotification);
     seqLenLbl.attachToComponent(&seqLenBox, true);
     addAndMakeVisible(seqLenLbl);
 
@@ -142,7 +142,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     noteDurationBox.setSelectedId(1);
     addAndMakeVisible(noteDurationBox);
 
-    noteDurationLbl.setText("Note duration", juce::dontSendNotification);
+    noteDurationLbl.setText("Shortest note", juce::dontSendNotification);
     noteDurationLbl.attachToComponent(&noteDurationBox, true);
     addAndMakeVisible(noteDurationLbl);
 
@@ -302,7 +302,8 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
                                         weirdnessSlid.getValue(),//weirdness
                                         noteDurationBox.getText().getDoubleValue(),//note duration
                                         SpeedQualityValues[speedQualityNO].first,//population size
-                                        SpeedQualityValues[speedQualityNO].second);//generation number
+                                        SpeedQualityValues[speedQualityNO].second, //generation number
+                                        seqLenBox.getText().getDoubleValue()); // sequence length
 
         //update the debug info on the plugin window
         debugTextBox.setText(audioProcessor.debugInfo, false);

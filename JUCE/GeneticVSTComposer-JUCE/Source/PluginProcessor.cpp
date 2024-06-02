@@ -292,7 +292,8 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
                                                             float weirdness,
                                                             double noteDuration,
                                                             int populationSize,
-                                                            int numGenerations)
+                                                            int numGenerations,
+                                                            float sequenceLength)
 {
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
@@ -313,7 +314,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
                                         numGenerations);
 
     //melody = generator.run(1);
-    melodies = generator.run(1, melodyTemplate);
+    melodies = generator.run(sequenceLength, melodyTemplate);
 
     scaleSnapping = isScaleSnapping;
 

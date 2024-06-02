@@ -859,7 +859,7 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody, const std:
 }
 
 // Metoda run
-std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures, const std::vector<int>& template_individual) {
+std::vector<std::vector<int>> GeneticMelodyGenerator::run(float measures, const std::vector<int>& template_individual) {
     int note_amount = static_cast<int>(meter.first / noteDuration * 4.0 / meter.second * measures);
     std::vector<std::vector<int>> population;
     if (mode == 0) {
