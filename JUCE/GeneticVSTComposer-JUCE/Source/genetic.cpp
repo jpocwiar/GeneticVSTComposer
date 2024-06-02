@@ -232,24 +232,45 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         }
 
         // Sort mutation
-        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < mutationRate && !melody.empty())
+        {
             int start_index = std::uniform_int_distribution<int>(0, static_cast<int>(melody.size()) - 1)(rng);
             float max_length = meter.first * 8 / meter.second;
-            if (static_cast<int>(max_length) > 1) {
+            if (static_cast<int>(max_length) > 1)
+            {
                 int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
                 int end_index = std::min(start_index + length, static_cast<int>(melody.size()) - 1);
+
                 std::vector<int> fragment(melody.begin() + start_index, melody.begin() + end_index);
-                fragment.erase(std::remove_if(fragment.begin(), fragment.end(), [](int note) { return note == -2 || note == -1; }), fragment.end());
-                if (fragment.size() > 1) {
-                    bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
-                    if (ascending) {
-                        std::sort(fragment.begin(), fragment.end());
+
+                // Utwórz wektor wartości do posortowania, pomijając -1 i -2
+                std::vector<int> sortableFragment;
+                for (int note : fragment) {
+                    if (note != -1 && note != -2) {
+                        sortableFragment.push_back(note);
                     }
-                    else {
-                        std::sort(fragment.rbegin(), fragment.rend());
-                    }
-                    std::copy(fragment.begin(), fragment.end(), melody.begin() + start_index);
                 }
+
+                // Sortowanie fragmentu
+                bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
+                if (ascending) {
+                    std::sort(sortableFragment.begin(), sortableFragment.end());
+                }
+                else {
+                    std::sort(sortableFragment.rbegin(), sortableFragment.rend());
+                }
+
+                // Wstawienie posortowanych wartości z powrotem, ignorując -1 i -2
+                auto it = sortableFragment.begin();
+                for (int& note : fragment) {
+                    if (note != -1 && note != -2 && it != sortableFragment.end()) {
+                        note = *it;
+                        ++it;
+                    }
+                }
+
+                // Skopiowanie zmodyfikowanego fragmentu z powrotem do melodii
+                std::copy(fragment.begin(), fragment.end(), melody.begin() + start_index);
             }
         }
     }
