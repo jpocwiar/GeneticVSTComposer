@@ -965,7 +965,7 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::run(float measures, const 
 // Metoda test
 void GeneticMelodyGenerator::test(int measures, const std::string file_name) {
     std::ofstream file;
-    file.open(file_name);
+    file.open("./fitness/" + file_name);
 
     if (!file.is_open()) {
         std::cout << "Can't open file '" << file_name << "'" << std::endl;

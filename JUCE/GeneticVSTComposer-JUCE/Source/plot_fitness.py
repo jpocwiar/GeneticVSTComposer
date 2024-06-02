@@ -3,9 +3,9 @@ import os
 
 if __name__ == "__main__":
     os.makedirs("./graphs", exist_ok=True)
-    # Read data from file
-    file_path = "fitness.txt"
-    with open(file_path, 'r') as file:
+    file_name = "fitness_512.txt"
+    base_file_name = os.path.splitext(file_name)[0]  # Get the base filename without extension
+    with open('./fitness/' + file_name, 'r') as file:
         lines = file.readlines()
 
     # Parse data
@@ -33,11 +33,11 @@ if __name__ == "__main__":
     # Add labels and title
     plt.xlabel('Generation')
     plt.ylabel('Fitness')
-    plt.title('Fitness Change Over Generations')
+    plt.title('Fitness Change Over Generations\nfor population size = 512')
     plt.legend()
 
     # Show plot
     plt.grid(True)
     plt.gcf().set_size_inches(10, 6)
-    plt.savefig('./graphs/fitness.jpg', format='jpg', dpi=300)
+    plt.savefig(f'./graphs/{base_file_name}.jpg', format='jpg', dpi=300)
     plt.close()
