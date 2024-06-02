@@ -70,7 +70,13 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     modeLbl.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(modeLbl);
 
-    currentHeight += 60;
+    currentHeight += 40;
+    
+    scaleSnapBtn.setBounds(80, currentHeight, 200, 30);
+    scaleSnapBtn.setButtonText("Toggle scale snapping");
+    addAndMakeVisible(scaleSnapBtn);
+
+    currentHeight += 40;
 
     //---scale
     scaleBox1.setBounds(130, currentHeight, 60, 30);
@@ -265,6 +271,7 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
 
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
         audioProcessor.GenerateMelody(  composeMode,
+                                        scaleSnapBtn.getToggleState(),
                                         scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
                                         { noteRangeSlid.getMinValue() , noteRangeSlid.getMaxValue() },//note range
                                         diversitySlid.getValue(),//diversity

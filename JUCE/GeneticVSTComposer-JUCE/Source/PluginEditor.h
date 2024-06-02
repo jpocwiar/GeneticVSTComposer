@@ -45,6 +45,7 @@ private:
     juce::TextButton mode0Btn;//0 - Full melody
     juce::TextButton mode1Btn;//1 - Craft Rhythm
     juce::TextButton mode2Btn;//2 - Build melody on rhythm
+    juce::ToggleButton scaleSnapBtn;
     juce::ComboBox scaleBox1;
     juce::ComboBox scaleBox2;
     juce::ComboBox seqLenBox;

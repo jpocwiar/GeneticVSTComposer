@@ -35,6 +35,7 @@ public:
     //          CUSTOM
     //Method to generate melody and save it in the processor using Genetic Algorithms
     void GenerateMelody(int composeMode,
+        bool isTransposeSnapping,
         std::string scale,
         std::pair<int, int> noteRange,
         float diversity,
@@ -93,6 +94,7 @@ private:
     int transposition = 0;
     int initialVelocity;
     int composeMode = 0;
+    bool scaleSnapping = false;
 
     void adjustMelodyForMeter()
     {

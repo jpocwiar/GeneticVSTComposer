@@ -243,7 +243,8 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
                     int transposedNote = note + transposition;
-                    int transposedNoteSnapped = snapNoteToScale(transposedNote);
+                    if (scaleSnapping)//apply snapping if enabled
+                        transposedNote = snapNoteToScale(transposedNote);
 
                     std::random_device rd;
                     std::mt19937 gen(rd());
@@ -251,10 +252,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                     int velocity = dis(gen);
                     velocity = std::clamp(velocity, 0, 127);
 
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)velocity), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNote, (juce::uint8)velocity), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNote), nextNoteTime + samplesBetweenNotes - 1);
 
-                    lastNote = transposedNoteSnapped; // Track the last played note
+                    lastNote = transposedNote; // Track the last played note
                 }
                 else if (note == -1) {
                     // Pause, do nothing
@@ -279,6 +280,7 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
 }
 
 void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
+                                                            bool isScaleSnapping,
                                                             std::string scale,
                                                             std::pair<int, int> noteRange,
                                                             float diversity,
@@ -312,6 +314,8 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
     //melody = generator.run(1);
     melodies = generator.run(1, melodyTemplate);
 
+    scaleSnapping = isScaleSnapping;
+
     debugInfo = "Generated Melodies:\n";
     int melodyCount = 0;
     for (const auto& melody : melodies) {
@@ -324,6 +328,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
 
     debugInfo += "\n===Sent data:";
     debugInfo += "\nComposeMode: " + std::to_string(composeMode);
+    debugInfo += "\nScale snapping: " + std::to_string(scaleSnapping);
     debugInfo += "\nScale: " + scale;
     debugInfo += "\nNote range: " + std::to_string(noteRange.first) + "," + std::to_string(noteRange.second);
     debugInfo += "\nDiversity: " + std::to_string(diversity);
