@@ -8,12 +8,12 @@
 #include <set>
 #include <unordered_set>
 
-GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange,
+GeneticMelodyGenerator::GeneticMelodyGenerator(int mode, const std::string& scale, const std::pair<int, int>& noteRange,
     float diversity, float dynamics, float arousal,
     float valence, float jazziness, float weirdness,
     const std::pair<int, int>& meter, float noteDuration,
     int populationSize, int numGenerations)
-    : diversity(diversity), dynamics(dynamics), arousal(arousal),
+    : mode(mode), diversity(diversity), dynamics(dynamics), arousal(arousal),
     valence(valence), jazziness(jazziness), weirdness(weirdness), meter(meter), noteDuration(noteDuration),
     populationSize(populationSize), numGenerations(numGenerations),
     mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
@@ -30,7 +30,7 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(const std::string& scale, const s
     int notesCount = noteRange.second - noteRange.first + 1;
 
     NOTES = generator.generateChromaticNotes(noteRange);
-    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is no octaves, second is start octave (duh)
+    scale_notes = NotesGenerator(scale).generateNotes(1, 0); //first is n.o. octaves, second is start octave (duh)
 
     set_coefficients(diversity, dynamics, arousal, valence,
         jazziness, weirdness);
@@ -90,7 +90,7 @@ void GeneticMelodyGenerator::set_coefficients(float diversity, float dynamics, f
         { "diversity_interval", 2 },
         { "dissonance", 3 },
         { "rhythmic_diversity", 1 },
-        { "rhythmic_average_value", 3 },
+        { "rhythmic_average_value", 5 },
         { "deviation_rhythmic_value", 2 },
         { "very_long_notes_score", 3 },
         { "scale_conformance", 3 },
@@ -120,129 +120,136 @@ void GeneticMelodyGenerator::mutate(std::vector<int>& melody) {
         }
     }
 
-    // Pierwsza mutacja: zamiana dwóch nut na interwa³
-    if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
-        std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
-        int first_note_index = index_dist(rng);
-        int second_note_index;
-        do {
-            second_note_index = index_dist(rng);
-        } while (second_note_index == first_note_index); // Zapewniamy ró¿ne indeksy
+    if (mode != 2) { // jak zwykły tryb albo generujemy rytm, to chcemy mutacje rytmiczne
+        // mutacje rytmiczne
+        // Extension mutation
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1 && !melody.empty()) {
+            // Adjust the range for uniform_int_distribution to exclude the first index
+            int extend_index = valid_indices[std::uniform_int_distribution<int>(1, valid_indices.size() - 1)(rng)];
 
-        int interval = interval_dist(rng);
-        melody[second_note_index] = melody[first_note_index] + interval;
-        // Ustawienie noty w obrêbie dozwolonego zakresu
-        melody[second_note_index] = std::min(std::max(melody[second_note_index], NOTES.front()), NOTES.back());
-    }
+            //melody[extend_index - 1] = melody[extend_index];
+            melody[extend_index] = -2;
+        }
 
-    // Przyk³ad kolejnej mutacji: transpozycja fragmentu melodii
-    if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
-        std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
-        int start_index = index_dist(rng);
-        int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
-        int end_index = std::min(start_index + length, static_cast<int>(melody.size()));
+        // Replacement mutation
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
+            int replace_index = std::uniform_int_distribution<int>(0, melody.size() - 1)(rng);
+            if (melody[replace_index] == -1) {
+                // Replace a pause with a random note
+                if (mode == 1) melody[replace_index] = NOTES[0];
+                else melody[replace_index] = NOTES[std::uniform_int_distribution<int>(0, NOTES.size() - 1)(rng)];
+            }
+            else {
+                // Replace a note with a pause
+                melody[replace_index] = -1;
+            }
+        }
 
-        int transpose_value = interval_dist(rng);
+        // Extension mutation
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
+            // Adjust the range to exclude index 0 from being chosen for the start of extension
+            int start_index = valid_indices[std::uniform_int_distribution<int>(1, valid_indices.size() - 1)(rng)];
 
-        // Transpozycja nut w obrêbie fragmentu
-        for (int i = start_index; i < end_index; ++i) {
-            if (melody[i] > 0) { // Sprawdzamy, czy nuta nie jest pauz¹
-                melody[i] += transpose_value;
-                melody[i] = std::min(std::max(melody[i], NOTES.front()), NOTES.back());
+            int num_notes_to_extend = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size() - start_index)))(rng);
+
+            int end_index = std::min(start_index + num_notes_to_extend, static_cast<int>(melody.size()));
+
+            std::fill(melody.begin() + start_index, melody.begin() + end_index, -2);
+        }
+
+        // Recalculate valid_indices after extension mutation
+        valid_indices.clear();
+        for (int i = 0; i < melody.size(); ++i) {
+            if (melody[i] != -2) {
+                valid_indices.push_back(i);
+            }
+        }
+
+        // Note replacement mutation within extensions
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
+            int chosen_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
+            int chosen_note = melody[chosen_index];
+            int extension_count = 0;
+            int next_index = chosen_index + 1;
+
+            // Check extensions following the chosen index
+            while (next_index < melody.size() && melody[next_index] == -2) {
+                extension_count++;
+                next_index++;
+            }
+
+            // Ensure we have a valid range for the random number generator
+            if (chosen_index + 1 < melody.size()) {
+                if (extension_count + 1 > expectedLength) {
+                    // The range for replace_index is chosen_index + 1 to chosen_index + 1 + extension_count
+                    // This should not go beyond the size of the melody vector
+                    int replace_index = std::uniform_int_distribution<int>(chosen_index + 1, std::min(chosen_index + 1 + extension_count, static_cast<int>(melody.size()) - 1))(rng);
+                    melody[replace_index] = chosen_note;
+                }
+                else if (extension_count + 1 < expectedLength && chosen_index + 1 + extension_count < melody.size()) {
+                    // If we're going to extend, ensure it doesn't go beyond the size of the melody
+                    int additional_extensions = std::uniform_int_distribution<int>(1, std::min(expectedLength - extension_count, static_cast<int>(melody.size()) - chosen_index - extension_count - 1))(rng);
+                    int end_index = std::min(chosen_index + 1 + additional_extensions, static_cast<int>(melody.size()));
+                    std::fill(melody.begin() + chosen_index + 1, melody.begin() + end_index, -2);
+                }
             }
         }
     }
 
-    // Extension mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1 && !melody.empty()) {
-    // Adjust the range for uniform_int_distribution to exclude the first index
-        int extend_index = valid_indices[std::uniform_int_distribution<int>(1, valid_indices.size() - 1)(rng)];
+    if (mode != 1) { // jak zwykły tryb albo melodię na rytmie, to chcemy mutacje melodyczne
+        // Mutacje melodyczne
+        // zamiana dwóch nut na interwal
+        if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
+            std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
+            int first_note_index = index_dist(rng);
+            int second_note_index;
+            do {
+                second_note_index = index_dist(rng);
+            } while (second_note_index == first_note_index); // Zapewniamy ró¿ne indeksy
 
-        //melody[extend_index - 1] = melody[extend_index];
-        melody[extend_index] = -2;
-    }
-
-    // Replacement mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
-        int replace_index = std::uniform_int_distribution<int>(0, melody.size() - 1)(rng);
-        if (melody[replace_index] == -1) {
-            // Replace a pause with a random note
-            melody[replace_index] = NOTES[std::uniform_int_distribution<int>(0, NOTES.size() - 1)(rng)];
-        }
-        else {
-            // Replace a note with a pause
-            melody[replace_index] = -1;
-        }
-    }
-
-    // Extension mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
-        // Adjust the range to exclude index 0 from being chosen for the start of extension
-        int start_index = valid_indices[std::uniform_int_distribution<int>(1, valid_indices.size() - 1)(rng)];
-
-        int num_notes_to_extend = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size() - start_index)))(rng);
-
-        int end_index = std::min(start_index + num_notes_to_extend, static_cast<int>(melody.size()));
-    
-        std::fill(melody.begin() + start_index, melody.begin() + end_index, -2);
-    }
-
-    // Recalculate valid_indices after extension mutation
-    valid_indices.clear();
-    for (int i = 0; i < melody.size(); ++i) {
-        if (melody[i] != -2) {
-            valid_indices.push_back(i);
-        }
-    }
-
-    // Note replacement mutation within extensions
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && valid_indices.size() > 1) {
-        int chosen_index = valid_indices[std::uniform_int_distribution<int>(0, valid_indices.size() - 1)(rng)];
-        int chosen_note = melody[chosen_index];
-        int extension_count = 0;
-        int next_index = chosen_index + 1;
-
-        // Check extensions following the chosen index
-        while (next_index < melody.size() && melody[next_index] == -2) {
-            extension_count++;
-            next_index++;
+            int interval = interval_dist(rng);
+            melody[second_note_index] = melody[first_note_index] + interval;
+            // Ustawienie noty w obrêbie dozwolonego zakresu
+            melody[second_note_index] = std::min(std::max(melody[second_note_index], NOTES.front()), NOTES.back());
         }
 
-        // Ensure we have a valid range for the random number generator
-        if (chosen_index + 1 < melody.size()) {
-            if (extension_count + 1 > expectedLength) {
-                // The range for replace_index is chosen_index + 1 to chosen_index + 1 + extension_count
-                // This should not go beyond the size of the melody vector
-                int replace_index = std::uniform_int_distribution<int>(chosen_index + 1, std::min(chosen_index + 1 + extension_count, static_cast<int>(melody.size()) - 1))(rng);
-                melody[replace_index] = chosen_note;
-            }
-            else if (extension_count + 1 < expectedLength && chosen_index + 1 + extension_count < melody.size()) {
-                // If we're going to extend, ensure it doesn't go beyond the size of the melody
-                int additional_extensions = std::uniform_int_distribution<int>(1, std::min(expectedLength - extension_count, static_cast<int>(melody.size()) - chosen_index - extension_count - 1))(rng);
-                int end_index = std::min(chosen_index + 1 + additional_extensions, static_cast<int>(melody.size()));
-                std::fill(melody.begin() + chosen_index + 1, melody.begin() + end_index, -2);
-            }
-        }
-    }
-
-    // Sort mutation
-    if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
-        int start_index = std::uniform_int_distribution<int>(0, static_cast<int>(melody.size()) - 1)(rng);
-        float max_length = meter.first * 8 / meter.second;
-        if (static_cast<int>(max_length) > 1) {
+        // transpozycja fragmentu melodii
+        if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
+            std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
+            int start_index = index_dist(rng);
             int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
-            int end_index = std::min(start_index + length, static_cast<int>(melody.size()) - 1);
-            std::vector<int> fragment(melody.begin() + start_index, melody.begin() + end_index);
-            fragment.erase(std::remove_if(fragment.begin(), fragment.end(), [](int note) { return note == -2 || note == -1; }), fragment.end());
-            if (fragment.size() > 1) {
-                bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
-                if (ascending) {
-                    std::sort(fragment.begin(), fragment.end());
+            int end_index = std::min(start_index + length, static_cast<int>(melody.size()));
+
+            int transpose_value = interval_dist(rng);
+
+            // Transpozycja nut w obrêbie fragmentu
+            for (int i = start_index; i < end_index; ++i) {
+                if (melody[i] > 0) { // Sprawdzamy, czy nuta nie jest pauz¹
+                    melody[i] += transpose_value;
+                    melody[i] = std::min(std::max(melody[i], NOTES.front()), NOTES.back());
                 }
-                else {
-                    std::sort(fragment.rbegin(), fragment.rend());
+            }
+        }
+
+        // Sort mutation
+        if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE && !melody.empty()) {
+            int start_index = std::uniform_int_distribution<int>(0, static_cast<int>(melody.size()) - 1)(rng);
+            float max_length = meter.first * 8 / meter.second;
+            if (static_cast<int>(max_length) > 1) {
+                int length = std::uniform_int_distribution<int>(1, std::min(meter.first * 8 / meter.second, static_cast<int>(melody.size())))(rng);
+                int end_index = std::min(start_index + length, static_cast<int>(melody.size()) - 1);
+                std::vector<int> fragment(melody.begin() + start_index, melody.begin() + end_index);
+                fragment.erase(std::remove_if(fragment.begin(), fragment.end(), [](int note) { return note == -2 || note == -1; }), fragment.end());
+                if (fragment.size() > 1) {
+                    bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
+                    if (ascending) {
+                        std::sort(fragment.begin(), fragment.end());
+                    }
+                    else {
+                        std::sort(fragment.rbegin(), fragment.rend());
+                    }
+                    std::copy(fragment.begin(), fragment.end(), melody.begin() + start_index);
                 }
-                std::copy(fragment.begin(), fragment.end(), melody.begin() + start_index);
             }
         }
     }
@@ -272,6 +279,38 @@ std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population(int no
             individual.push_back(next_note);
         }
 
+        population.push_back(individual);
+    }
+
+    return population;
+}
+
+std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population_from_template(const std::vector<int>& template_individual) {
+    std::vector<std::vector<int>> population;
+    std::uniform_int_distribution<int> note_dist(0, NOTES.size() - 1);
+
+    for (int i = 0; i < populationSize; ++i) {
+        std::vector<int> individual;
+        for (int note : template_individual) {
+            if (note == -1 || note == -2) {
+                individual.push_back(note);
+            }
+            else {
+                int next_note = NOTES[note_dist(rng)];
+                individual.push_back(next_note);
+            }
+        }
+        population.push_back(individual);
+    }
+
+    return population;
+}
+
+std::vector<std::vector<int>> GeneticMelodyGenerator::generate_population_fixed(int note_amount) {
+    std::vector<std::vector<int>> population;
+
+    for (int i = 0; i < populationSize; ++i) {
+        std::vector<int> individual(note_amount, NOTES[0]);
         population.push_back(individual);
     }
 
@@ -820,9 +859,18 @@ float GeneticMelodyGenerator::fitness(const std::vector<int>& melody, const std:
 }
 
 // Metoda run
-std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures) {
+std::vector<std::vector<int>> GeneticMelodyGenerator::run(int measures, const std::vector<int>& template_individual) {
     int note_amount = static_cast<int>(meter.first / noteDuration * 4.0 / meter.second * measures);
-    std::vector<std::vector<int>> population = generate_population(note_amount);
+    std::vector<std::vector<int>> population;
+    if (mode == 0) {
+        population = generate_population(note_amount);
+    }
+    else if (mode == 1) {
+        population = generate_population_fixed(note_amount);
+    }
+    else if (mode == 2) {
+        population = generate_population_from_template(template_individual);
+    }
     std::vector<std::vector<int>> new_population;
     int POPULATION_SIZE = 128;
     int NUM_GENERATIONS = 100;

@@ -154,6 +154,27 @@ static juce::String getMidiMessageDescription(const juce::MidiMessage& m)
     return juce::String::toHexString(m.getRawData(), m.getRawDataSize());
 }
 
+int snapNoteToScale(int targetNote) {
+    std::vector<int> notes(NotesGenerator::g_scale_notes);
+    std::sort(notes.begin(), notes.end());
+    if (notes.empty()) {
+        return targetNote;
+    }
+
+    notes.push_back(notes.front() + 12);
+    int current = 0;
+    int targetNoteBaseScale = targetNote % 12;
+    while (targetNoteBaseScale > notes[current+1]) {
+        ++current;
+    }
+    if (targetNoteBaseScale - notes[current] < notes[current + 1] - targetNoteBaseScale) {
+        return targetNote + notes[current] - targetNoteBaseScale;
+    }
+    else {
+        return targetNote + notes[current + 1] - targetNoteBaseScale;
+    }
+}
+
 void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     jassert(buffer.getNumChannels() == 0);  // It's a MIDI plugin, no audio data should be processed.
@@ -171,9 +192,17 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
         double secondsPerBeat = 1.0 / beatsPerSecond;
         double secondsPerSixteenth = secondsPerBeat / 4.0;
         samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+
+        int newNumerator = playHeadInfo.timeSigNumerator;
+        int newDenominator = playHeadInfo.timeSigDenominator;
+
+        meter.first = newNumerator;
+        meter.second = newDenominator;
+
+        adjustMelodyForMeter();
     }
 
-    for (const auto metadata : midiMessages) {
+    for (const auto& metadata : midiMessages) {
         const auto message = metadata.getMessage();
         const auto time = metadata.samplePosition;
 
@@ -183,14 +212,19 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 int melodyIndex = noteNumber - 48;
                 if (melodyIndex < melodies.size()) {
                     melody = melodies[melodyIndex];
+                    originalMelody = melody;  // Store the original melody
+                    melodyTemplate = melody;  // Store the template
                     currentNoteIndex = 0;  // Restart the sequence
                     nextNoteTime = time;   // Start now
                     isSequencePlaying = true;
+                    initialVelocity = message.getVelocity();
                 }
-            } else if (noteNumber >= 60) {
+            }
+            else if (noteNumber >= 60) {
                 transposition = noteNumber - 60; // Set the transposition based on the key pressed
             }
-        } else if (message.isNoteOff()) {
+        }
+        else if (message.isNoteOff()) {
             if (message.getNoteNumber() == (60 + transposition)) {
                 transposition = 0; // Reset transposition when the transposing key is released
             }
@@ -208,18 +242,32 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
             if (currentNoteIndex < melody.size()) {
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, note + transposition, (juce::uint8)100), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, note + transposition), nextNoteTime + samplesBetweenNotes - 1);
-                } else if (note == -1) {
+                    int transposedNote = note + transposition;
+                    int transposedNoteSnapped = snapNoteToScale(transposedNote);
+
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    std::uniform_int_distribution<> dis(initialVelocity - 5, initialVelocity + 5);
+                    int velocity = dis(gen);
+                    velocity = std::clamp(velocity, 0, 127);
+
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)velocity), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
+
+                    lastNote = transposedNoteSnapped; // Track the last played note
+                }
+                else if (note == -1) {
                     // Pause, do nothing
-                } else if (note == -2 && lastNote != -1) {
+                }
+                else if (note == -2 && lastNote != -1) {
                     // Extend the last note, adjust the note off time
                     processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote), nextNoteTime + samplesBetweenNotes - 1);
                 }
 
                 nextNoteTime += samplesBetweenNotes;
                 currentNoteIndex = (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
-            } else {
+            }
+            else {
                 break;  // Break the loop if index is out of range
             }
         }
@@ -230,10 +278,8 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     midiMessages.swapWith(processedMidi);
 }
 
-
 void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
                                                             std::pair<int, int> noteRange,
-                                                            std::pair<int, int> meter,
                                                             float diversity,
                                                             float dynamics,
                                                             float arousal,
@@ -246,8 +292,11 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
 {
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
+    NotesGenerator::g_scale_notes = scale_notes;
     //run the genetic algorithm
-    GeneticMelodyGenerator generator(   scale,
+    composeMode=0;
+    GeneticMelodyGenerator generator(   composeMode,
+                                        scale,
                                         noteRange,
                                         diversity,
                                         dynamics,
@@ -261,12 +310,22 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
                                         numGenerations);
 
     //melody = generator.run(1);
-    melodies = generator.run(1);
+    melodies = generator.run(1, melodyTemplate);
 
     //DEBUG - for now just print some results to string
-    debugInfo = "Scale notes:\n";
-    for (int note : scale_notes) {
-        debugInfo += std::to_string(note) + " ";
+    //debugInfo = "Scale notes:\n";
+    //for (int note : scale_notes) {
+    //    debugInfo += std::to_string(note) + " ";
+    //}
+
+    debugInfo = "Generated Melodies:\n";
+    int melodyCount = 0;
+    for (const auto& melody : melodies) {
+        debugInfo += "Melody " + std::to_string(++melodyCount) + ": ";
+        for (int note : melody) {
+            debugInfo += std::to_string(note) + " ";
+        }
+        debugInfo += "\n";  // Append a newline after each melody for better readability
     }
 
     debugInfo += "\n===Sent data:";

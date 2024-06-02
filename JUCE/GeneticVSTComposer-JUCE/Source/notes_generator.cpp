@@ -8,6 +8,16 @@
 #include "mingus.hpp"
 #include "notes_generator.hpp"
 
+std::string strip(const std::string& str) {
+    size_t start = 0;
+    size_t end = str.length() - 1;
+
+    while (start <= end && std::isspace(str[start])) { start++; }
+    while (end >= start && std::isspace(str[end])) { end--; }
+
+    return str.substr(start, end - start + 1);
+}
+
 std::vector<std::string> split(const std::string &s, char delim) {
     std::vector<std::string> tokens;
     std::string token;
@@ -31,7 +41,7 @@ std::pair<std::string, std::string> NotesGenerator::parseScaleName() {
     std::smatch match;
     if (std::regex_match(key, match, pattern)) {
         std::string note = match[1];
-        std::string scaleType = match[2];
+        std::string scaleType = strip(match[2]);
         return std::make_pair(note, scaleType);
     } else {
         throw std::invalid_argument("Wrong scale name");
@@ -85,6 +95,7 @@ std::vector<std::string> NotesGenerator::chooseScale() {
     }
 }
 
+std::vector<int> NotesGenerator::g_scale_notes = {};
 NotesGenerator::NotesGenerator(const std::string& key) : key(key) {}
 
 std::vector<int> NotesGenerator::generateNotes(int numberOfOctaves, int startOctave) {

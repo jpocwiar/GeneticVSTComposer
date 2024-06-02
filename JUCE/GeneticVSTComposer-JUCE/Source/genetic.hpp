@@ -9,7 +9,7 @@
 
 class GeneticMelodyGenerator {
 public:
-    GeneticMelodyGenerator(const std::string& scale, const std::pair<int, int>& noteRange, float diversity, float dynamics, float arousal, float valence,
+    GeneticMelodyGenerator(int mode, const std::string& scale, const std::pair<int, int>& noteRange, float diversity, float dynamics, float arousal, float valence,
         float jazziness, float weirdness,
         const std::pair<int, int>& meter = { 4, 4 }, float noteDuration = 0.5,
         int populationSize = 128, int numGenerations = 100);
@@ -28,12 +28,13 @@ public:
     // Deklaracja funkcji oceny (fitness), która bêdzie potrzebna do metody tournament_selection
     float fitness(const std::vector<int>& individual, const std::vector<std::vector<int>>& population);
     void mutate(std::vector<int>& melody);
-    std::vector<std::vector<int>> run(int measures = 1);
+    std::vector<std::vector<int>> run(int measures = 1, const std::vector<int>& template_individual = {});
 
 private:
     std::vector<int> NOTES;
     std::vector<int> scale_notes;
     std::pair<int, int> meter;
+    int mode;
     float noteDuration;
     int populationSize;
     int numGenerations;
@@ -75,6 +76,8 @@ private:
     std::mt19937 rng;
     std::uniform_real_distribution<float> prob_dist;
     std::vector<std::vector<int>> generate_population(int note_amount);
+    std::vector<std::vector<int>> generate_population_from_template(const std::vector<int>& template_individual);
+    std::vector<std::vector<int>> generate_population_fixed(int note_amount);
 };
 
 #endif // GENETIC_MELODY_GENERATOR_HPP

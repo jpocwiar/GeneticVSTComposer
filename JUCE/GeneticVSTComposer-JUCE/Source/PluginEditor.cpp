@@ -266,7 +266,6 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
         audioProcessor.GenerateMelody(  scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
                                         { noteRangeSlid.getMinValue() , noteRangeSlid.getMaxValue() },//note range
-                                        { 1, 4 },//meter
                                         diversitySlid.getValue(),//diversity
                                         dynamicsSlid.getValue(),//dynamics
                                         arousalSlid.getValue(),//arousal
