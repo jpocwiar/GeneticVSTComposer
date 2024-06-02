@@ -36,6 +36,8 @@ private:
 
     int modeRadioGroupID = 56789;
     std::pair<int, int> SpeedQualityValues[3] = { {64, 50}, {128, 100}, {256, 200} };//populations, generations (speed <--> quality)
+    juce::StringArray noteDurationStr = {"1/4", "1/8", "1/16", "1/32"};
+    float noteDurationValues[4] = {1, 0.5, 0.25, 0.125};
 
     int counter = 1;
 

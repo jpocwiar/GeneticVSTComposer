@@ -138,8 +138,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- note duration
     noteDurationBox.setBounds(300, currentHeight, 60, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
-    noteDurationBox.addItemList({ "0.125", "0.25", "0.5" }, 1);
-    noteDurationBox.setSelectedId(2);
+    noteDurationBox.addItemList(noteDurationStr, 1);
+    noteDurationBox.setSelectedId(1);
     addAndMakeVisible(noteDurationBox);
 
     noteDurationLbl.setText("Shortest note", juce::dontSendNotification);
@@ -304,7 +304,7 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
                                         valenceSlid.getValue(),//valence
                                         jazzinessSlid.getValue(),//jazziness
                                         weirdnessSlid.getValue(),//weirdness
-                                        noteDurationBox.getText().getDoubleValue(),//note duration
+                                        noteDurationValues[noteDurationBox.getSelectedId() - 1],//note duration
                                         SpeedQualityValues[speedQualityNO].first,//population size
                                         SpeedQualityValues[speedQualityNO].second, //generation number
                                         seqLenBox.getText().getDoubleValue()); // sequence length
