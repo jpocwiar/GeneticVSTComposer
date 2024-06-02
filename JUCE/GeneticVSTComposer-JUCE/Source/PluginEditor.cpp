@@ -30,13 +30,47 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (400, 750);
+    setSize (400, 800);
 
-    int currentHeight = 20;
+    int currentHeight = 30;
     juce::LookAndFeel *mainLookAndFeel = new juce::LookAndFeel_V4(juce::LookAndFeel_V4::getMidnightColourScheme());
     float rotaryWidth = 80;
     float rotaryHeight = 100;
 
+
+    //---Mode Switch
+    int modeButtonWidth = 120;
+    //0 - Full melody
+    mode0Btn.setButtonText("Full melody");
+    mode0Btn.setBounds(getWidth() / 2 - modeButtonWidth * 1.5, currentHeight, modeButtonWidth, 30);
+    mode0Btn.setClickingTogglesState(true);
+    mode0Btn.setRadioGroupId(modeRadioGroupID);
+    mode0Btn.setConnectedEdges(juce::Button::ConnectedOnRight);
+    mode0Btn.setToggleState(true, juce::dontSendNotification);
+    addAndMakeVisible(mode0Btn);
+
+    //1 - Craft Rhythm
+    mode1Btn.setButtonText("Craft Rhythm");
+    mode1Btn.setBounds(getWidth() / 2 - modeButtonWidth * 0.5, currentHeight, modeButtonWidth, 30);
+    mode1Btn.setClickingTogglesState(true);
+    mode1Btn.setRadioGroupId(modeRadioGroupID);
+    mode1Btn.setConnectedEdges(juce::Button::ConnectedOnRight | juce::Button::ConnectedOnLeft);
+    addAndMakeVisible(mode1Btn);
+
+    //2 - Build melody on rhythm
+    mode2Btn.setButtonText("Build melody on rhythm");
+    mode2Btn.setBounds(getWidth() / 2 + modeButtonWidth * 0.5, currentHeight, modeButtonWidth, 30);
+    mode2Btn.setClickingTogglesState(true);
+    mode2Btn.setRadioGroupId(modeRadioGroupID);
+    mode2Btn.setConnectedEdges(juce::Button::ConnectedOnLeft);
+    addAndMakeVisible(mode2Btn);
+
+    modeLbl.setText("Mode", juce::dontSendNotification);
+    modeLbl.attachToComponent(&mode1Btn, false);
+    modeLbl.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(modeLbl);
+
+    currentHeight += 60;
 
     //---scale
     scaleBox1.setBounds(130, currentHeight, 60, 30);
@@ -200,12 +234,15 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     startGenBtn.addListener(this);
     addAndMakeVisible(&startGenBtn);
 
-    currentHeight += 30;
+    currentHeight += 35;
 
     //---DEBUG label
-    debugLabel.setBounds(50, currentHeight, 350, 250);
-    debugLabel.setText("DEBUG", juce::NotificationType::dontSendNotification);
-    addAndMakeVisible(&debugLabel);
+    int debugWidth = getWidth() - 50;
+    debugTextBox.setBounds((getWidth() - debugWidth) / 2, currentHeight, debugWidth, getHeight() - currentHeight - 20);
+    debugTextBox.setMultiLine(true, false);
+    debugTextBox.setReadOnly(true);
+    debugTextBox.setText("DEBUG", false);
+    addAndMakeVisible(&debugTextBox);
 }
 
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor()
@@ -218,9 +255,17 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
     if (button == &startGenBtn)//Start Generation Button clicked
     {
         int speedQualityNO = speedQualitySlid.getValue();//index for values of population size and generation number
+        int composeMode = -1;
+        if (mode0Btn.getToggleState())
+            composeMode = 0;
+        else if (mode1Btn.getToggleState())
+            composeMode = 1;
+        else if (mode2Btn.getToggleState())
+            composeMode = 2;
 
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
-        audioProcessor.GenerateMelody(  scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
+        audioProcessor.GenerateMelody(  composeMode,
+                                        scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
                                         { noteRangeSlid.getMinValue() , noteRangeSlid.getMaxValue() },//note range
                                         diversitySlid.getValue(),//diversity
                                         dynamicsSlid.getValue(),//dynamics
@@ -233,7 +278,7 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
                                         SpeedQualityValues[speedQualityNO].second);//generation number
 
         //update the debug info on the plugin window
-        debugLabel.setText(audioProcessor.debugInfo, juce::NotificationType::dontSendNotification);
+        debugTextBox.setText(audioProcessor.debugInfo, false);
     }
 }
 
@@ -261,7 +306,7 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::paint (juce::Graphics& g)
     
     g.drawFittedText("no generations", 50, 295, 100, 30, juce::Justification::centredLeft, 1);*/
 
-    debugLabel.setText(audioProcessor.debugInfo, juce::NotificationType::dontSendNotification);
+    debugTextBox.setText(audioProcessor.debugInfo, false);
 }
 
 void GeneticVSTComposerJUCEAudioProcessorEditor::resized()

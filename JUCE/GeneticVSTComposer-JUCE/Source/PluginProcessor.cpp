@@ -278,7 +278,8 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     midiMessages.swapWith(processedMidi);
 }
 
-void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
+                                                            std::string scale,
                                                             std::pair<int, int> noteRange,
                                                             float diversity,
                                                             float dynamics,
@@ -294,7 +295,6 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
     NotesGenerator::g_scale_notes = scale_notes;
     //run the genetic algorithm
-    composeMode=0;
     GeneticMelodyGenerator generator(   composeMode,
                                         scale,
                                         noteRange,
@@ -323,7 +323,8 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
     }
 
     debugInfo += "\n===Sent data:";
-    debugInfo += "\n\nScale: " + scale;
+    debugInfo += "\nComposeMode: " + std::to_string(composeMode);
+    debugInfo += "\nScale: " + scale;
     debugInfo += "\nNote range: " + std::to_string(noteRange.first) + "," + std::to_string(noteRange.second);
     debugInfo += "\nDiversity: " + std::to_string(diversity);
     debugInfo += "\nDynamics: " + std::to_string(dynamics);

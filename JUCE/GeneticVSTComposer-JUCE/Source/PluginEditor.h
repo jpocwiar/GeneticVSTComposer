@@ -34,6 +34,7 @@ private:
 
     void buttonClicked(juce::Button* button) override;
 
+    int modeRadioGroupID = 56789;
     std::pair<int, int> SpeedQualityValues[3] = { {64, 50}, {128, 100}, {256, 200} };//populations, generations (speed <--> quality)
 
     int counter = 1;
@@ -41,6 +42,9 @@ private:
     juce::TextButton startGenBtn;
 
     //data GUIs
+    juce::TextButton mode0Btn;//0 - Full melody
+    juce::TextButton mode1Btn;//1 - Craft Rhythm
+    juce::TextButton mode2Btn;//2 - Build melody on rhythm
     juce::ComboBox scaleBox1;
     juce::ComboBox scaleBox2;
     juce::ComboBox seqLenBox;
@@ -55,6 +59,7 @@ private:
     juce::Slider speedQualitySlid;
 
     //labels
+    juce::Label modeLbl;
     juce::Label scaleLbl;
     juce::Label seqLenLbl;
     juce::Label noteDurationLbl;
@@ -69,7 +74,7 @@ private:
     juce::Label qualityLbl;
 
     //debug label
-    juce::Label debugLabel;
+    juce::TextEditor debugTextBox;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessorEditor)
 };
