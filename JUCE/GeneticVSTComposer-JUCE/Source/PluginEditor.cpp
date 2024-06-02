@@ -138,7 +138,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- note duration
     noteDurationBox.setBounds(300, currentHeight, 60, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
-    noteDurationBox.addItemList({ "0.125", "0.25", "0.5", "1" }, 1);
+    noteDurationBox.addItemList({ "0.125", "0.25", "0.5" }, 1);
     noteDurationBox.setSelectedId(1);
     addAndMakeVisible(noteDurationBox);
 

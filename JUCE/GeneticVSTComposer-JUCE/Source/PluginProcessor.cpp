@@ -187,11 +187,11 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     juce::AudioPlayHead::CurrentPositionInfo playHeadInfo;
 
     if (playHead && playHead->getCurrentPosition(playHeadInfo)) {
-        // Calculate the duration of a sixteenth note based on the current BPM
+        // Calculate the duration of a note based on the current BPM
         double beatsPerSecond = playHeadInfo.bpm / 60.0;
         double secondsPerBeat = 1.0 / beatsPerSecond;
-        double secondsPerSixteenth = secondsPerBeat / 4.0;
-        samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+        double secondsPerNote = secondsPerBeat * fundNoteDuration;
+        samplesBetweenNotes = static_cast<int>(secondsPerNote * getSampleRate());
 
         int newNumerator = playHeadInfo.timeSigNumerator;
         int newDenominator = playHeadInfo.timeSigDenominator;
@@ -290,11 +290,12 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
                                                             float valence,
                                                             float jazziness,
                                                             float weirdness,
-                                                            double noteDuration,
+                                                            float noteDuration,
                                                             int populationSize,
                                                             int numGenerations,
                                                             float sequenceLength)
 {
+    fundNoteDuration = noteDuration;
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
     NotesGenerator::g_scale_notes = scale_notes;
@@ -309,7 +310,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
                                         jazziness,
                                         weirdness,
                                         meter,
-                                        noteDuration,
+                                        fundNoteDuration,
                                         populationSize,
                                         numGenerations);
 

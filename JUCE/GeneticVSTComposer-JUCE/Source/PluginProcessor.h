@@ -45,7 +45,7 @@ public:
         float valence,
         float jazziness,
         float weirdness,
-        double noteDuration,
+        float noteDuration,
         int populationSize,
         int numGenerations,
         float sequenceLength);
@@ -97,6 +97,7 @@ private:
     int initialVelocity;
     int composeMode = 0;
     bool scaleSnapping = false;
+    float fundNoteDuration = 0.25;
 
     void adjustMelodyForMeter()
     {
