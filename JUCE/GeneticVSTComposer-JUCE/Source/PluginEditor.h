@@ -40,7 +40,7 @@ private:
 
     juce::TextButton startGenBtn;
 
-    //===NEW DATA===
+    //data GUIs
     juce::ComboBox scaleBox1;
     juce::ComboBox scaleBox2;
     juce::ComboBox seqLenBox;
@@ -54,6 +54,7 @@ private:
     juce::Slider noteRangeSlid;
     juce::Slider speedQualitySlid;
 
+    //labels
     juce::Label scaleLbl;
     juce::Label seqLenLbl;
     juce::Label noteDurationLbl;
@@ -67,18 +68,7 @@ private:
     juce::Label speedLbl;
     juce::Label qualityLbl;
 
-    //===OLD DATA===
-    //---main data
-    //juce::TextEditor scaleTxt;//string
-    //juce::TextEditor minNoteRangeTxt;//int
-    //juce::TextEditor maxNoteRangeTxt;//int
-    juce::TextEditor minMeterTxt;//int
-    juce::TextEditor maxMeterTxt;//int
-    //juce::TextEditor noteDurationTxt;//float
-    //---GA data
-    //juce::TextEditor populationSizeTxt;//int
-    //juce::TextEditor genNumberTxt;//int
-
+    //debug label
     juce::Label debugLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessorEditor)

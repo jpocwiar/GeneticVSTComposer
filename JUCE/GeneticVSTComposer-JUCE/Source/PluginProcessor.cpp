@@ -312,12 +312,6 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
     //melody = generator.run(1);
     melodies = generator.run(1, melodyTemplate);
 
-    //DEBUG - for now just print some results to string
-    //debugInfo = "Scale notes:\n";
-    //for (int note : scale_notes) {
-    //    debugInfo += std::to_string(note) + " ";
-    //}
-
     debugInfo = "Generated Melodies:\n";
     int melodyCount = 0;
     for (const auto& melody : melodies) {
