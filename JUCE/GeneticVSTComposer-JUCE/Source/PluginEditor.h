@@ -34,13 +34,18 @@ private:
 
     void buttonClicked(juce::Button* button) override;
 
+    int modeRadioGroupID = 56789;
     std::pair<int, int> SpeedQualityValues[3] = { {64, 50}, {128, 100}, {256, 200} };//populations, generations (speed <--> quality)
 
     int counter = 1;
 
     juce::TextButton startGenBtn;
 
-    //===NEW DATA===
+    //data GUIs
+    juce::TextButton mode0Btn;//0 - Full melody
+    juce::TextButton mode1Btn;//1 - Craft Rhythm
+    juce::TextButton mode2Btn;//2 - Build melody on rhythm
+    juce::ToggleButton scaleSnapBtn;
     juce::ComboBox scaleBox1;
     juce::ComboBox scaleBox2;
     juce::ComboBox seqLenBox;
@@ -49,11 +54,14 @@ private:
     juce::Slider dynamicsSlid;
     juce::Slider arousalSlid;
     juce::Slider valenceSlid;
+    juce::Slider pauseAmountSlid;
     juce::Slider jazzinessSlid;
     juce::Slider weirdnessSlid;
     juce::Slider noteRangeSlid;
     juce::Slider speedQualitySlid;
 
+    //labels
+    juce::Label modeLbl;
     juce::Label scaleLbl;
     juce::Label seqLenLbl;
     juce::Label noteDurationLbl;
@@ -61,25 +69,15 @@ private:
     juce::Label dynamicsLbl;
     juce::Label arousalLbl;
     juce::Label valenceLbl;
+    juce::Label pauseAmountLbl;
     juce::Label jazzinessLbl;
     juce::Label weirdnessLbl;
     juce::Label noteRangeLbl;
     juce::Label speedLbl;
     juce::Label qualityLbl;
 
-    //===OLD DATA===
-    //---main data
-    //juce::TextEditor scaleTxt;//string
-    //juce::TextEditor minNoteRangeTxt;//int
-    //juce::TextEditor maxNoteRangeTxt;//int
-    juce::TextEditor minMeterTxt;//int
-    juce::TextEditor maxMeterTxt;//int
-    //juce::TextEditor noteDurationTxt;//float
-    //---GA data
-    //juce::TextEditor populationSizeTxt;//int
-    //juce::TextEditor genNumberTxt;//int
-
-    juce::Label debugLabel;
+    //debug label
+    juce::TextEditor debugTextBox;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneticVSTComposerJUCEAudioProcessorEditor)
 };

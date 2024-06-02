@@ -187,11 +187,11 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     juce::AudioPlayHead::CurrentPositionInfo playHeadInfo;
 
     if (playHead && playHead->getCurrentPosition(playHeadInfo)) {
-        // Calculate the duration of a sixteenth note based on the current BPM
+        // Calculate the duration of a note based on the current BPM
         double beatsPerSecond = playHeadInfo.bpm / 60.0;
         double secondsPerBeat = 1.0 / beatsPerSecond;
-        double secondsPerSixteenth = secondsPerBeat / 4.0;
-        samplesBetweenNotes = static_cast<int>(secondsPerSixteenth * getSampleRate());
+        double secondsPerNote = secondsPerBeat * fundNoteDuration;
+        samplesBetweenNotes = static_cast<int>(secondsPerNote * getSampleRate());
 
         int newNumerator = playHeadInfo.timeSigNumerator;
         int newDenominator = playHeadInfo.timeSigDenominator;
@@ -243,7 +243,8 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                 const int note = melody[currentNoteIndex];
                 if (note >= 0) {
                     int transposedNote = note + transposition;
-                    int transposedNoteSnapped = snapNoteToScale(transposedNote);
+                    if (scaleSnapping)//apply snapping if enabled
+                        transposedNote = snapNoteToScale(transposedNote);
 
                     std::random_device rd;
                     std::mt19937 gen(rd());
@@ -251,10 +252,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
                     int velocity = dis(gen);
                     velocity = std::clamp(velocity, 0, 127);
 
-                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNoteSnapped, (juce::uint8)velocity), nextNoteTime);
-                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNoteSnapped), nextNoteTime + samplesBetweenNotes - 1);
+                    processedMidi.addEvent(juce::MidiMessage::noteOn(1, transposedNote, (juce::uint8)velocity), nextNoteTime);
+                    processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNote), nextNoteTime + samplesBetweenNotes - 1);
 
-                    lastNote = transposedNoteSnapped; // Track the last played note
+                    lastNote = transposedNote; // Track the last played note
                 }
                 else if (note == -1) {
                     // Pause, do nothing
@@ -278,45 +279,46 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(juce::AudioBuffer<float>
     midiMessages.swapWith(processedMidi);
 }
 
-void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
+void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
+                                                            bool isScaleSnapping,
+                                                            std::string scale,
                                                             std::pair<int, int> noteRange,
                                                             float diversity,
                                                             float dynamics,
                                                             float arousal,
+                                                            float pauseAmount,
                                                             float valence,
                                                             float jazziness,
                                                             float weirdness,
-                                                            double noteDuration,
+                                                            float noteDuration,
                                                             int populationSize,
-                                                            int numGenerations)
+                                                            int numGenerations,
+                                                            float sequenceLength)
 {
+    fundNoteDuration = noteDuration;
     NotesGenerator generator_nut = NotesGenerator(scale);
     std::vector<int> scale_notes = NotesGenerator(scale).generateNotes(1, 0);
     NotesGenerator::g_scale_notes = scale_notes;
     //run the genetic algorithm
-    composeMode=0;
     GeneticMelodyGenerator generator(   composeMode,
                                         scale,
                                         noteRange,
                                         diversity,
                                         dynamics,
                                         arousal,
+                                        pauseAmount,
                                         valence,
                                         jazziness,
                                         weirdness,
                                         meter,
-                                        noteDuration,
+                                        fundNoteDuration,
                                         populationSize,
                                         numGenerations);
 
     //melody = generator.run(1);
-    melodies = generator.run(1, melodyTemplate);
+    melodies = generator.run(sequenceLength, melodyTemplate);
 
-    //DEBUG - for now just print some results to string
-    //debugInfo = "Scale notes:\n";
-    //for (int note : scale_notes) {
-    //    debugInfo += std::to_string(note) + " ";
-    //}
+    scaleSnapping = isScaleSnapping;
 
     debugInfo = "Generated Melodies:\n";
     int melodyCount = 0;
@@ -329,11 +331,14 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  std::string scale,
     }
 
     debugInfo += "\n===Sent data:";
-    debugInfo += "\n\nScale: " + scale;
+    debugInfo += "\nComposeMode: " + std::to_string(composeMode);
+    debugInfo += "\nScale snapping: " + std::to_string(scaleSnapping);
+    debugInfo += "\nScale: " + scale;
     debugInfo += "\nNote range: " + std::to_string(noteRange.first) + "," + std::to_string(noteRange.second);
     debugInfo += "\nDiversity: " + std::to_string(diversity);
     debugInfo += "\nDynamics: " + std::to_string(dynamics);
     debugInfo += "\narousal: " + std::to_string(arousal);
+    debugInfo += "\nPause Amount: " + std::to_string(pauseAmount);
     debugInfo += "\nValence: " + std::to_string(valence);
     debugInfo += "\nJazziness: " + std::to_string(jazziness);
     debugInfo += "\nWeirdness: " + std::to_string(weirdness);
