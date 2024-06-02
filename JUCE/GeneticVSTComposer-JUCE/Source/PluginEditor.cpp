@@ -86,7 +86,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- scale
     scaleBox1.setBounds(130, currentHeight, 60, 30);
     scaleBox1.setLookAndFeel(mainLookAndFeel);
-    scaleBox1.addItemList({ "A", "B", "C", "D", "E", "F" }, 1);
+    scaleBox1.addItemList({ "C", "C#", "D", "D#", "E", "F", "F#", "G#", "A", "A#", "B"  }, 1);
     scaleBox1.setSelectedId(1);
     addAndMakeVisible(scaleBox1);
 
@@ -138,7 +138,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- note duration
     noteDurationBox.setBounds(300, currentHeight, 60, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
-    noteDurationBox.addItemList({ "0.1", "0.2", "0.3", "0.4", "0.5"}, 1);
+    noteDurationBox.addItemList({ "0.125", "0.25", "0.5", "1" }, 1);
     noteDurationBox.setSelectedId(1);
     addAndMakeVisible(noteDurationBox);
 
@@ -285,11 +285,14 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
         else if (mode2Btn.getToggleState())
             composeMode = 2;
 
+        int noteLower = scaleBox1.getSelectedItemIndex() + noteRangeSlid.getMinValue() * 12;
+        int noteHigher = scaleBox1.getSelectedItemIndex() + noteRangeSlid.getMaxValue() * 12 + 12;
+
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
         audioProcessor.GenerateMelody(  composeMode,//Compose Mode
                                         scaleSnapBtn.getToggleState(),//scale snapping
                                         scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
-                                        { noteRangeSlid.getMinValue() , noteRangeSlid.getMaxValue() },//note range
+                                        { noteLower , noteHigher },//note range
                                         diversitySlid.getValue(),//diversity
                                         dynamicsSlid.getValue(),//dynamics
                                         arousalSlid.getValue(),//arousal
