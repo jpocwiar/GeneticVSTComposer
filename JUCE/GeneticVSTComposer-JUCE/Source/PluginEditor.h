@@ -54,6 +54,7 @@ private:
     juce::Slider dynamicsSlid;
     juce::Slider arousalSlid;
     juce::Slider valenceSlid;
+    juce::Slider pauseAmountSlid;
     juce::Slider jazzinessSlid;
     juce::Slider weirdnessSlid;
     juce::Slider noteRangeSlid;
@@ -68,6 +69,7 @@ private:
     juce::Label dynamicsLbl;
     juce::Label arousalLbl;
     juce::Label valenceLbl;
+    juce::Label pauseAmountLbl;
     juce::Label jazzinessLbl;
     juce::Label weirdnessLbl;
     juce::Label noteRangeLbl;

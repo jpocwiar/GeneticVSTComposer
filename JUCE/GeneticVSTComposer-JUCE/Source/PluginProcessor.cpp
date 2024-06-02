@@ -286,6 +286,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
                                                             float diversity,
                                                             float dynamics,
                                                             float arousal,
+                                                            float pauseAmount,
                                                             float valence,
                                                             float jazziness,
                                                             float weirdness,
@@ -334,6 +335,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
     debugInfo += "\nDiversity: " + std::to_string(diversity);
     debugInfo += "\nDynamics: " + std::to_string(dynamics);
     debugInfo += "\narousal: " + std::to_string(arousal);
+    debugInfo += "\nPause Amount: " + std::to_string(pauseAmount);
     debugInfo += "\nValence: " + std::to_string(valence);
     debugInfo += "\nJazziness: " + std::to_string(jazziness);
     debugInfo += "\nWeirdness: " + std::to_string(weirdness);

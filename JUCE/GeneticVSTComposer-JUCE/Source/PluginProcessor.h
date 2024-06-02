@@ -41,6 +41,7 @@ public:
         float diversity,
         float dynamics,
         float arousal,
+        float pauseAmount,
         float valence,
         float jazziness,
         float weirdness,

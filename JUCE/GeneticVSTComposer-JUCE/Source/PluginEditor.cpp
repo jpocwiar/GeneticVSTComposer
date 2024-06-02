@@ -38,7 +38,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     float rotaryHeight = 100;
 
 
-    //---Mode Switch
+    //--- Mode Switch
     int modeButtonWidth = 120;
     //0 - Full melody
     mode0Btn.setButtonText("Full melody");
@@ -47,6 +47,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     mode0Btn.setRadioGroupId(modeRadioGroupID);
     mode0Btn.setConnectedEdges(juce::Button::ConnectedOnRight);
     mode0Btn.setToggleState(true, juce::dontSendNotification);
+    mode0Btn.setLookAndFeel(mainLookAndFeel);
     addAndMakeVisible(mode0Btn);
 
     //1 - Craft Rhythm
@@ -55,6 +56,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     mode1Btn.setClickingTogglesState(true);
     mode1Btn.setRadioGroupId(modeRadioGroupID);
     mode1Btn.setConnectedEdges(juce::Button::ConnectedOnRight | juce::Button::ConnectedOnLeft);
+    mode1Btn.setLookAndFeel(mainLookAndFeel);
     addAndMakeVisible(mode1Btn);
 
     //2 - Build melody on rhythm
@@ -63,6 +65,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     mode2Btn.setClickingTogglesState(true);
     mode2Btn.setRadioGroupId(modeRadioGroupID);
     mode2Btn.setConnectedEdges(juce::Button::ConnectedOnLeft);
+    mode2Btn.setLookAndFeel(mainLookAndFeel);
     addAndMakeVisible(mode2Btn);
 
     modeLbl.setText("Mode", juce::dontSendNotification);
@@ -72,13 +75,15 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 40;
     
+    //--- Scale snapping button (toggle)
     scaleSnapBtn.setBounds(80, currentHeight, 200, 30);
     scaleSnapBtn.setButtonText("Toggle scale snapping");
+    scaleSnapBtn.setLookAndFeel(mainLookAndFeel);
     addAndMakeVisible(scaleSnapBtn);
 
     currentHeight += 40;
 
-    //---scale
+    //--- scale
     scaleBox1.setBounds(130, currentHeight, 60, 30);
     scaleBox1.setLookAndFeel(mainLookAndFeel);
     scaleBox1.addItemList({ "A", "B", "C", "D", "E", "F" }, 1);
@@ -119,7 +124,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 40;
 
-    //---sequence length
+    //--- sequence length
     seqLenBox.setBounds(130, currentHeight, 60, 30);
     seqLenBox.setLookAndFeel(mainLookAndFeel);
     seqLenBox.addItemList({ "1/2", "1", "2" }, 1);
@@ -130,7 +135,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     seqLenLbl.attachToComponent(&seqLenBox, true);
     addAndMakeVisible(seqLenLbl);
 
-    //---note duration
+    //--- note duration
     noteDurationBox.setBounds(300, currentHeight, 60, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
     noteDurationBox.addItemList({ "0.1", "0.2", "0.3", "0.4", "0.5"}, 1);
@@ -143,8 +148,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 60;
 
-    //---diversity
-    diversitySlid.setBounds(40, currentHeight, rotaryWidth, rotaryHeight);
+    //--- diversity
+    diversitySlid.setBounds(20, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&diversitySlid, {0, 1}, 0.01, mainLookAndFeel);
     diversitySlid.setValue(0.8);
     addAndMakeVisible(diversitySlid);
@@ -152,8 +157,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&diversityLbl, "Diversity", &diversitySlid, false, juce::Justification::centred);
     addAndMakeVisible(diversityLbl);
 
-    //---dynamics
-    dynamicsSlid.setBounds(140, currentHeight, rotaryWidth, rotaryHeight);
+    //--- dynamics
+    dynamicsSlid.setBounds(120, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&dynamicsSlid, { 0, 1 }, 0.01, mainLookAndFeel);
     dynamicsSlid.setValue(0.8);
     addAndMakeVisible(dynamicsSlid);
@@ -161,8 +166,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&dynamicsLbl, "Dynamics", &dynamicsSlid, false, juce::Justification::centred);
     addAndMakeVisible(dynamicsLbl);
 
-    //---arousal
-    arousalSlid.setBounds(240, currentHeight, rotaryWidth, rotaryHeight);
+    //--- arousal
+    arousalSlid.setBounds(220, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&arousalSlid, { 0, 1 }, 0.01, mainLookAndFeel);
     arousalSlid.setValue(0.8);
     addAndMakeVisible(arousalSlid);
@@ -170,10 +175,21 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&arousalLbl, "Arousal", &arousalSlid, false, juce::Justification::centred);
     addAndMakeVisible(arousalLbl);
 
-    currentHeight += 140;
+    currentHeight += 140 - (rotaryHeight / 2);
 
-    //---valence
-    valenceSlid.setBounds(40, currentHeight, rotaryWidth, rotaryHeight);
+    //--- Pause Amount
+    pauseAmountSlid.setBounds(320, currentHeight, rotaryWidth, rotaryHeight);
+    InitializeRotarySlider(&pauseAmountSlid, { 0, 1 }, 0.01, mainLookAndFeel);
+    pauseAmountSlid.setValue(0.5);
+    addAndMakeVisible(pauseAmountSlid);
+
+    InitializeAttatchedLabel(&pauseAmountLbl, "Pause Amount", &pauseAmountSlid, false, juce::Justification::centred);
+    addAndMakeVisible(pauseAmountLbl);
+
+    currentHeight += rotaryHeight / 2;
+
+    //--- valence
+    valenceSlid.setBounds(20, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&valenceSlid, { 0, 1 }, 0.01, mainLookAndFeel);
     valenceSlid.setValue(0.8);
     addAndMakeVisible(valenceSlid);
@@ -181,8 +197,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&valenceLbl, "Valence", &valenceSlid, false, juce::Justification::centred);
     addAndMakeVisible(valenceLbl);
 
-    //---jazziness
-    jazzinessSlid.setBounds(140, currentHeight, rotaryWidth, rotaryHeight);
+    //--- jazziness
+    jazzinessSlid.setBounds(120, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&jazzinessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
     jazzinessSlid.setValue(0.5);
     addAndMakeVisible(jazzinessSlid);
@@ -190,8 +206,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&jazzinessLbl, "Jazziness", &jazzinessSlid, false, juce::Justification::centred);
     addAndMakeVisible(jazzinessLbl);
 
-    //---weirdness
-    weirdnessSlid.setBounds(240, currentHeight, rotaryWidth, rotaryHeight);
+    //--- weirdness
+    weirdnessSlid.setBounds(220, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&weirdnessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
     weirdnessSlid.setValue(0.5);
     addAndMakeVisible(weirdnessSlid);
@@ -201,7 +217,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 110;
 
-    //---note range
+    //--- note range
     noteRangeSlid.setBounds(60, currentHeight, 250, 20);
     noteRangeSlid.setSliderStyle(juce::Slider::TwoValueHorizontal);
     noteRangeSlid.setTextBoxStyle(juce::Slider::NoTextBox, false, 40, speedQualitySlid.getTextBoxHeight());
@@ -216,7 +232,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 50;
 
-    //---speed-quality
+    //--- speed-quality
     speedQualitySlid.setBounds(60, currentHeight, 250, 20);
     speedQualitySlid.setTextBoxStyle(juce::Slider::NoTextBox, false, 30, speedQualitySlid.getTextBoxHeight());
     speedQualitySlid.setLookAndFeel(mainLookAndFeel);
@@ -234,7 +250,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 30;
 
-    //---Start Generating Button
+    //--- Start Generating Button
     startGenBtn.setBounds(100, currentHeight, 150, 30);
     startGenBtn.setButtonText("Generate!");
     startGenBtn.addListener(this);
@@ -242,7 +258,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     currentHeight += 35;
 
-    //---DEBUG label
+    //--- DEBUG label
     int debugWidth = getWidth() - 50;
     debugTextBox.setBounds((getWidth() - debugWidth) / 2, currentHeight, debugWidth, getHeight() - currentHeight - 20);
     debugTextBox.setMultiLine(true, false);
@@ -270,13 +286,14 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
             composeMode = 2;
 
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
-        audioProcessor.GenerateMelody(  composeMode,
-                                        scaleSnapBtn.getToggleState(),
+        audioProcessor.GenerateMelody(  composeMode,//Compose Mode
+                                        scaleSnapBtn.getToggleState(),//scale snapping
                                         scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
                                         { noteRangeSlid.getMinValue() , noteRangeSlid.getMaxValue() },//note range
                                         diversitySlid.getValue(),//diversity
                                         dynamicsSlid.getValue(),//dynamics
                                         arousalSlid.getValue(),//arousal
+                                        pauseAmountSlid.getValue(),//pause amount
                                         valenceSlid.getValue(),//valence
                                         jazzinessSlid.getValue(),//jazziness
                                         weirdnessSlid.getValue(),//weirdness
