@@ -139,7 +139,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     noteDurationBox.setBounds(300, currentHeight, 60, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
     noteDurationBox.addItemList({ "0.125", "0.25", "0.5" }, 1);
-    noteDurationBox.setSelectedId(1);
+    noteDurationBox.setSelectedId(2);
     addAndMakeVisible(noteDurationBox);
 
     noteDurationLbl.setText("Shortest note", juce::dontSendNotification);
@@ -180,7 +180,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- Pause Amount
     pauseAmountSlid.setBounds(320, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&pauseAmountSlid, { 0, 1 }, 0.01, mainLookAndFeel);
-    pauseAmountSlid.setValue(0.5);
+    pauseAmountSlid.setValue(0.0);
     addAndMakeVisible(pauseAmountSlid);
 
     InitializeAttatchedLabel(&pauseAmountLbl, "Pause Amount", &pauseAmountSlid, false, juce::Justification::centred);
@@ -200,7 +200,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- jazziness
     jazzinessSlid.setBounds(120, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&jazzinessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
-    jazzinessSlid.setValue(0.5);
+    jazzinessSlid.setValue(0.0);
     addAndMakeVisible(jazzinessSlid);
 
     InitializeAttatchedLabel(&jazzinessLbl, "Jazziness", &jazzinessSlid, false, juce::Justification::centred);
@@ -209,7 +209,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- weirdness
     weirdnessSlid.setBounds(220, currentHeight, rotaryWidth, rotaryHeight);
     InitializeRotarySlider(&weirdnessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
-    weirdnessSlid.setValue(0.5);
+    weirdnessSlid.setValue(0.0);
     addAndMakeVisible(weirdnessSlid);
 
     InitializeAttatchedLabel(&weirdnessLbl, "Weirdness", &weirdnessSlid, false, juce::Justification::centred);
