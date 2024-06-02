@@ -253,7 +253,6 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     //--- Start Generating Button
     startGenBtn.setBounds(100, currentHeight, 150, 30);
     startGenBtn.setButtonText("Generate!");
-    startGenBtn.addListener(this);
     addAndMakeVisible(&startGenBtn);
 
     currentHeight += 35;
@@ -265,10 +264,16 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     debugTextBox.setReadOnly(true);
     debugTextBox.setText("DEBUG", false);
     addAndMakeVisible(&debugTextBox);
+
+    //adding Listeners
+    scaleSnapBtn.addListener(this);
+    startGenBtn.addListener(this);
 }
 
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor()
 {
+    //removing Listeners
+    scaleSnapBtn.removeListener(this);
     startGenBtn.removeListener(this);
 }
 
@@ -290,7 +295,6 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
 
         //TODO - set the debugInfo string that will be shown in the window (get it from generator)
         audioProcessor.GenerateMelody(  composeMode,//Compose Mode
-                                        scaleSnapBtn.getToggleState(),//scale snapping
                                         scaleBox1.getText().toStdString() + " " + scaleBox2.getText().toStdString(),//scale
                                         { noteLower , noteHigher },//note range
                                         diversitySlid.getValue(),//diversity
@@ -304,9 +308,11 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::buttonClicked(juce::Button* but
                                         SpeedQualityValues[speedQualityNO].first,//population size
                                         SpeedQualityValues[speedQualityNO].second, //generation number
                                         seqLenBox.getText().getDoubleValue()); // sequence length
-
-        //update the debug info on the plugin window
-        debugTextBox.setText(audioProcessor.debugInfo, false);
+    }
+    else if (button = &scaleSnapBtn)//when he scale button gets toggled
+    {
+        audioProcessor.scaleSnapping = scaleSnapBtn.getToggleState();
+        //audioProcessor.debugInfo = "Scale snapping: " + std::to_string(audioProcessor.scaleSnapping);
     }
 }
 
@@ -318,22 +324,8 @@ void GeneticVSTComposerJUCEAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white);
     g.setFont (15.0f);
-    /*g.drawFittedText("Scale", 50, 50, 50, 30, juce::Justification::centredLeft, 1);
 
-    g.drawFittedText("Note range", 0, 85, getWidth(), 30, juce::Justification::centred, 1);
-    g.drawFittedText("Min", 50, 120, 30, 30, juce::Justification::centredLeft, 1);
-    g.drawFittedText("Max", 250, 120, 30, 30, juce::Justification::centredLeft, 1);
-
-    g.drawFittedText("Meter", 0, 155, getWidth(), 30, juce::Justification::centred, 1);
-    g.drawFittedText("Upper", 50, 190, 40, 30, juce::Justification::centredLeft, 1);
-    g.drawFittedText("Lower", 250, 190, 40, 30, juce::Justification::centredLeft, 1);
-
-    g.drawFittedText("Note duration", 50, 225, 100, 30, juce::Justification::centredLeft, 1);
-
-    g.drawFittedText("Population size", 50, 260, 100, 30, juce::Justification::centredLeft, 1);
-    
-    g.drawFittedText("no generations", 50, 295, 100, 30, juce::Justification::centredLeft, 1);*/
-
+    //update'ing the debug text (its update'ed in the real-time)
     debugTextBox.setText(audioProcessor.debugInfo, false);
 }
 
