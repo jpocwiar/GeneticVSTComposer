@@ -80,7 +80,8 @@ The plugin in its current state has almost exact functionalities as described in
 16. **Generated Melodies**: Shows the list of currently generated melodies with their MIDI values. -1 means pause, -2 means extension of the previous note.
 
 ## Showcase usage
-<iframe width="560" height="315" src="https://youtu.be/VWsjJbqdnCY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+https://youtu.be/VWsjJbqdnCY
+
 ## Future work
 
 The plugin can be further developed in the following ways:
