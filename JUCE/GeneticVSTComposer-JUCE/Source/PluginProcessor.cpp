@@ -258,16 +258,19 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(
           processedMidi.addEvent(juce::MidiMessage::noteOn(
                                      1, transposedNote, (juce::uint8)velocity),
                                  nextNoteTime);
-          processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNote),
-                                 nextNoteTime + samplesBetweenNotes - 1);
+          if (lastNote >= 0) {
+              processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
+                  nextNoteTime);
+          }
 
           lastNote = transposedNote; // Track the last played note
         } else if (note == -1) {
-          // Pause, do nothing
+            if (lastNote >= 0) {
+                processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
+                    nextNoteTime);
+            }
         } else if (note == -2 && lastNote != -1) {
-          // Extend the last note, adjust the note off time
-          processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
-                                 nextNoteTime + samplesBetweenNotes - 1);
+          // Do nothing
         }
 
         nextNoteTime += samplesBetweenNotes;
@@ -278,7 +281,10 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(
       }
     }
   }
-
+  if (lastNote >= 0) {
+      processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
+          nextNoteTime);
+  }
   // Adjust for the next block
   nextNoteTime -= numSamples;
   midiMessages.swapWith(processedMidi);
