@@ -327,6 +327,7 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(  int composeMode,
         debugInfo += "\n";  // Append a newline after each melody for better readability
     }
 
+
     debugInfo += "\n===Sent data:";
     debugInfo += "\nComposeMode: " + std::to_string(composeMode);
     debugInfo += "\nScale snapping: " + std::to_string(scaleSnapping);

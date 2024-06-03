@@ -40,14 +40,14 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
 
     //--- Scale snapping button (toggle)
     scaleSnapBtn.setBounds(getWidth() / 2 - 100, currentHeight, 200, 30);
-    scaleSnapBtn.setButtonText("Toggle scale snapping");
+    scaleSnapBtn.setButtonText("Quantize to scale");
     scaleSnapBtn.setLookAndFeel(mainLookAndFeel);
     addAndMakeVisible(scaleSnapBtn);
 
     currentHeight += 30;
 
     separationLabel.setBounds(getWidth() / 2 - 75, currentHeight, 150, 30);
-    separationLabel.setText("GENETIC VALUES:", juce::dontSendNotification);
+    separationLabel.setText("GENETIC MIDI COMPOSER", juce::dontSendNotification);
     separationLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(separationLabel);
 
@@ -122,7 +122,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     scaleBox2.addItem("Chromatic", 16);
     scaleBox2.addItem("Whole tone", 17);
     scaleBox2.addItem("Octatonic", 18);
-    scaleBox2.setSelectedId(1);
+    scaleBox2.setSelectedId(9);
     addAndMakeVisible(scaleBox2);
 
     scaleLbl.setText("Scale", juce::dontSendNotification);
@@ -146,7 +146,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     noteDurationBox.setBounds(290, currentHeight, 70, 30);
     noteDurationBox.setLookAndFeel(mainLookAndFeel);
     noteDurationBox.addItemList(noteDurationStr, 1);
-    noteDurationBox.setSelectedId(1);
+    noteDurationBox.setSelectedId(2);
     addAndMakeVisible(noteDurationBox);
 
     noteDurationLbl.setText("Shortest note", juce::dontSendNotification);
@@ -173,14 +173,15 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&dynamicsLbl, "Dynamics", &dynamicsSlid, false, juce::Justification::centred);
     addAndMakeVisible(dynamicsLbl);
 
-    //--- arousal
-    arousalSlid.setBounds(210, currentHeight, rotaryWidth, rotaryHeight);
-    InitializeRotarySlider(&arousalSlid, { 0, 1 }, 0.01, mainLookAndFeel);
-    arousalSlid.setValue(0.8);
-    addAndMakeVisible(arousalSlid);
+    //--- jazziness
+    jazzinessSlid.setBounds(210, currentHeight, rotaryWidth, rotaryHeight);
+    InitializeRotarySlider(&jazzinessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
+    jazzinessSlid.setValue(0.0);
+    addAndMakeVisible(jazzinessSlid);
 
-    InitializeAttatchedLabel(&arousalLbl, "Arousal", &arousalSlid, false, juce::Justification::centred);
-    addAndMakeVisible(arousalLbl);
+    InitializeAttatchedLabel(&jazzinessLbl, "Jazziness", &jazzinessSlid, false, juce::Justification::centred);
+    addAndMakeVisible(jazzinessLbl);
+
 
     currentHeight += 140 - (rotaryHeight / 2);
 
@@ -204,14 +205,14 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     InitializeAttatchedLabel(&valenceLbl, "Valence", &valenceSlid, false, juce::Justification::centred);
     addAndMakeVisible(valenceLbl);
 
-    //--- jazziness
-    jazzinessSlid.setBounds(110, currentHeight, rotaryWidth, rotaryHeight);
-    InitializeRotarySlider(&jazzinessSlid, { 0, 1 }, 0.01, mainLookAndFeel);
-    jazzinessSlid.setValue(0.0);
-    addAndMakeVisible(jazzinessSlid);
+    //--- arousal
+    arousalSlid.setBounds(110, currentHeight, rotaryWidth, rotaryHeight);
+    InitializeRotarySlider(&arousalSlid, { 0, 1 }, 0.01, mainLookAndFeel);
+    arousalSlid.setValue(0.8);
+    addAndMakeVisible(arousalSlid);
 
-    InitializeAttatchedLabel(&jazzinessLbl, "Jazziness", &jazzinessSlid, false, juce::Justification::centred);
-    addAndMakeVisible(jazzinessLbl);
+    InitializeAttatchedLabel(&arousalLbl, "Arousal", &arousalSlid, false, juce::Justification::centred);
+    addAndMakeVisible(arousalLbl);
 
     //--- weirdness
     weirdnessSlid.setBounds(210, currentHeight, rotaryWidth, rotaryHeight);
@@ -244,6 +245,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     speedQualitySlid.setTextBoxStyle(juce::Slider::NoTextBox, false, 30, speedQualitySlid.getTextBoxHeight());
     speedQualitySlid.setLookAndFeel(mainLookAndFeel);
     speedQualitySlid.setRange(0, 2, 1);
+    speedQualitySlid.setValue(1);
     //speedQualitySlid.setNumDecimalPlacesToDisplay
     addAndMakeVisible(speedQualitySlid);
 
