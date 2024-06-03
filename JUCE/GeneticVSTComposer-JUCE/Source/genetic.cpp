@@ -129,9 +129,8 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
     }
   }
 
+  // For normal mode or rythm generation
   if (mode != 2) {
-    // Dla zwykłego trybu albo generowania rytmu chcemy mutacje rytmiczne
-    // Mutacje rytmiczne
     // Extension mutation
     if (std::uniform_real_distribution<float>(0.0, 1.0)(rng) < MUTATION_RATE &&
         valid_indices.size() > 1 && !melody.empty()) {
@@ -140,7 +139,6 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
       int extend_index = valid_indices[std::uniform_int_distribution<int>(
           1, valid_indices.size() - 1)(rng)];
 
-      // melody[extend_index - 1] = melody[extend_index];
       melody[extend_index] = -2;
     }
 
@@ -232,27 +230,26 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
     }
   }
 
+  // For normal mode or melody with template
   if (mode != 1) {
-    // Dla zwykłego trybu albo melodii na rytmie chcemy mutacje melodyczne
-    // Mutacje melodyczne
-    // zamiana dwóch nut na interwal
+    // Melodic mutations
+    // change two notes into interwal
     if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
       std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
       int first_note_index = index_dist(rng);
       int second_note_index;
       do {
         second_note_index = index_dist(rng);
-      } while (second_note_index ==
-               first_note_index); // Zapewniamy ró¿ne indeksy
+      } while (second_note_index == first_note_index); // For distincs indices
 
       int interval = interval_dist(rng);
       melody[second_note_index] = melody[first_note_index] + interval;
-      // Ustawienie noty w obrębie dozwolonego zakresu
+      // Put the note in the allowed range
       melody[second_note_index] = std::min(
           std::max(melody[second_note_index], NOTES.front()), NOTES.back());
     }
 
-    // Transpozycja fragmentu melodii
+    // Transpose melody fragment
     if (prob_dist(rng) < MUTATION_RATE && !melody.empty()) {
       std::uniform_int_distribution<int> index_dist(0, melody.size() - 1);
       int start_index = index_dist(rng);
@@ -264,9 +261,9 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
 
       int transpose_value = interval_dist(rng);
 
-      // Transpozycja nut w obrêbie fragmentu
+      // Transpose notes on the fragment's range
       for (int i = start_index; i < end_index; ++i) {
-        if (melody[i] > 0) { // Sprawdzamy, czy nuta nie jest pauz¹
+        if (melody[i] > 0) { // Check if the note is not a pause
           melody[i] += transpose_value;
           melody[i] =
               std::min(std::max(melody[i], NOTES.front()), NOTES.back());
@@ -290,7 +287,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
         std::vector<int> fragment(melody.begin() + start_index,
                                   melody.begin() + end_index);
 
-        // Utwórz wektor wartości do posortowania, pomijając -1 i -2
+        // Create a vector of values to sort, omitting -1 and -2
         std::vector<int> sortableFragment;
         for (int note : fragment) {
           if (note != -1 && note != -2) {
@@ -298,7 +295,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
           }
         }
 
-        // Sortowanie fragmentu
+        // Sort the fragment
         bool ascending = std::uniform_int_distribution<int>(0, 1)(rng);
         if (ascending) {
           std::sort(sortableFragment.begin(), sortableFragment.end());
@@ -306,7 +303,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
           std::sort(sortableFragment.rbegin(), sortableFragment.rend());
         }
 
-        // Wstawienie posortowanych wartości z powrotem, ignorując -1 i -2
+        // Putting sorted values back, ignoring -1 and -2
         auto it = sortableFragment.begin();
         for (int &note : fragment) {
           if (note != -1 && note != -2 && it != sortableFragment.end()) {
@@ -315,7 +312,7 @@ void GeneticMelodyGenerator::mutate(std::vector<int> &melody) {
           }
         }
 
-        // Skopiowanie zmodyfikowanego fragmentu z powrotem do melodii
+        // Copy modified fragment back to the melody
         std::copy(fragment.begin(), fragment.end(),
                   melody.begin() + start_index);
       }
@@ -327,19 +324,19 @@ std::vector<std::vector<int>>
 GeneticMelodyGenerator::generate_population(int note_amount) {
   std::vector<std::vector<int>> population;
   std::uniform_int_distribution<int> note_dist(
-      0, NOTES.size() - 1); // Dystrybucja dla indeksów NOTES
+      0, NOTES.size() - 1); // Distribution for NOTES indices
   std::uniform_int_distribution<int> change_dist(
-      -12, 12); // Dystrybucja dla zmiany wysokości dźwięku
+      -12, 12); // Distrubution for the pitch change
 
   for (int i = 0; i < populationSize; ++i) {
     std::vector<int> individual;
-    individual.push_back(NOTES[note_dist(rng)]); // Losowy pierwszy dźwięk
+    individual.push_back(NOTES[note_dist(rng)]); // Random first note
 
     for (int j = 1; j < note_amount; ++j) {
       int change = change_dist(rng);
       int next_note = individual.back() + change;
 
-      // Upewnij się, że next_note jest w zakresie NOTES
+      // Make sure next_note is in the range of NOTES
       next_note = std::max(NOTES.front(), std::min(next_note, NOTES.back()));
 
       if (next_note < NOTES.front() || next_note > NOTES.back()) {
@@ -392,7 +389,7 @@ std::pair<std::vector<int>, std::vector<int>>
 GeneticMelodyGenerator::crossover(const std::vector<int> &parent1,
                                   const std::vector<int> &parent2) {
   std::uniform_int_distribution<int> dist(
-      1, parent1.size() - 2); // Zapobiegamy tworzeniu skrajnych przypadków
+      1, parent1.size() - 2); // Prevent creatiion of edge cases
   int index = dist(rng);
 
   std::vector<int> child1(parent1.begin(), parent1.begin() + index);
@@ -1038,7 +1035,6 @@ float GeneticMelodyGenerator::fitness(
   return fitness_value;
 }
 
-// Metoda run
 std::vector<std::vector<int>>
 GeneticMelodyGenerator::run(float measures,
                             const std::vector<int> &template_individual) {
@@ -1104,7 +1100,6 @@ GeneticMelodyGenerator::run(float measures,
   return best_melodies;
 }
 
-// Metoda test
 void GeneticMelodyGenerator::test(int measures, const std::string file_name) {
   std::ofstream file;
   file.open("./fitness/" + file_name);
