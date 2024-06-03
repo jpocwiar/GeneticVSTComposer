@@ -48,17 +48,6 @@ To our best of knowledge, there is not yet a VST plugin that uses genetic algori
 
 The plugin in its current state has almost exact functionalities as described in points 1-4 of the concept. The plugin works as MIDI Effect, which has various modes of generation and is capable of generating melodies on the basis of user-controlled parameters. Melodies can be invoked and transposed using different keys, which can be usable live. We did not realize the optional point 5 regarding controlling parameters of VST instruments, as based on analysis of papers we doubted in quality of such an experiment. Besides, as the plugin works as an MIDI Effect, we found that such additional functionality might be redundant and not used, so we decided to focus directly on MIDI functionality of the plugin.
 
-## Future work
-
-The plugin can be further developed in the following ways:
-- MIDI drag and drop functionality could be added, so that the generated MIDI can be easily placed in DAW and saved. In current state, the generated MIDI is forgotten, when generating new melodies, so it works better live than for actual composing.
-- A feedback mode could be created, when user can evaluate the generated melodies and on the basis of that evaluation new melodies would be created. As the process of evaluation is time consuming, it could be done in a way that user evaluates only the best melodies, which were already obtained in previous generations with current fitness function. Feedback could be also used in generating rhythms, which would be probably easier.
-- Some functionality of recording user's rhythm input and then optimizing melody on that rhythm could be added, just as it works in our "Build melody on rhythm" mode.
-- The genetic algorithm efficiency can be further optimized to obtain solutions quicker
-- Using neural networks as a part of fitness function could be considered, as it was done in [10]
-- Plugin's UI could be improved for better user experience. In particular, a keyboard visualisation could be added to clearly show roles of specific keys.
-- Generated melodies could be shown in UI in form of music notation and also modified on the go.
-
 ## Compiling and running the plugin
 - In order to be able to compile vst3 plugin, you need to have JUCE installed. You can download it from [JUCE website](https://juce.com/). After installing JUCE, you can open the project in Projucer and compile it. After compiling, you will find the vst in Debug folder. You can also just download the vst3 file from releases in this repository.
 - In order for the plugin to be visible in DAW, you need to copy the vst3 file to the folder where your DAW is looking for plugins. For most cases the location should be `C:\Program Files\Common Files\VST3`. After copying the file, you need to restart the DAW. The plugin should be visible in the MIDI Effects or Effects section.
@@ -90,6 +79,16 @@ The plugin can be further developed in the following ways:
 15. **Generate**: Invokes generation of new melodies.
 16. **Generated Melodies**: Shows the list of currently generated melodies with their MIDI values. -1 means pause, -2 means extension of the previous note.
 
+## Future work
+
+The plugin can be further developed in the following ways:
+- MIDI drag and drop functionality could be added, so that the generated MIDI can be easily placed in DAW and saved. In current state, the generated MIDI is forgotten, when generating new melodies, so it works better live than for actual composing.
+- A feedback mode could be created, when user can evaluate the generated melodies and on the basis of that evaluation new melodies would be created. As the process of evaluation is time consuming, it could be done in a way that user evaluates only the best melodies, which were already obtained in previous generations with current fitness function. Feedback could be also used in generating rhythms, which would be probably easier.
+- Some functionality of recording user's rhythm input and then optimizing melody on that rhythm could be added, just as it works in our "Build melody on rhythm" mode.
+- The genetic algorithm efficiency can be further optimized to obtain solutions quicker
+- Using neural networks as a part of fitness function could be considered, as it was done in [10]
+- Plugin's UI could be improved for better user experience. In particular, a keyboard visualisation could be added to clearly show roles of specific keys.
+- Generated melodies could be shown in UI in form of music notation and also modified on the go.
 
 ## Bibliography
 [1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024\
