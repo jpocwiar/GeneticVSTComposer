@@ -46,10 +46,10 @@ To our best of knowledge, there is not yet a VST plugin that uses genetic algori
 
 ## Status of completion
 
-The plugin in its current state has almost exact functionalities as described in points 1-4 of the concept. The plugin works as MIDI Effect, which has various modes of generation and is capable of generating melodies on the basis of user-controlled parameters. Melodies can be invoked and transposed using different keys, which can be usable live. We did not realize the optional point 5 regarding controlling parameters of VST instruments, as based on analysis of papers we doubted in quality of such an experiment. Besides, as the plugin works as an MIDI Effect, we found that such additional functionality might be redundant and not used, so we decided to focus directly on MIDI functionality of the plugin.
+The plugin in its current state has almost exact functionalities as described in points 1-4 of the concept. The plugin works as MIDI Effect, which has various modes of generation and is capable of generating melodies on the basis of user-controlled parameters. Melodies can be invoked and transposed using different keys, which can be usable live. We did not realize the optional point 5 regarding controlling parameters of VST instruments, as based on analysis of papers we doubted in quality of such an experiment. Besides, as the plugin works as a MIDI Effect, we found that such additional functionality might be redundant and not used, so we decided to focus directly on MIDI functionality of the plugin.
 
 ## Compiling and running the plugin
-- In order to be able to compile vst3 plugin, you need to have JUCE installed. You can download it from [JUCE website](https://juce.com/). After installing JUCE, you can open the project in Projucer and compile it. After compiling, you will find the vst in Debug folder. You can also just download the vst3 file from releases in this repository.
+- In order to be able to compile vst3 plugin, you need to have JUCE installed. You can download it from [JUCE website](https://juce.com/). After installing JUCE, you can open the project in Projucer and then in a chosen IDE and compile it. After compiling, you will find the vst in Debug or Release folder, specifically a .vst3 file in a similar path to: `Debug\VST3\GeneticVSTComposer-JUCE.vst3\Contents\x86_64-win`. You can also just download the vst3 file from releases in this repository.
 - In order for the plugin to be visible in DAW, you need to copy the vst3 file to the folder where your DAW is looking for plugins. For most cases the location should be `C:\Program Files\Common Files\VST3`. After copying the file, you need to restart the DAW. The plugin should be visible in the MIDI Effects or Effects section.
 - For MIDI Effect to work with desired instruments, you need to route the MIDI signal from the plugin to the instrument. In most DAWs you can do it by creating a new MIDI track, setting the input of the track to the MIDI Effect and the output to the instrument. Refer to the DAW documentation for more information.
 
@@ -57,7 +57,7 @@ The plugin in its current state has almost exact functionalities as described in
 
 <img src="images/ui.png" alt="Genetic VST Composer UI" width="400">
 
-1. **Quantize to scale**: when it is on, all notes of invoked / transposed melodies are snapped to the closest note of the chosen scale.
+1. **Quantize to scale**: when it is on, all notes of invoked / transposed melodies are snapped to the closest note of the chosen scale (it works in real-time).
 2. **Mode**:
    - **Full melody**: Generates 12 different melodies based on provided melodies. Keys from C3 to B3 invoke the melodies, keys from C4 up transpose the melodies in real time.
    - **Craft Rhythm**: Generates 12 sequences based only on rhythm metrics and mutations. Keys from C3 to B3 invoke the sequences. All notes are of the same pitch.
