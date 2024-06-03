@@ -52,11 +52,45 @@ The plugin in its current state has almost exact functionalities as described in
 
 The plugin can be further developed in the following ways:
 - MIDI drag and drop functionality could be added, so that the generated MIDI can be easily placed in DAW and saved. In current state, the generated MIDI is forgotten, when generating new melodies, so it works better live than for actual composing.
-- A feedback mode could be created, when user can evaluate the generated melodies and and on the basis of that evaluation new melodies would be created. As the process of evaluation is time consuming, it could be done in a way that user evaluates only the best melodies, which were already obtained in previous generations with current fitness function. Feedback could be also used in generating rhythms, which would be probably easier.
+- A feedback mode could be created, when user can evaluate the generated melodies and on the basis of that evaluation new melodies would be created. As the process of evaluation is time consuming, it could be done in a way that user evaluates only the best melodies, which were already obtained in previous generations with current fitness function. Feedback could be also used in generating rhythms, which would be probably easier.
 - Some functionality of recording user's rhythm input and then optimizing melody on that rhythm could be added, just as it works in our "Build melody on rhythm" mode.
 - The genetic algorithm efficiency can be further optimized to obtain solutions quicker
 - Using neural networks as a part of fitness function could be considered, as it was done in [10]
-- Plugin's UI could be improved for better user experience. Specifically a keyboard visualisation could be added to clearly show roles of specific keys.
+- Plugin's UI could be improved for better user experience. In particular, a keyboard visualisation could be added to clearly show roles of specific keys.
+- Generated melodies could be shown in UI in form of music notation and also modified on the go.
+
+## Compiling and running the plugin
+- In order to be able to compile vst3 plugin, you need to have JUCE installed. You can download it from [JUCE website](https://juce.com/). After installing JUCE, you can open the project in Projucer and compile it. After compiling, you will find the vst in Debug folder. You can also just download the vst3 file from releases in this repository.
+- In order for the plugin to be visible in DAW, you need to copy the vst3 file to the folder where your DAW is looking for plugins. For most cases the location should be `C:\Program Files\Common Files\VST3`. After copying the file, you need to restart the DAW. The plugin should be visible in the MIDI Effects or Effects section.
+- For MIDI Effect to work with desired instruments, you need to route the MIDI signal from the plugin to the instrument. In most DAWs you can do it by creating a new MIDI track, setting the input of the track to the MIDI Effect and the output to the instrument. Refer to the DAW documentation for more information.
+
+## How to use the plugin
+
+![Genetic MIDI Composer](images/ui.png)
+
+1. **Quantize to scale**: when it is on, all notes of invoked / transposed melodies are snapped to the closest note of the chosen scale.
+2. **Mode**:
+   - **Full melody**: Generates 12 different melodies based on provided melodies. Keys from C3 to B3 invoke the melodies, keys from C4 up transpose the melodies in real time.
+   - **Craft Rhythm**: Generates 12 sequences based only on rhythm metrics and mutations. Keys from C3 to B3 invoke the sequences. All notes are of the same pitch.
+   - **Build melody on rhythm**: Takes the rhythm of the last invoked sequence and generates a melody over it, so that all melodies have the same rhythms, but different pitches. Best used with Craft Rhythm mode. Keys from C3 to B3 invoke the melodies, keys from C4 up transpose the melodies in real time.
+3. **Scale**: Choose musical scale to be used for GA optimization and scale quantizing.
+4. **Measures**: How long sequence will be played before it repeats.
+5. **Shortest note**: Shortest possible note to be encoded (recommended 1/16).
+
+6. **Diversity**: High value influences occurence of high amount of unique pitches, intervals and rhythmic values.
+7. **Dynamics**: High value influences changes in rhythmic values, increase in pitch range, pitch variation and playing close notes one after the other.
+8. **Jazziness**: High value influences occurence of dissonant intervals, less reliance on the musical scale, playing short consecutive notes.
+9. **Valence**: Has proportional impact on amount of non-dissonant intervals, influences melodic contour to be pointed up, and average pitch to be higher.
+10. **Arousal**: High value influences playing fast notes, playing notes with wide pitch range, and with high average pitch.
+11. **Weirdness**: High value influences playing long notes off-beat, intervals over octave to appear.
+12. **Pause Amount**: Has proportional impact on desired amount of pauses in the melody.
+
+13. **Note range**: Specifies the range of used notes in octaves. The range starts from the first note of chosen scale in the octave specified by the left slider and ends on the first note of chosen scale one octave above the one specified by the right slider.
+14. **Speed / Quality**: Regulates the size of population and number of generations in genetic algorithm. Higher values should make generations better, but longer.
+15. **Generate**: Invokes generation of new melodies.
+16. **Generated Melodies**: Shows the list of currently generated melodies with their MIDI values. -1 means pause, -2 means extension of the previous note.
+
+
 ## Bibliography
 [1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024\
 [2] Magenta Studio. https://magenta.tensorflow.org/studio/. Access: 10.03.2024\
