@@ -66,7 +66,7 @@ The plugin can be further developed in the following ways:
 
 ## How to use the plugin
 
-![Genetic MIDI Composer](images/ui.png)
+<img src="images/ui.png" alt="Genetic VST Composer UI" width="600">
 
 1. **Quantize to scale**: when it is on, all notes of invoked / transposed melodies are snapped to the closest note of the chosen scale.
 2. **Mode**:
