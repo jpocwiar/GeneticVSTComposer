@@ -299,7 +299,6 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(
       valence, jazziness, weirdness, meter, fundNoteDuration, populationSize,
       numGenerations);
 
-  // melody = generator.run(1);
   melodies = generator.run(sequenceLength, melodyTemplate);
 
   debugInfo = "Generated Melodies:\n";
@@ -312,25 +311,6 @@ void GeneticVSTComposerJUCEAudioProcessor::GenerateMelody(
     debugInfo +=
         "\n"; // Append a newline after each melody for better readability
   }
-
-  debugInfo += "\n===Sent data:";
-  debugInfo += "\nComposeMode: " + std::to_string(composeMode);
-  debugInfo += "\nScale snapping: " + std::to_string(scaleSnapping);
-  debugInfo += "\nScale: " + scale;
-  debugInfo += "\nNote range: " + std::to_string(noteRange.first) + "," +
-               std::to_string(noteRange.second);
-  debugInfo += "\nDiversity: " + std::to_string(diversity);
-  debugInfo += "\nDynamics: " + std::to_string(dynamics);
-  debugInfo += "\narousal: " + std::to_string(arousal);
-  debugInfo += "\nPause Amount: " + std::to_string(pauseAmount);
-  debugInfo += "\nValence: " + std::to_string(valence);
-  debugInfo += "\nJazziness: " + std::to_string(jazziness);
-  debugInfo += "\nWeirdness: " + std::to_string(weirdness);
-  debugInfo += "\nMeter: " + std::to_string(meter.first) + "," +
-               std::to_string(meter.second);
-  debugInfo += "\nNote duration: " + std::to_string(noteDuration);
-  debugInfo += "\nPopulation size: " + std::to_string(populationSize);
-  debugInfo += "\nNumber of Generations: " + std::to_string(numGenerations);
 }
 
 //==============================================================================

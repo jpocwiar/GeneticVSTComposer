@@ -19,12 +19,12 @@ GeneticMelodyGenerator::GeneticMelodyGenerator(
       pauseAmount(pauseAmount), valence(valence), jazziness(jazziness),
       weirdness(weirdness), meter(meter), noteDuration(noteDuration),
       populationSize(populationSize), numGenerations(numGenerations),
-      mutationRate(0.3f), crossoverRate(0.9f), // Set rates directly
+      mutationRate(0.3f), crossoverRate(0.9f), 
       expectedLength(static_cast<int>(1 / noteDuration)),
       notesRange(noteRange.second - noteRange.first) {
 
-  std::random_device rd;    // Obtain a seed for the random number generator
-  rng = std::mt19937(rd()); // Use the seed to initialize the generator
+  std::random_device rd;   
+  rng = std::mt19937(rd());
 
   NotesGenerator generator = NotesGenerator(scale);
 
@@ -41,7 +41,6 @@ void GeneticMelodyGenerator::set_coefficients(
     const std::map<std::string, float> &mu_values,
     const std::map<std::string, float> &sigma_values,
     const std::map<std::string, int> &weights) {
-  // Ustaw wartoœci domyœlne, jeœli nie przekazano ¿adnych map
   this->muValues =
       mu_values.empty()
           ? std::map<std::string,
@@ -756,8 +755,7 @@ std::pair<float, float> GeneticMelodyGenerator::fitness_scale_and_chord(
   }
 
   float scale_conformance_score = 0.0;
-  float root_conformance_score =
-      0.0; // We'll leave this as 0 until chord checking is implemented
+  float root_conformance_score = 0.0;
 
   if (total_length_counter != 0) {
     scale_conformance_score =
