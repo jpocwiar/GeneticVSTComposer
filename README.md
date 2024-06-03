@@ -44,6 +44,19 @@ To our best of knowledge, there is not yet a VST plugin that uses genetic algori
 - JUCE / Neutone
 - C++ / Python
 
+## Status of completion
+
+The plugin in its current state has almost exact functionalities as described in points 1-4 of the concept. The plugin works as MIDI Effect, which has various modes of generation and is capable of generating melodies on the basis of user-controlled parameters. Melodies can be invoked and transposed using different keys, which can be usable live. We did not realize the optional point 5 regarding controlling parameters of VST instruments, as based on analysis of papers we doubted in quality of such an experiment. Besides, as the plugin works as an MIDI Effect, we found that such additional functionality might be redundant and not used, so we decided to focus directly on MIDI functionality of the plugin.
+
+## Future work
+
+The plugin can be further developed in the following ways:
+- MIDI drag and drop functionality could be added, so that the generated MIDI can be easily placed in DAW and saved. In current state, the generated MIDI is forgotten, when generating new melodies, so it works better live than for actual composing.
+- A feedback mode could be created, when user can evaluate the generated melodies and and on the basis of that evaluation new melodies would be created. As the process of evaluation is time consuming, it could be done in a way that user evaluates only the best melodies, which were already obtained in previous generations with current fitness function. Feedback could be also used in generating rhythms, which would be probably easier.
+- Some functionality of recording user's rhythm input and then optimizing melody on that rhythm could be added, just as it works in our "Build melody on rhythm" mode.
+- The genetic algorithm efficiency can be further optimized to obtain solutions quicker
+- Using neural networks as a part of fitness function could be considered, as it was done in [10]
+- Plugin's UI could be improved for better user experience. Specifically a keyboard visualisation could be added to clearly show roles of specific keys.
 ## Bibliography
 [1] Scaler 2. https://www.scalerplugin.com/. Access: 10.03.2024\
 [2] Magenta Studio. https://magenta.tensorflow.org/studio/. Access: 10.03.2024\
