@@ -240,50 +240,60 @@ void GeneticVSTComposerJUCEAudioProcessor::processBlock(
   }
 
   if (isSequencePlaying && !melody.empty()) {
-    while (nextNoteTime < numSamples && isSequencePlaying) {
-      if (currentNoteIndex < melody.size()) {
-        const int note = melody[currentNoteIndex];
-        if (note >= 0) {
-          int transposedNote = note + transposition;
-          if (scaleSnapping) // apply snapping if enabled
-            transposedNote = snapNoteToScale(transposedNote);
+      int noteDuration = samplesBetweenNotes;
+      while (nextNoteTime < numSamples && isSequencePlaying) {
+          if (currentNoteIndex < melody.size()) {
+              const int note = melody[currentNoteIndex];
+              if (note >= 0) {
+                  int transposedNote = note + transposition;
+                  if (scaleSnapping) // apply snapping if enabled
+                      transposedNote = snapNoteToScale(transposedNote);
 
-          std::random_device rd;
-          std::mt19937 gen(rd());
-          std::uniform_int_distribution<> dis(initialVelocity - 5,
-                                              initialVelocity + 5);
-          int velocity = dis(gen);
-          velocity = std::clamp(velocity, 0, 127);
+                  std::random_device rd;
+                  std::mt19937 gen(rd());
+                  std::uniform_int_distribution<> dis(initialVelocity - 5, initialVelocity + 5);
+                  int velocity = dis(gen);
+                  velocity = std::clamp(velocity, 0, 127);
 
-          processedMidi.addEvent(juce::MidiMessage::noteOn(
-                                     1, transposedNote, (juce::uint8)velocity),
-                                 nextNoteTime);
-          if (lastNote >= 0) {
-              processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
-                  nextNoteTime);
+                  // Add MIDI Note-On for note
+                  processedMidi.addEvent(juce::MidiMessage::noteOn(
+                                            1, transposedNote, (juce::uint8)velocity),
+                                            nextNoteTime);
+
+                  // Calculate note duration using extensions (-2) 
+                  noteDuration = samplesBetweenNotes;
+                  int tempIndex = currentNoteIndex;
+                  while (tempIndex + 1 < melody.size() && melody[tempIndex + 1] == -2) {
+                      noteDuration += samplesBetweenNotes;
+                      tempIndex++;
+                  }
+
+                  // Add note-off after calculated end of note
+                  processedMidi.addEvent(juce::MidiMessage::noteOff(1, transposedNote),
+                                         nextNoteTime + noteDuration - 1);
+                  lastNote = transposedNote;
+
+                  nextNoteTime += noteDuration;
+                  currentNoteIndex = tempIndex;
+              }
+              else if (note == -1) {
+                  
+                  lastNote = -1;
+                  nextNoteTime += samplesBetweenNotes;
+              }
+              else if (note == -2) {
+                  nextNoteTime += samplesBetweenNotes;
+                  if (lastNote != -1) {
+                      continue;
+                  }
+              }
+
+              currentNoteIndex = (currentNoteIndex + 1) % melody.size();
           }
-
-          lastNote = transposedNote; // Track the last played note
-        } else if (note == -1) {
-            if (lastNote >= 0) {
-                processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
-                    nextNoteTime);
-            }
-        } else if (note == -2 && lastNote != -1) {
-          // Do nothing
-        }
-
-        nextNoteTime += samplesBetweenNotes;
-        currentNoteIndex =
-            (currentNoteIndex + 1) % melody.size(); // Safe way to loop index
-      } else {
-        break; // Break the loop if index is out of range
+          else {
+              break; // Break the loop if index is out of range
+          }
       }
-    }
-  }
-  if (lastNote >= 0) {
-      processedMidi.addEvent(juce::MidiMessage::noteOff(1, lastNote),
-          nextNoteTime);
   }
   // Adjust for the next block
   nextNoteTime -= numSamples;
