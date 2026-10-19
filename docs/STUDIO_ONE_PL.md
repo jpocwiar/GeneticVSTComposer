@@ -1,15 +1,15 @@
-# Genetic Composer 2.1 w Studio One
+# Genetic Composer 2.2 w Studio One
 
 ## Instalacja na tym Macu
 
-1. Rozpakuj `dist/GeneticComposer-2.1.0-macOS-arm64.zip`.
+1. Rozpakuj `dist/GeneticComposer-2.2.0-macOS-arm64.zip`.
 2. W Finderze wybierz **Idź → Idź do folderu** i wpisz `~/Library/Audio/Plug-Ins/VST3/`. Jeśli folder nie istnieje, utwórz go.
 3. Skopiuj do niego cały pakiet **Genetic Composer.vst3** z folderu VST3 w archiwum.
 4. Uruchom ponownie Studio One lub ponownie przeskanuj wtyczki. Szukaj **Genetic Composer** w instrumentach.
 
 Wtyczka ma nowy identyfikator i nie zastępuje poprzedniej wersji w dawnych projektach. Wersja w paczce jest przeznaczona dla Apple Silicon. Nie jest publicznym, notaryzowanym instalatorem.
 
-Wersja 2.1 zachowuje identyfikator wersji 2.0 i odczytuje jej zapisane banki oraz projekty. Nowe funkcje obsługuje pięć zakładek przy piano rollu: **Region**, **Harmony**, **Groove**, **Arrange** i **Combine**. Przycisk **? Help** otwiera instrukcję wewnątrz wtyczki, z rozdziałami oraz wyborem języka polskiego lub angielskiego. Nie wymaga internetu.
+Wersja 2.2 zachowuje identyfikator wtyczki i odczytuje banki oraz projekty wersji 2.0 i 2.1. Funkcje rozwijania frazy obsługuje pięć zakładek przy piano rollu: **Region**, **Harmony**, **Groove**, **Arrange** i **Combine**. Przycisk **? Help** otwiera instrukcję wewnątrz wtyczki, z rozdziałami oraz wyborem języka polskiego lub angielskiego. Nie wymaga internetu.
 
 ## Pierwszy motyw
 
@@ -86,3 +86,9 @@ Projekt DAW zapisuje zatwierdzone melodie, blokady, przypięte warianty, paramet
 **Spacja** — Play/Stop, **Cmd+Z** — Undo, **Cmd+Shift+Z** — Redo, **Esc** — Stop all, **L** lub Shift-klik — blokada zaznaczonej nuty. Skróty edycji działają, gdy fokus jest w edytorze; podczas wpisywania akordów klawiatura służy do wpisywania tekstu.
 
 Bank zawiera 12 wariantów, każdy do 512 nut i 128 ćwierćnut. Import obsługuje MIDI z czasem zapisanym w tickach muzycznych; import głównej melodii zachowuje polifonię, ale generator jest ukierunkowany na pojedynczą linię melodyczną. Prosty dźwięk wewnętrzny służy do odsłuchu. Generowanie i transformacje nie gwarantują konkretnego stylu ani jakości muzycznej — porównuj wyniki w kontekście utworu.
+
+## Nowy wygląd i aktywność
+
+W wersji 2.2 górny panel **MIDI** pokazuje wysyłane zdarzenia nutowe, a **OUT** poziom audio wewnętrznego instrumentu. MIDI pozostaje widoczne po wyłączeniu Internal sound. Klawisze piano rollu reagują na wysyłane wysokości; aktywny wariant ma wskaźnik pozycji. Przy odsłuchu A lub oczekiwaniu na inny wariant playhead w edytowanej frazie B jest ukryty, aby nie sugerować, że to właśnie ją słyszysz.
+
+**Motion** w dolnym pasku ogranicza animację logo, przewijanie historii MIDI oraz płynne przejścia kontrolek. Wskazania transportu i poziomu pozostają aktywne. Przełącznik dotyczy otwartego okna edytora. Instrukcja pod **?** nadal zawiera rozdziały po polsku i angielsku.

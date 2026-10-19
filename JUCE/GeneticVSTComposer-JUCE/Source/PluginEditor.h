@@ -1,22 +1,9 @@
 #pragma once
 #include "PluginProcessor.h"
 
-namespace palette {
-inline const juce::Colour background{0xff101519}, panel{0xff192126}, surface{0xff202a30}, line{0xff303d44};
-inline const juce::Colour text{0xffedf2ee}, muted{0xff94a5aa}, accent{0xffb5ed80}, teal{0xff6dc9bf},
-    gold{0xffe6bd78};
-} // namespace palette
-class ComposerLookAndFeel : public juce::LookAndFeel_V4 {
-  public:
-    ComposerLookAndFeel();
-    void drawButtonBackground(juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
-    void drawButtonText(juce::Graphics&, juce::TextButton&, bool, bool) override;
-    void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
-    void drawLinearSlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider::SliderStyle,
-                          juce::Slider&) override;
-    void drawComboBox(juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
-    juce::Font getComboBoxFont(juce::ComboBox&) override;
-};
+#include "ActivityDisplay.h"
+#include "ComposerTheme.h"
+
 class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
   public:
     PianoRoll();
@@ -28,6 +15,8 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     double regionStart() const { return selectionStart; }
     double regionEnd() const { return selectionEnd; }
     void setPlayhead(double beat);
+    void setActivity(const GeneticVSTComposerJUCEAudioProcessor::VisualState&, bool showingAudible,
+                     bool animate, float elapsed);
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
@@ -43,6 +32,8 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     composer::Harmony harmony;
     int low = 48, high = 79, chosen = -1;
     double playhead = -1;
+    std::array<float, 128> noteActivity{};
+    std::array<float, composer::maxNotes> sourceActivity{};
     bool changed = false, resizingNote = false, changingVelocity = false, selectingTime = false;
     bool editable = true, showReference = false;
     double selectionStart = 0, selectionEnd = 16, selectionAnchor = 0;
@@ -57,6 +48,7 @@ class VariationButton : public juce::Button {
     explicit VariationButton(int index);
     void setClip(const composer::Clip&, bool selected);
     void setPlaybackState(bool audible, bool queued);
+    void advanceAnimation(double beat, float pulse, bool animate, float elapsed);
     void paintButton(juce::Graphics&, bool, bool) override;
     void resized() override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
@@ -66,6 +58,8 @@ class VariationButton : public juce::Button {
     int slot;
     bool selected = false;
     bool audible = false, queued = false;
+    float hoverMix = 0, selectMix = 0, energy = 0;
+    double beatPosition = 0;
     composer::Clip clip;
     juce::TextButton pin{"+"};
 };
@@ -107,6 +101,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     bool isInterestedInFileDrag(const juce::StringArray&) override;
     void filesDropped(const juce::StringArray&, int, int) override;
     void showGuide();
+    void refreshDisplay();
     void showWorkflowPage(int page);
 
   private:
@@ -117,6 +112,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     ComposerLookAndFeel look;
     juce::TooltipWindow tooltips{this, 650};
     PianoRoll roll;
+    ActivityDisplay activity;
+    juce::ToggleButton motion{"Motion"};
     std::array<std::unique_ptr<VariationButton>, 12> variants;
     juce::ComboBox preset, root, scale, bars, grid, meter, mode, harmony, quality;
     std::array<juce::Slider, 6> knobs;
@@ -153,6 +150,11 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     uint64_t shownRevision = 0;
     int shownSlot = -1;
     bool shownBusy = false;
+    double lastFrame = 0, motionPhase = 0, lastReportedBeat = -1, beatReceivedAt = 0;
+    float onsetPulse = 0;
+    uint64_t seenNoteSerial = 0;
+    int timerRate = 60;
+    void advanceVisuals();
     juce::String shownHarmony;
     void timerCallback() override;
     void chooseFile(int action);

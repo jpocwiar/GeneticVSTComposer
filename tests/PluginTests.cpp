@@ -24,6 +24,7 @@ struct PlayHead : juce::AudioPlayHead {
     }
 };
 void runWorkflowTests();
+void runVisualTelemetryTests();
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
     try {
@@ -212,6 +213,7 @@ int main(int argc, char** argv) {
         awaitWorker();
         require(p->selectedClip().notes[0].pitch == 47, "stale worker overwrote a newer edit");
         runWorkflowTests();
+        runVisualTelemetryTests();
         if (argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());
@@ -253,6 +255,37 @@ int main(int argc, char** argv) {
             snapshot("ui-guide-pl.png");
             editor->setSize(870, 630);
             snapshot("ui-guide-compact.png");
+            if (argc > 2) {
+                auto animated = std::make_unique<Processor>();
+                animated->prepareToPlay(48000, 800);
+                std::unique_ptr<juce::AudioProcessorEditor> animatedBase(animated->createEditor());
+                auto* animatedEditor =
+                    dynamic_cast<GeneticVSTComposerJUCEAudioProcessorEditor*>(animatedBase.get());
+                require(animatedEditor != nullptr, "animated editor type");
+                animatedEditor->setSize(1180, 900);
+                animatedEditor->setVisible(true);
+                auto directory = juce::File(argv[2]);
+                require(directory.createDirectory().wasOk(), "animation directory");
+                animated->setPreview(true);
+                juce::AudioBuffer<float> audio(2, 800);
+                juce::MidiBuffer midi;
+                for (int frame = 0; frame < 240; ++frame) {
+                    midi.clear();
+                    animated->processBlock(audio, midi);
+                    animatedEditor->refreshDisplay();
+                    if (frame % 2 == 0) {
+                        auto picture = animatedEditor->createComponentSnapshot(
+                            animatedEditor->getLocalBounds(), true, 0.8f);
+                        juce::FileOutputStream output(directory.getChildFile(
+                            "frame-" + juce::String(frame / 2).paddedLeft('0', 3) + ".png"));
+                        output.setPosition(0);
+                        output.truncate();
+                        png.writeImageToStream(picture, output);
+                    }
+                    juce::Thread::sleep(16);
+                }
+                animated->setPreview(false);
+            }
         }
         std::cout << "Plugin: session restore, undo/redo, MIDI round trip, note scheduling, audition, "
                      "triggers and host transport passed.\n";

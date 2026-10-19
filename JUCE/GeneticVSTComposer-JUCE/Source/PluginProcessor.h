@@ -52,6 +52,16 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     bool isPlaying() const { return playing.load(); }
     double playPosition() const { return playBeat.load(); }
     double tempo() const { return displayTempo.load(); }
+    struct VisualState {
+        std::array<float, 128> notes{};
+        // Emitted MIDI pitch -> note index in the audible clip, or -1 after note-off.
+        std::array<int, 128> sourceNotes;
+        float outputPeak = 0;
+        uint64_t noteOnSerial = 0;
+        VisualState() { sourceNotes.fill(-1); }
+    };
+    // MIDI activity is independent of the internal monitor; peak includes its audible release tail.
+    VisualState visualState() const noexcept;
     bool isGenerating() const { return busy.load(); }
     float generationProgress() const { return progress.load(); }
     uint64_t documentRevision() const { return revision.load(); }
@@ -146,12 +156,24 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     std::array<bool, 128> heldTranspose{};
     struct Voice {
         bool on = false;
+        int sourceIndex = -1;
         double remaining = 0, phase = 0, gain = 0, target = 0;
     };
     std::array<Voice, 128> voices{};
     std::array<double, 128> phaseIncrements{};
+    // Bounded, lock-free publication once per callback; the UI never touches audio-thread voices.
+    static_assert(std::atomic<float>::is_always_lock_free && std::atomic<int>::is_always_lock_free &&
+                      std::atomic<uint64_t>::is_always_lock_free,
+                  "Visual telemetry requires lock-free atomics");
+    std::array<std::atomic<float>, 128> visualNotes;
+    std::array<std::atomic<int>, 128> visualSourceNotes;
+    std::atomic<float> visualOutputPeak{0};
+    std::atomic<uint64_t> visualNoteOnSerial{0};
+    uint64_t audioNoteOnSerial = 0;
+    void clearVisualState() noexcept;
+    void publishVisualState(float peak) noexcept;
     juce::MidiBuffer outputMidi;
     void allOff(int sample, juce::MidiBuffer&);
-    void noteOn(const composer::Note&, int sample, juce::MidiBuffer&);
+    void noteOn(const composer::Note&, int sourceIndex, int sample, juce::MidiBuffer&);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GeneticVSTComposerJUCEAudioProcessor)
 };

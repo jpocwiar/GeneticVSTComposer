@@ -1,10 +1,14 @@
-# Genetic Composer 2.1
+# Genetic Composer 2.2
 
 A JUCE instrument for composing, editing and evolving MIDI phrases. Generate twelve alternatives, keep the interesting parts, develop a motif and take it into your track.
 
-Version **2.1.0** adds local phrase edits, loop-aligned A/B comparison, custom harmony, groove references, four-part arrangements and previews that combine traits from different variations. The **? Help** button opens the built-in guide in Polish or English ([guide preview](images/ui-guide-pl.png)).
+Version **2.2.0** refreshes the native interface with a larger piano roll, note and key activity highlights, animated variation previews, smoother controls and a real MIDI/audio activity display. **Motion** reduces decorative animation while keeping transport and meters visible. The existing parameter IDs and musical controls are unchanged.
+
+Version **2.1.0** introduced local phrase edits, loop-aligned A/B comparison, custom harmony, groove references, four-part arrangements and previews that combine traits from different variations. The **? Help** button opens the built-in guide in Polish or English ([guide preview](images/ui-guide-pl.png)).
 
 ![Genetic Composer interface](images/ui-v2.png)
+
+[See the native interface during playback](images/ui-motion.gif).
 
 ## Make a phrase
 

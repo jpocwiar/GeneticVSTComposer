@@ -3,106 +3,16 @@
 using namespace palette;
 namespace {
 juce::Font font(float size, bool bold = false) {
+#if JUCE_MAC
+    return juce::Font(juce::FontOptions("Avenir Next", size, bold ? juce::Font::bold : juce::Font::plain));
+#else
     return juce::Font(juce::FontOptions(size, bold ? juce::Font::bold : juce::Font::plain));
+#endif
 }
 juce::String noteName(int pitch) {
     return juce::MidiMessage::getMidiNoteName(pitch, true, true, 4);
 }
 } // namespace
-ComposerLookAndFeel::ComposerLookAndFeel() {
-    setColour(juce::TextButton::buttonColourId, surface);
-    setColour(juce::TextButton::textColourOffId, text);
-    setColour(juce::ComboBox::backgroundColourId, surface);
-    setColour(juce::ComboBox::textColourId, text);
-    setColour(juce::ComboBox::outlineColourId, line);
-    setColour(juce::PopupMenu::backgroundColourId, panel);
-    setColour(juce::PopupMenu::textColourId, text);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, line);
-    setColour(juce::PopupMenu::highlightedTextColourId, accent);
-    setColour(juce::Slider::textBoxTextColourId, text);
-    setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
-    setColour(juce::ToggleButton::textColourId, muted);
-    setColour(juce::ToggleButton::tickColourId, accent);
-    setColour(juce::ToggleButton::tickDisabledColourId, line);
-    setColour(juce::Label::textColourId, text);
-    setColour(juce::TooltipWindow::backgroundColourId, surface);
-    setColour(juce::TooltipWindow::textColourId, text);
-    setColour(juce::TooltipWindow::outlineColourId, line);
-    setColour(juce::TextEditor::backgroundColourId, surface);
-    setColour(juce::TextEditor::textColourId, text);
-    setColour(juce::TextEditor::outlineColourId, line);
-    setColour(juce::TextEditor::focusedOutlineColourId, teal);
-}
-void ComposerLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour& colour,
-                                               bool over, bool down) {
-    auto r = b.getLocalBounds().toFloat().reduced(0.5f);
-    auto c = colour;
-    if (down)
-        c = c.darker(0.15f);
-    else if (over)
-        c = c.brighter(0.1f);
-    g.setColour(c.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.4f));
-    g.fillRoundedRectangle(r, 6);
-    if (colour != accent) {
-        g.setColour(over ? muted.withAlpha(0.5f) : line);
-        g.drawRoundedRectangle(r, 6, 1);
-    }
-}
-void ComposerLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& b, bool, bool) {
-    g.setFont(font(13, true));
-    g.setColour(
-        b.findColour(juce::TextButton::textColourOffId).withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.35f));
-    g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(4), juce::Justification::centred, 1);
-}
-void ComposerLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float value,
-                                           float start, float end, juce::Slider&) {
-    auto r = juce::Rectangle<float>(float(x), float(y), float(w), float(h)).reduced(8);
-    const float radius = std::min(r.getWidth(), r.getHeight()) * 0.5f, cx = r.getCentreX(),
-                cy = r.getCentreY();
-    juce::Path track, fill;
-    track.addCentredArc(cx, cy, radius, radius, 0, start, end, true);
-    fill.addCentredArc(cx, cy, radius, radius, 0, start, start + value * (end - start), true);
-    g.setColour(line);
-    g.strokePath(track,
-                 juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour(accent);
-    g.strokePath(fill,
-                 juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour(surface.brighter(0.06f));
-    g.fillEllipse(cx - radius + 6, cy - radius + 6, (radius - 6) * 2, (radius - 6) * 2);
-    const float angle = start + value * (end - start);
-    g.setColour(text);
-    g.drawLine(cx + std::sin(angle) * (radius - 14), cy - std::cos(angle) * (radius - 14),
-               cx + std::sin(angle) * (radius - 8), cy - std::cos(angle) * (radius - 8), 2);
-}
-void ComposerLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float,
-                                           float, juce::Slider::SliderStyle, juce::Slider&) {
-    const float cy = float(y) + h * 0.5f;
-    g.setColour(line);
-    g.fillRoundedRectangle(float(x), cy - 2, float(w), 4, 2);
-    g.setColour(teal);
-    g.fillRoundedRectangle(float(x), cy - 2, std::max(0.0f, pos - x), 4, 2);
-    g.setColour(text);
-    g.fillEllipse(pos - 4, cy - 4, 8, 8);
-}
-void ComposerLookAndFeel::drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int,
-                                       juce::ComboBox& box) {
-    g.setColour(surface);
-    g.fillRoundedRectangle(0, 0, float(w), float(h), 5);
-    g.setColour(line);
-    g.drawRoundedRectangle(0.5f, 0.5f, w - 1.0f, h - 1.0f, 5, 1);
-    g.setColour(box.isEnabled() ? muted : line);
-    juce::Path arrow;
-    arrow.startNewSubPath(w - 18.0f, h * 0.45f);
-    arrow.lineTo(w - 14.0f, h * 0.57f);
-    arrow.lineTo(w - 10.0f, h * 0.45f);
-    g.strokePath(arrow, juce::PathStrokeType(1.4f));
-}
-juce::Font ComposerLookAndFeel::getComboBoxFont(juce::ComboBox&) {
-    return font(13);
-}
-
 PianoRoll::PianoRoll() {
     setWantsKeyboardFocus(true);
     setTooltip(
@@ -115,6 +25,7 @@ void PianoRoll::setClip(const composer::Clip& c, bool resetView) {
     const bool retainSelection = !resetView && chosen >= 0;
     resetView = resetView || c.seed != clip.seed;
     clip = c;
+    sourceActivity.fill(0);
     if (resetView) {
         selectionStart = 0;
         selectionEnd = clip.length;
@@ -140,7 +51,7 @@ void PianoRoll::setClip(const composer::Clip& c, bool resetView) {
         high = std::max(high, c.notes[i].pitch);
     }
     low = std::max(0, low - 3);
-    high = std::min(127, std::max(low + 23, high + 3));
+    high = std::min(127, std::max(low + 17, high + 3));
     repaint();
 }
 void PianoRoll::setReference(const composer::Clip& c, bool visible) {
@@ -158,6 +69,28 @@ void PianoRoll::selectAllTime() {
     if (onRegionChange)
         onRegionChange(selectionStart, selectionEnd);
     repaint();
+}
+void PianoRoll::setActivity(const GeneticVSTComposerJUCEAudioProcessor::VisualState& state,
+                            bool showingAudible, bool animate, float elapsed) {
+    bool changedEnergy = false;
+    const float attack = animate ? 1.0f - std::exp(-elapsed * 40.0f) : 1.0f;
+    const float release = animate ? 1.0f - std::exp(-elapsed * 9.0f) : 1.0f;
+    auto smooth = [&](float& current, float target) {
+        const float next = current + (target - current) * (target > current ? attack : release);
+        changedEnergy |= std::abs(next - current) > 0.001f;
+        current = next < 0.001f ? 0.0f : next;
+    };
+    std::array<float, composer::maxNotes> sourceLevels{};
+    for (size_t pitch = 0; pitch < noteActivity.size(); ++pitch) {
+        smooth(noteActivity[pitch], state.notes[pitch]);
+        const int source = state.sourceNotes[pitch];
+        if (showingAudible && source >= 0 && source < clip.count)
+            sourceLevels[size_t(source)] = std::max(sourceLevels[size_t(source)], state.notes[pitch]);
+    }
+    for (size_t i = 0; i < sourceActivity.size(); ++i)
+        smooth(sourceActivity[i], sourceLevels[i]);
+    if (changedEnergy)
+        repaint();
 }
 void PianoRoll::setPlayhead(double beat) {
     if (playhead != beat) {
@@ -184,17 +117,24 @@ int PianoRoll::pitchAt(float y) const {
     return juce::jlimit(0, 127, high - int((y - r.getY()) / (r.getHeight() / (high - low + 1))));
 }
 void PianoRoll::paint(juce::Graphics& g) {
-    g.fillAll(background);
+    g.fillAll(background.darker(0.12f));
     const auto r = gridArea();
     const float row = r.getHeight() / (high - low + 1);
     for (int p = low; p <= high; ++p) {
         const float y = r.getY() + (high - p) * row;
         const int pc = p % 12;
         const bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
-        g.setColour(black ? juce::Colour(0xff121a1e) : juce::Colour(0xff172025));
+        g.setColour(black ? juce::Colour(0xff131a26) : juce::Colour(0xff19212e));
         g.fillRect(r.getX(), y, r.getWidth(), row);
-        g.setColour(black ? surface : juce::Colour(0xff354247));
-        g.fillRect(0.0f, y, 44.0f, row - 0.5f);
+        const float energy = noteActivity[size_t(p)];
+        g.setColour((black ? surface.darker(0.22f) : juce::Colour(0xff384658))
+                        .interpolatedWith(teal, energy * 0.65f));
+        g.fillRoundedRectangle(2.0f, y + 0.5f, 42.0f, std::max(1.0f, row - 1.0f), 1.5f);
+        if (energy > 0.01f) {
+            g.setGradientFill(juce::ColourGradient(teal.withAlpha(energy * 0.16f), r.getX(), y,
+                                                   teal.withAlpha(0.0f), r.getX() + 140, y, false));
+            g.fillRect(r.getX(), y, r.getWidth(), row);
+        }
         if (pc == 0 || (row > 13 && !black)) {
             g.setFont(font(10));
             g.setColour(pc == 0 ? text : muted);
@@ -277,8 +217,21 @@ void PianoRoll::paint(juce::Graphics& g) {
     for (int i = 0; i < clip.count; ++i) {
         const auto& n = clip.notes[i];
         auto bounds = noteRect(n);
-        g.setColour((n.locked ? gold : accent).withAlpha(0.55f + n.velocity / 127.0f * 0.4f));
-        g.fillRoundedRectangle(bounds, 2);
+        const float energy = playhead >= 0 ? sourceActivity[size_t(i)] : 0.0f;
+        const auto colour = n.locked ? gold : teal.interpolatedWith(accent, float(n.pitch % 12) / 18.0f);
+        if (energy > 0.01f) {
+            g.setColour(colour.withAlpha(energy * 0.12f));
+            g.fillRoundedRectangle(bounds.expanded(5, 3), 4);
+            g.setColour(colour.withAlpha(energy * 0.18f));
+            g.fillRoundedRectangle(bounds.expanded(2, 1), 3);
+        }
+        const auto fill = colour.withAlpha(0.65f + n.velocity / 127.0f * 0.3f)
+                              .interpolatedWith(juce::Colours::white, energy * 0.45f);
+        g.setGradientFill(juce::ColourGradient(fill.brighter(0.10f), bounds.getTopLeft(), fill.darker(0.17f),
+                                               bounds.getBottomLeft(), false));
+        g.fillRoundedRectangle(bounds, 2.5f);
+        g.setColour(juce::Colours::white.withAlpha(0.16f + energy * 0.25f));
+        g.fillRoundedRectangle(bounds.withHeight(1), 0.5f);
         if (i == chosen) {
             g.setColour(text);
             g.drawRoundedRectangle(bounds.reduced(0.5f), 2, 1);
@@ -292,10 +245,17 @@ void PianoRoll::paint(juce::Graphics& g) {
     }
     if (playhead >= 0) {
         const float x = r.getX() + float(playhead / clip.length) * r.getWidth();
-        g.setColour(teal.withAlpha(0.08f));
-        g.fillRect(r.getX(), r.getY(), x - r.getX(), r.getHeight());
+        g.setGradientFill(
+            juce::ColourGradient(teal.withAlpha(0.0f), x - 34, 0, teal.withAlpha(0.16f), x, 0, false));
+        g.fillRect(x - 34, r.getY(), 34.0f, r.getHeight());
+        g.setColour(teal.withAlpha(0.12f));
+        g.fillRect(x - 3, r.getY(), 6.0f, r.getHeight());
+        g.setColour(juce::Colours::white.withAlpha(0.88f));
+        g.drawLine(x, r.getY(), x, r.getBottom(), 1.2f);
+        juce::Path marker;
+        marker.addTriangle(x - 4, r.getY(), x + 4, r.getY(), x, r.getY() + 6);
         g.setColour(teal);
-        g.drawVerticalLine(int(x), r.getY(), r.getBottom());
+        g.fillPath(marker);
     }
     g.restoreState();
     for (int i = 0; i < clip.count; ++i) {
@@ -479,35 +439,72 @@ void VariationButton::mouseDoubleClick(const juce::MouseEvent&) {
     if (onAudition)
         onAudition();
 }
-void VariationButton::paintButton(juce::Graphics& g, bool over, bool) {
-    auto bounds = getLocalBounds().toFloat().reduced(0.5f);
-    g.setColour(selected ? juce::Colour(0xff26352d) : (over ? surface : panel));
-    g.fillRoundedRectangle(bounds, 7);
-    g.setColour(selected ? accent : line);
-    g.drawRoundedRectangle(bounds, 7, selected ? 1.3f : 1.0f);
-    g.setColour(selected ? accent : muted);
-    g.setFont(font(11, true));
-    g.drawText(juce::String(slot + 1).paddedLeft('0', 2), 11, 7, 24, 18, juce::Justification::centredLeft);
-    g.setFont(font(10));
-    g.setColour(muted);
-    g.drawText(noteName(48 + slot), 38, 7, 46, 18, juce::Justification::centredLeft);
-    if (audible || queued) {
-        g.setColour(queued ? gold : teal);
-        g.fillEllipse(float(getWidth() - 39), 12, 6, 6);
+void VariationButton::advanceAnimation(double beat, float pulse, bool animate, float elapsed) {
+    const float amount = animate ? 1.0f - std::exp(-elapsed * 16.0f) : 1.0f;
+    const float nextHover = hoverMix + (float(isMouseOver(true)) - hoverMix) * amount;
+    const float nextSelect = selectMix + (float(selected) - selectMix) * amount;
+    const float nextEnergy = audible ? pulse : 0.0f;
+    const bool changed = std::abs(nextHover - hoverMix) > 0.002f ||
+                         std::abs(nextSelect - selectMix) > 0.002f ||
+                         std::abs(nextEnergy - energy) > 0.005f || (audible && beat != beatPosition);
+    hoverMix = nextHover;
+    selectMix = nextSelect;
+    energy = nextEnergy;
+    beatPosition = beat;
+    const float pinHover = float(pin.getProperties().getWithDefault("hoverAmount", 0.0f));
+    const float nextPin = pinHover + (float(pin.isMouseOver()) - pinHover) * amount;
+    pin.getProperties().set("hoverAmount", nextPin);
+    if (std::abs(pinHover - nextPin) > 0.002f)
+        pin.repaint();
+    if (changed)
+        repaint();
+}
+void VariationButton::paintButton(juce::Graphics& g, bool, bool down) {
+    auto bounds = getLocalBounds().toFloat().reduced(0.7f);
+    const auto tint = queued ? gold : selected ? accent : teal;
+    const auto fill =
+        panel.interpolatedWith(surface, hoverMix * 0.7f).interpolatedWith(tint, selectMix * 0.07f);
+    g.setGradientFill(juce::ColourGradient(fill.brighter(down ? 0.01f : 0.05f), bounds.getTopLeft(),
+                                           fill.darker(0.12f), bounds.getBottomLeft(), false));
+    g.fillRoundedRectangle(bounds, 8);
+    g.setColour(line.interpolatedWith(tint, queued ? 0.75f : selectMix * 0.8f + hoverMix * 0.15f));
+    g.drawRoundedRectangle(bounds, 8, 1);
+    if (selected || queued || audible) {
+        g.setColour(tint.withAlpha(0.7f + energy * 0.25f));
+        g.fillRoundedRectangle(bounds.getX() + 9, bounds.getY(), bounds.getWidth() - 18, 2, 1);
     }
-    auto r = bounds.reduced(11, 0).withTop(31).withBottom(bounds.getBottom() - 7);
+    g.setColour(selected ? accent : palette::text.withAlpha(0.8f));
+    g.setFont(font(11, true));
+    g.drawText(juce::String(slot + 1).paddedLeft('0', 2), 10, 6, 24, 18, juce::Justification::centredLeft);
+    g.setFont(font(9));
+    g.setColour(muted.withAlpha(0.8f));
+    g.drawText(noteName(48 + slot), 36, 6, 40, 18, juce::Justification::centredLeft);
+    if (audible || queued) {
+        const float x = float(getWidth() - 37);
+        g.setColour(tint.withAlpha(0.12f + energy * 0.15f));
+        g.fillEllipse(x - 3, 9, 10, 10);
+        g.setColour(tint);
+        g.fillEllipse(x, 12, 4, 4);
+    }
+    auto r = bounds.reduced(10, 0).withTop(29).withBottom(bounds.getBottom() - 7);
     int lo = 127, hi = 0;
     for (int i = 0; i < clip.count; ++i) {
         lo = std::min(lo, clip.notes[i].pitch);
         hi = std::max(hi, clip.notes[i].pitch);
     }
     hi = std::max(hi, lo + 12);
+    if (audible && beatPosition >= 0) {
+        const float x = r.getX() + float(std::fmod(beatPosition, clip.length) / clip.length) * r.getWidth();
+        g.setColour(teal.withAlpha(0.45f));
+        g.drawLine(x, r.getY(), x, r.getBottom(), 1.0f);
+    }
     for (int i = 0; i < clip.count; ++i) {
-        auto& n = clip.notes[i];
-        g.setColour(n.locked ? gold : (selected ? accent : teal.withAlpha(0.7f)));
+        const auto& n = clip.notes[i];
+        const bool sounding = audible && beatPosition >= n.start && beatPosition < n.start + n.duration;
+        g.setColour(n.locked ? gold : sounding ? palette::text : (selected ? accent : teal.withAlpha(0.65f)));
         g.fillRoundedRectangle(r.getX() + float(n.start / clip.length) * r.getWidth(),
-                               r.getY() + float(hi - n.pitch) / (hi - lo) * std::max(1.0f, r.getHeight() - 4),
-                               std::max(2.0f, float(n.duration / clip.length) * r.getWidth() - 1), 3, 1);
+                               r.getY() + float(hi - n.pitch) / (hi - lo) * std::max(1.0f, r.getHeight() - 3),
+                               std::max(2.0f, float(n.duration / clip.length) * r.getWidth() - 1), 2.5f, 1);
     }
 }
 
@@ -611,6 +608,8 @@ class ComposerGuide final : public juce::Component {
 4. Przeciągnij Drag MIDI na ścieżkę instrumentu albo użyj Export. Plik zawiera aktualnie wyświetlaną frazę lub podgląd, wraz z przetwarzaniem Swing i Gate.
 
 Density: gęstość nut. Variety: ruch wysokości i różnorodność. Syncopation: preferencja początków między uderzeniami. Tension: swoboda chromatyczna. Space: pauzy. Te parametry współdziałają; nie są dokładnymi procentami słyszalnej cechy.
+
+Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk wewnętrznego instrumentu. Podświetlenia klawiatury reagują na nuty wysyłane przez wtyczkę. Motion w dolnym pasku ogranicza animacje, zachowując wskazania transportu i poziomu.
 
 ? otwiera tę instrukcję. Wybierz rozdział z listy powyżej. Esc zamyka instrukcję.)",
             R"(EDYCJA WYBRANEGO FRAGMENTU
@@ -718,6 +717,8 @@ Capture A keeps a reference for comparison. The plus on a card pins that variati
 Drag MIDI onto an instrument track, or use Export. Export writes the displayed phrase or draft, including Swing and Gate processing.
 
 Density targets note density. Variety targets pitch movement and diversity. Syncopation favours off-beat starts. Tension permits chromatic movement. Space favours rests. These controls interact and are not exact percentages of perceptual qualities.
+
+The header MIDI trace shows actual emitted note events; OUT meters the internal audio output. Piano keys respond to emitted notes. Turn Motion off in the bottom bar for reduced animation while transport and level indicators remain active.
 
 Use the chapter selector above for detailed workflows. Escape closes this guide.)",
             R"(EDIT A REGION
@@ -1103,10 +1104,26 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     }
     setResizable(true, true);
     setResizeLimits(870, 630, 1600, 1100);
-    setSize(1180, 900);
+    addAndMakeVisible(activity);
+    addAndMakeVisible(motion);
+    motion.setToggleState(true, juce::dontSendNotification);
+    motion.setTooltip(
+        "Animate playback highlights, hover transitions and MIDI activity. Turn off for reduced motion.");
+    for (int i = 0; i < 6; ++i) {
+        knobs[i].getProperties().set("accentColour", int((i == 5   ? violet
+                                                          : i == 3 ? gold
+                                                          : i == 2 ? teal
+                                                                   : accent)
+                                                             .getARGB()));
+        knobs[i].getProperties().set("displayValue", knobs[i].valueToProportionOfLength(knobs[i].getValue()));
+    }
+    for (auto& tab : workflowTabs)
+        tab.getProperties().set("segment", true);
+    evolve.setColour(juce::TextButton::textColourOffId, violet);
+    setSize(1240, 900);
     updateWorkflow();
     timerCallback();
-    startTimerHz(30);
+    startTimerHz(60);
 }
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor() {
     stopTimer();
@@ -1122,18 +1139,36 @@ void Editor::label(juce::Graphics& g, const juce::String& s, juce::Rectangle<int
 }
 void Editor::paint(juce::Graphics& g) {
     g.fillAll(background);
-    const float zoom = std::min(1.0f, std::min(getWidth() / 1100.0f, getHeight() / 840.0f));
+    const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
     g.addTransform(juce::AffineTransform::scale(zoom));
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom);
-    g.setColour(panel);
-    g.fillRoundedRectangle(20, 92, 262, float(h - 164), 10);
-    g.setColour(line);
+    g.setGradientFill(juce::ColourGradient(background.brighter(0.03f), 0, 0, background.darker(0.2f),
+                                           float(w), float(h), false));
+    g.fillRect(0, 0, w, h);
+    g.setGradientFill(juce::ColourGradient(violet.withAlpha(0.045f), float(w) * 0.45f, 0,
+                                           violet.withAlpha(0.0f), float(w) * 0.45f, 450, true));
+    g.fillRect(0, 0, w, h);
+    auto panelSurface = [&](juce::Rectangle<float> bounds) {
+        g.setColour(juce::Colours::black.withAlpha(0.17f));
+        g.fillRoundedRectangle(bounds.translated(0, 3), 12);
+        g.setGradientFill(juce::ColourGradient(panel.brighter(0.02f), bounds.getTopLeft(),
+                                               panel.darker(0.08f), bounds.getBottomLeft(), false));
+        g.fillRoundedRectangle(bounds, 12);
+        g.setColour(line.withAlpha(0.5f));
+        g.drawRoundedRectangle(bounds.reduced(0.5f), 12, 1);
+        g.setColour(juce::Colours::white.withAlpha(0.025f));
+        g.drawLine(bounds.getX() + 13, bounds.getY() + 1, bounds.getRight() - 13, bounds.getY() + 1);
+    };
+    panelSurface({20, 92, 262, 266});
+    panelSurface({20, 370, 262, float(h - 442)});
+    panelSurface({296, 92, float(w - 308), 438});
+    g.setColour(line.withAlpha(0.65f));
     g.drawHorizontalLine(71, 20, float(w - 20));
     g.drawHorizontalLine(h - 64, 0, float(w));
     // A small, code-drawn double helix: the visual identity belongs to the instrument.
     for (int i = 0; i < 7; ++i) {
-        const float y = 23 + i * 4.0f, x = 38 + std::sin(i * 0.8f) * 10;
-        g.setColour(accent.withAlpha(0.65f));
+        const float y = 22 + i * 4.7f, x = 38 + std::sin(float(i * 0.8 + motionPhase)) * 11;
+        g.setColour(teal.withAlpha(0.28f + onsetPulse * 0.22f));
         g.drawLine(x, y, 76 - x, y, 1);
         g.setColour(accent);
         g.fillEllipse(x - 2, y - 2, 4, 4);
@@ -1141,11 +1176,11 @@ void Editor::paint(juce::Graphics& g) {
         g.fillEllipse(76 - x - 2, y - 2, 4, 4);
     }
     g.setColour(text);
-    g.setFont(font(24, true));
-    g.drawText("GENETIC", 70, 15, 180, 30, juce::Justification::centredLeft);
+    g.setFont(font(26, true));
+    g.drawText("GENETIC", 70, 14, 200, 34, juce::Justification::centredLeft);
     g.setFont(font(10));
     g.setColour(muted);
-    g.drawText("M I D I   C O M P O S E R", 72, 44, 200, 16, juce::Justification::centredLeft);
+    g.drawText("M I D I   C O M P O S E R", 72, 45, 200, 16, juce::Justification::centredLeft);
     label(g, "COMPOSITION", {36, 105, 220, 18}, true);
     label(g, "Root", {36, 131, 62, 16});
     label(g, "Scale", {108, 131, 158, 16});
@@ -1153,12 +1188,8 @@ void Editor::paint(juce::Graphics& g) {
     label(g, "Grid", {118, 188, 66, 16});
     label(g, "Meter", {192, 188, 74, 16});
     label(g, "Generate", {36, 244, 230, 16});
-    label(g,
-          processor.harmonySnapshot().count > 0 ? "Harmony / custom timeline active"
-                                                : "Harmony / one chord per bar",
+    label(g, shownHarmony.isNotEmpty() ? "Harmony / custom timeline active" : "Harmony / one chord per bar",
           {36, 300, 230, 16});
-    g.setColour(line);
-    g.drawHorizontalLine(368, 36, 266);
     label(g, "CHARACTER", {36, 378, 230, 16}, true);
     const juce::String names[]{"Density", "Variety", "Syncopation", "Tension", "Space", "Evolution"};
     for (int i = 0; i < 6; ++i) {
@@ -1171,20 +1202,19 @@ void Editor::paint(juce::Graphics& g) {
     label(g, "Search", {36, 650, 56, 18});
     const int mainX = 304, mainW = w - mainX - 20;
     g.setColour(line);
-    g.drawRoundedRectangle(float(mainX) - 0.5f, 173.5f, float(mainW) + 1, 217, 5, 1);
-    label(g, "Swing", {mainX, 444, 45, 24});
-    label(g, "Gate", {mainX + 230, 444, 38, 24});
-    g.setColour(panel);
-    g.fillRoundedRectangle(float(mainX), 516, float(mainW), 102, 7);
+    g.drawRoundedRectangle(float(mainX) - 0.5f, 173.5f, float(mainW) + 1, 271, 5, 1);
+    label(g, "Swing", {mainX, 498, 45, 24});
+    label(g, "Gate", {mainX + 230, 498, 38, 24});
+    panelSurface({float(mainX), 570, float(mainW), 102});
     if (workflowPage == 2) {
-        label(g, "Timing", {mainX + 12, 584, 46, 26});
-        label(g, "Velocity", {mainX + 244, 584, 54, 26});
+        label(g, "Timing", {mainX + 12, 638, 46, 26});
+        label(g, "Velocity", {mainX + 244, 638, 54, 26});
     }
     if (workflowPage == 3) {
         const char* parts[]{"A / original", "A' / develop", "B / answer", "A'' / ending"};
         const int partWidth = (mainW - 40) / 4;
         for (int i = 0; i < 4; ++i) {
-            auto cell = juce::Rectangle<int>(mainX + 12 + i * (partWidth + 4), 549, partWidth, 28);
+            auto cell = juce::Rectangle<int>(mainX + 12 + i * (partWidth + 4), 603, partWidth, 28);
             g.setColour(i == 0 ? accent.withAlpha(0.15f) : surface);
             g.fillRoundedRectangle(cell.toFloat(), 4);
             g.setColour(i == 0 ? accent : text);
@@ -1194,14 +1224,14 @@ void Editor::paint(juce::Graphics& g) {
     }
     if (workflowPage == 4) {
         const int width = (mainW - 48) / 3;
-        label(g, "Rhythm", {mainX + 12, 541, width, 16});
-        label(g, "Pitches", {mainX + 24 + width, 541, width, 16});
-        label(g, "Accents", {mainX + 36 + width * 2, 541, width, 16});
+        label(g, "Rhythm", {mainX + 12, 595, width, 16});
+        label(g, "Pitches", {mainX + 24 + width, 595, width, 16});
+        label(g, "Accents", {mainX + 36 + width * 2, 595, width, 16});
     }
-    label(g, "VARIATIONS", {mainX, 628, 150, 20}, true);
+    label(g, "VARIATIONS", {mainX, 682, 150, 20}, true);
     g.setColour(muted);
     g.setFont(font(11));
-    g.drawText("Select  /  Double-click to play  /  + to pin", mainX + 145, 628, mainW - 145, 20,
+    g.drawText("Select  /  Double-click to play  /  + to pin", mainX + 145, 682, mainW - 145, 20,
                juce::Justification::centredRight);
     label(g, "BPM", {405, h - 53, 34, 22});
     label(g, "Level", {552, h - 53, 34, 22});
@@ -1213,11 +1243,12 @@ void Editor::paint(juce::Graphics& g) {
     }
     g.setColour(muted.withAlpha(0.6f));
     g.setFont(font(10));
-    g.drawText("EVOLUTION ENGINE  /  WORKFLOW", w - 210, h - 51, 185, 22, juce::Justification::centredRight);
+    g.drawText("GENETIC  /  2.2", w - 256, h - 51, 122, 22, juce::Justification::centredRight);
 }
 void Editor::resized() {
-    const float zoom = std::min(1.0f, std::min(getWidth() / 1100.0f, getHeight() / 840.0f));
+    const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom), x = 304, mw = w - x - 20;
+    activity.setBounds(304, 19, 224, 42);
     preset.setBounds(w - 550, 25, 188, 30);
     undo.setBounds(w - 350, 25, 54, 30);
     redo.setBounds(w - 290, 25, 54, 30);
@@ -1238,7 +1269,7 @@ void Editor::resized() {
     quality.setBounds(94, 644, 172, 28);
     generate.setBounds(36, 685, 230, 36);
     evolve.setBounds(36, 685 + 42, 230, 36);
-    lockRhythm.setBounds(x + 240, 402, 120, 30);
+    lockRhythm.setBounds(x + 240, 456, 120, 30);
     phraseTitle.setBounds(x, 96, 320, 32);
     phraseInfo.setBounds(x + 330, 100, mw - 330, 26);
     applyDraft.setBounds(w - 240, 98, 132, 28);
@@ -1248,49 +1279,50 @@ void Editor::resized() {
     clearA.setBounds(x + 186, 135, 72, 28);
     quantiseSwitch.setBounds(x + 268, 134, 136, 30);
     playbackInfo.setBounds(x + 414, 135, mw - 414, 28);
-    roll.setBounds(x, 174, mw, 216);
-    import.setBounds(x, 402, 100, 30);
-    snap.setBounds(x + 110, 402, 120, 30);
-    exportFile.setBounds(w - 250, 402, 92, 30);
-    drag.setBounds(w - 150, 402, 130, 30);
-    swing.setBounds(x + 45, 444, 164, 24);
-    gate.setBounds(x + 268, 444, 164, 24);
-    tempoInfo.setBounds(x + 460, 444, mw - 460, 24);
+    roll.setBounds(x, 174, mw, 270);
+    import.setBounds(x, 456, 100, 30);
+    snap.setBounds(x + 110, 456, 120, 30);
+    exportFile.setBounds(w - 250, 456, 92, 30);
+    drag.setBounds(w - 150, 456, 130, 30);
+    swing.setBounds(x + 45, 498, 164, 24);
+    gate.setBounds(x + 268, 498, 164, 24);
+    tempoInfo.setBounds(x + 460, 498, mw - 460, 24);
     const int tabWidth = (mw - 4 * 6) / 5;
     for (int i = 0; i < 5; ++i)
-        workflowTabs[i].setBounds(x + i * (tabWidth + 6), 484, tabWidth, 28);
-    workflowInfo.setBounds(x + 12, 519, mw - 24, 24);
-    regionInfo.setBounds(x + 12, 548, mw - 320, 28);
-    allTime.setBounds(w - 304, 548, 132, 28);
-    exportRange.setBounds(w - 164, 548, 132, 28);
+        workflowTabs[i].setBounds(x + i * (tabWidth + 6), 538, tabWidth, 28);
+    workflowInfo.setBounds(x + 12, 573, mw - 24, 24);
+    regionInfo.setBounds(x + 12, 602, mw - 320, 28);
+    allTime.setBounds(w - 304, 602, 132, 28);
+    exportRange.setBounds(w - 164, 602, 132, 28);
     const int regionWidth = (mw - 48) / 4;
     std::array<juce::TextButton*, 4> actions{&simplify, &movement, &answer, &resolve};
     for (int i = 0; i < 4; ++i)
-        actions[i]->setBounds(x + 12 + i * (regionWidth + 8), 584, regionWidth, 28);
-    chordText.setBounds(x + 12, 548, mw - 24, 28);
-    applyHarmony.setBounds(x + 12, 584, 118, 28);
-    clearHarmony.setBounds(x + 138, 584, 66, 28);
-    importHarmony.setBounds(x + 212, 584, 188, 28);
-    importGroove.setBounds(x + 12, 548, 174, 28);
-    captureGroove.setBounds(x + 194, 548, 124, 28);
-    grooveTiming.setBounds(x + 60, 584, 174, 26);
-    grooveVelocity.setBounds(x + 300, 584, 174, 26);
-    applyGroove.setBounds(w - 160, 584, 128, 28);
-    arrange.setBounds(x + 12, 584, 186, 28);
+        actions[i]->setBounds(x + 12 + i * (regionWidth + 8), 638, regionWidth, 28);
+    chordText.setBounds(x + 12, 602, mw - 24, 28);
+    applyHarmony.setBounds(x + 12, 638, 118, 28);
+    clearHarmony.setBounds(x + 138, 638, 66, 28);
+    importHarmony.setBounds(x + 212, 638, 188, 28);
+    importGroove.setBounds(x + 12, 602, 174, 28);
+    captureGroove.setBounds(x + 194, 602, 124, 28);
+    grooveTiming.setBounds(x + 60, 638, 174, 26);
+    grooveVelocity.setBounds(x + 300, 638, 174, 26);
+    applyGroove.setBounds(w - 160, 638, 128, 28);
+    arrange.setBounds(x + 12, 638, 186, 28);
     const int sourceWidth = (mw - 48) / 3;
-    rhythmSource.setBounds(x + 12, 558, sourceWidth, 26);
-    pitchSource.setBounds(x + 24 + sourceWidth, 558, sourceWidth, 26);
-    accentSource.setBounds(x + 36 + 2 * sourceWidth, 558, sourceWidth, 26);
-    combine.setBounds(x + 12, 588, 186, 26);
-    const int gap = 8, cardW = (mw - 5 * gap) / 6, cardH = (h - 64 - 658 - 20) / 2;
+    rhythmSource.setBounds(x + 12, 612, sourceWidth, 26);
+    pitchSource.setBounds(x + 24 + sourceWidth, 612, sourceWidth, 26);
+    accentSource.setBounds(x + 36 + 2 * sourceWidth, 612, sourceWidth, 26);
+    combine.setBounds(x + 12, 642, 186, 26);
+    const int gap = 8, cardW = (mw - 5 * gap) / 6, cardH = (h - 64 - 712 - 20) / 2;
     for (int i = 0; i < 12; ++i)
-        variants[i]->setBounds(x + (i % 6) * (cardW + gap), 658 + (i / 6) * (cardH + 8), cardW, cardH);
+        variants[i]->setBounds(x + (i % 6) * (cardW + gap), 712 + (i / 6) * (cardH + 8), cardW, cardH);
     play.setBounds(20, h - 54, 70, 30);
     follow.setBounds(102, h - 54, 120, 30);
     monitor.setBounds(235, h - 54, 145, 30);
     tempo.setBounds(446, h - 53, 92, 26);
     volume.setBounds(592, h - 53, 108, 26);
     panic.setBounds(720, h - 54, 80, 30);
+    motion.setBounds(w - 116, h - 54, 96, 30);
     status.setBounds(20, h - 22, w - 40, 19);
     if (guide)
         guide->setBounds(0, 0, w, h);
@@ -1411,9 +1443,93 @@ void Editor::refresh() {
     undo.setEnabled(processor.canUndo() && !draft);
     redo.setEnabled(processor.canRedo() && !draft);
 }
+void Editor::advanceVisuals() {
+    const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    const float elapsed = lastFrame > 0 ? float(juce::jlimit(0.001, 0.1, now - lastFrame)) : 1.0f / 60;
+    lastFrame = now;
+    const bool animate = motion.getToggleState() && !(guide && guide->isVisible());
+    const auto state = processor.visualState();
+    float midiEnergy = 0;
+    for (float level : state.notes)
+        midiEnergy = std::max(midiEnergy, level);
+    if (state.noteOnSerial > seenNoteSerial)
+        onsetPulse = 1.0f;
+    else
+        onsetPulse *= std::exp(-elapsed * 7.0f);
+    seenNoteSerial = state.noteOnSerial;
+    const bool running = processor.isPlaying(), searching = processor.isGenerating();
+    const double reported = processor.playPosition();
+    if (reported != lastReportedBeat) {
+        lastReportedBeat = reported;
+        beatReceivedAt = now;
+    }
+    // Extrapolate only between fresh audio block reports, and never across a
+    // stopped transport. The audio thread remains the source of musical time.
+    double beat = reported;
+    if (running && animate && reported >= 0)
+        beat += std::min(0.04, now - beatReceivedAt) * processor.tempo() / 60.0;
+    const bool showingAudible =
+        running && !processor.audibleComparison() && processor.audibleIndex() == processor.selectedIndex();
+    if (showingAudible)
+        beat = std::fmod(std::max(0.0, beat), processor.displayedClip().length);
+    roll.setPlayhead(showingAudible ? beat : -1);
+    roll.setActivity(state, showingAudible, animate, elapsed);
+    activity.update(state.outputPeak, midiEnergy, state.noteOnSerial, running, searching,
+                    processor.generationProgress(), reported, animate);
+    for (auto& variant : variants)
+        variant->advanceAnimation(reported, animate ? onsetPulse : midiEnergy, animate, elapsed);
+    const float transition = animate ? 1.0f - std::exp(-elapsed * 18.0f) : 1.0f;
+    for (auto* child : getChildren()) {
+        if (!child->isVisible())
+            continue;
+        auto* button = dynamic_cast<juce::Button*>(child);
+        auto* slider = dynamic_cast<juce::Slider*>(child);
+        if (!button && !slider && !dynamic_cast<juce::ComboBox*>(child))
+            continue;
+        auto& properties = child->getProperties();
+        const float hover = float(properties.getWithDefault("hoverAmount", 0.0f));
+        const float next =
+            hover + (float(child->isMouseOver(true) && child->isEnabled()) - hover) * transition;
+        const float press = float(properties.getWithDefault("pressAmount", 0.0f));
+        const float nextPress = press + (float(button && button->isDown()) - press) * transition;
+        properties.set("hoverAmount", next);
+        properties.set("pressAmount", nextPress);
+        bool changed = std::abs(next - hover) > 0.002f || std::abs(nextPress - press) > 0.002f;
+        if (slider && slider->getSliderStyle() == juce::Slider::RotaryHorizontalVerticalDrag) {
+            const float target = float(slider->valueToProportionOfLength(slider->getValue()));
+            const float shown = float(properties.getWithDefault("displayValue", target));
+            const float value = shown + (target - shown) * transition;
+            properties.set("displayValue", value);
+            changed |= std::abs(value - shown) > 0.0001f;
+        }
+        if (changed)
+            child->repaint();
+    }
+    if (animate && (running || searching || onsetPulse > 0.01f)) {
+        motionPhase += elapsed * (searching ? 2.8 : running ? processor.tempo() / 80.0 : 0.4);
+        const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+        repaint(juce::Rectangle<float>(18, 15, 45, 46)
+                    .transformedBy(juce::AffineTransform::scale(zoom))
+                    .toNearestInt());
+    }
+}
 void Editor::timerCallback() {
+    if (!isShowing() && shownRevision != 0) {
+        if (timerRate != 10) {
+            timerRate = 10;
+            startTimerHz(timerRate);
+        }
+        return;
+    }
+    refreshDisplay();
+}
+void Editor::refreshDisplay() {
+    const int desiredRate = motion.getToggleState() && !(guide && guide->isVisible()) ? 60 : 30;
+    if (timerRate != desiredRate) {
+        timerRate = desiredRate;
+        startTimerHz(timerRate);
+    }
     refresh();
-    roll.setPlayhead(processor.isPlaying() ? processor.playPosition() : -1);
     status.setText(processor.statusText(), juce::dontSendNotification);
     const bool busy = processor.isGenerating();
     generate.setButtonText(busy ? "Cancel search" : "Generate bank");
@@ -1442,8 +1558,13 @@ void Editor::timerCallback() {
     for (int i = 0; i < 12; ++i)
         variants[i]->setPlaybackState(
             processor.isPlaying() && !hearingA && !processor.hasDraft() && i == audible, i == queued);
-    if (busy || busy != shownBusy)
-        repaint();
+    advanceVisuals();
+    if (busy || busy != shownBusy) {
+        const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+        repaint(juce::Rectangle<float>(32, 674, 238, 12)
+                    .transformedBy(juce::AffineTransform::scale(zoom))
+                    .toNearestInt());
+    }
     shownBusy = busy;
 }
 bool Editor::keyPressed(const juce::KeyPress& k) {

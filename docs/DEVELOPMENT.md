@@ -12,6 +12,7 @@
 - Custom chord events use quarter-note start/duration and root/quality values. Chord text is parsed before committing; a failed parse leaves the prior harmony intact. MIDI chord estimation is heuristic and its editable result is exposed to the user. Groove MIDI is held as a separate reference.
 - Region operations affect unlocked note onsets in the half-open interval `[start, end)`. Combination draws timing from one phrase and maps pitch/velocity traits from other phrases. Arrangement produces four segments; capacity overflow is rejected. Both workflows require explicit acceptance before replacing a bank slot, and export uses the displayed draft when one exists.
 - The native editor includes a chapter-based Polish/English guide. Reference imports, range selection, draft acceptance and A/B state are available directly from the workflow controls.
+- `ComposerTheme` owns the native control drawing. `ActivityDisplay` renders emitted MIDI onsets and the internal audio peak, including release tails. The audio callback publishes bounded arrays of output velocities, source-note indices and counters through lock-free atomics; the editor does not access audio-owned voices. Keys highlight the output pitches; note blocks track their source events even when transposition, scale snap, swing or gate changes playback. The editor updates at 60 Hz, drops to 30 Hz with Motion off or the guide open, and polls at 10 Hz while hidden. Motion is an editor-local preference; it does not add an automation parameter.
 - A lightweight additive monitor provides immediate sound. Disable it for MIDI-only use. This is intentionally an instrument-format VST3/AU with stereo audio and MIDI output to fit Studio One's instrument workflow.
 
 ## Tests
@@ -25,6 +26,8 @@ Processor coverage: parameters/bank/locks/favourites round trip through host sta
 `tests/WorkflowTests.cpp` adds document-state checks for custom harmony and groove references, independent reference imports, preservation of events outside a selected region, draft preview/discard/accept semantics, draft export and exclusion from serialized state, comparison-snapshot persistence, range export with clipped notes and rebased timing, arrangement segment/capacity checks, and sample-position checks for loop-aligned selection and A/B changes with both preview and host-follow transport.
 
 `build/plugin_tests_artefacts/Release/plugin_tests images/ui-v2.png` also renders the actual JUCE editor to a PNG. This tests the real layout rather than an unrelated HTML mockup.
+
+`tests/VisualTelemetryTests.cpp` checks emitted pitches and velocities, source-note identity through transposition/scale snapping/retriggers, swing/gate timing, audio peak measurement, MIDI activity with the monitor muted, release tails, short notes, panic, bypass and lifecycle resets. To capture a four-second sequence of the actual editor during audio processing, add a second output path: `build/plugin_tests_artefacts/Release/plugin_tests "$PWD/images/ui-v2.png" "$PWD/build/ui-motion"`. This produces 120 PNG frames for playback at 30 fps. Explicit `refreshDisplay()` updates support offscreen rendering; the normal timer skips hidden editors.
 
 Before a public release, qualify VST3/AU in each supported host, test routing and native file dragging, run pluginval, build Windows and Intel macOS, and sign/notarize distribution bundles. The local automated checks do not establish every host integration.
 
@@ -60,3 +63,13 @@ Live MIDI routing and native dragging inside Studio One/Studio Pro have not yet 
 - Package: `dist/GeneticComposer-2.1.0-macOS-arm64.zip` (VST3, AU, Standalone and Polish manual).
 
 Studio One live routing/native dragging still require manual host qualification. AU was built and signature-checked, not separately validated with auval. Windows/Intel builds and public distribution signing/notarization remain outside these local checks. Chord inference is heuristic; automated tests establish invariants and transport behavior, not musical preference.
+
+## Local validation — 2.2.0 interface build, 2026-10-20
+
+- Release VST3, AU and Standalone rebuilt on Apple Silicon; all three bundle signatures passed `codesign --verify --deep --strict`.
+- Both CTest suites passed, including the previous workflow coverage and the new visual-telemetry checks. The musical engine and parameter IDs are unchanged.
+- VST3 passed pluginval strictness level 5, including editor creation during processing and editor automation. Transcript: `build/validation/pluginval-2.2-macos-arm64.txt`. The separate Steinberg VST3 validator was not configured.
+- Inspected actual native editor captures at default and compact sizes, plus a playback frame showing active note, key, playhead, variation and output indicators. `images/ui-motion.gif` is captured from the actual JUCE editor while processing audio, not a design mockup.
+- Package: `dist/GeneticComposer-2.2.0-macOS-arm64.zip` contains VST3, AU, Standalone and the updated Polish manual.
+
+Studio One routing/native dragging, AU validation, Windows/Intel builds and public signing/notarization have not been newly qualified by this UI update.

@@ -74,7 +74,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters(*this, nullptr, "Parameters", createParameters()), bank(composer::makeInitialBank()),
-      pendingBank(bank), audioBank(bank) {}
+      pendingBank(bank), audioBank(bank) {
+    clearVisualState();
+}
 GeneticVSTComposerJUCEAudioProcessor::~GeneticVSTComposerJUCEAudioProcessor() {
     cancelled.store(true);
     if (worker.joinable())
@@ -87,6 +89,9 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& layout) const {
 void Processor::prepareToPlay(double sampleRate, int) {
     rate = sampleRate;
     voices = {};
+    audioNoteOnSerial = 0;
+    visualNoteOnSerial.store(0, std::memory_order_relaxed);
+    clearVisualState();
     phase = 0;
     nextNote = 0;
     wasPlaying = wasHostPlaying = false;
@@ -104,6 +109,32 @@ void Processor::prepareToPlay(double sampleRate, int) {
 void Processor::releaseResources() {
     playing.store(false);
     preview.store(false);
+    clearVisualState();
+}
+Processor::VisualState Processor::visualState() const noexcept {
+    VisualState state;
+    for (size_t p = 0; p < state.notes.size(); ++p) {
+        state.notes[p] = visualNotes[p].load(std::memory_order_relaxed);
+        state.sourceNotes[p] = visualSourceNotes[p].load(std::memory_order_relaxed);
+    }
+    state.outputPeak = visualOutputPeak.load(std::memory_order_relaxed);
+    state.noteOnSerial = visualNoteOnSerial.load(std::memory_order_relaxed);
+    return state;
+}
+void Processor::clearVisualState() noexcept {
+    for (auto& note : visualNotes)
+        note.store(0, std::memory_order_relaxed);
+    for (auto& index : visualSourceNotes)
+        index.store(-1, std::memory_order_relaxed);
+    visualOutputPeak.store(0, std::memory_order_relaxed);
+}
+void Processor::publishVisualState(float peak) noexcept {
+    for (size_t p = 0; p < voices.size(); ++p) {
+        visualNotes[p].store(voices[p].on ? float(voices[p].target) : 0.0f, std::memory_order_relaxed);
+        visualSourceNotes[p].store(voices[p].on ? voices[p].sourceIndex : -1, std::memory_order_relaxed);
+    }
+    visualOutputPeak.store(peak, std::memory_order_relaxed);
+    visualNoteOnSerial.store(audioNoteOnSerial, std::memory_order_relaxed);
 }
 composer::Bank Processor::bankSnapshot() const {
     std::lock_guard<std::mutex> lock(documentMutex);
@@ -555,6 +586,7 @@ void Processor::allOff(int sample, juce::MidiBuffer& midi) {
         if (voices[p].on) {
             midi.addEvent(juce::MidiMessage::noteOff(1, p), sample);
             voices[p].on = false;
+            voices[p].sourceIndex = -1;
             voices[p].target = 0;
         }
 }
@@ -572,15 +604,18 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     preview.store(false);
     playing.store(false);
     playBeat.store(-1);
+    clearVisualState();
 }
-void Processor::noteOn(const composer::Note& n, int sample, juce::MidiBuffer& midi) {
+void Processor::noteOn(const composer::Note& n, int sourceIndex, int sample, juce::MidiBuffer& midi) {
     auto& v = voices[n.pitch];
     if (v.on)
         midi.addEvent(juce::MidiMessage::noteOff(1, n.pitch), sample);
     v.on = true;
+    v.sourceIndex = sourceIndex;
     v.remaining = n.duration;
     v.target = n.velocity / 127.0;
     midi.addEvent(juce::MidiMessage::noteOn(1, n.pitch, juce::uint8(n.velocity)), sample);
+    ++audioNoteOnSerial;
 }
 void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
@@ -645,6 +680,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const float volume = param("volume");
     const double swingAmount = param("swing");
     const bool quantise = param("quantiseSwitch") > 0.5f;
+    float blockPeak = 0;
     for (int sample = 0; sample < samples; ++sample) {
         while (incoming != end && (*incoming).samplePosition <= sample) {
             const auto message = (*incoming).getMessage();
@@ -725,6 +761,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
             if (v.on && v.remaining <= 1.0e-9) {
                 outputMidi.addEvent(juce::MidiMessage::noteOff(1, p), sample);
                 v.on = false;
+                v.sourceIndex = -1;
                 v.target = 0;
             }
         }
@@ -737,7 +774,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                     break;
                 auto n = renderedNote(raw, clip, transpose);
                 if (n.start >= phase - step * 1.5)
-                    noteOn(n, sample, outputMidi);
+                    noteOn(n, nextNote, sample, outputMidi);
                 ++nextNote;
             }
         }
@@ -758,6 +795,8 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         const float value = float(std::tanh(signal * volume));
         for (int ch = 0; ch < audio.getNumChannels(); ++ch)
             audio.setSample(ch, sample, value);
+        if (audio.getNumChannels() > 0)
+            blockPeak = std::max(blockPeak, std::abs(value));
         if (run) {
             phase += step;
             if (phase >= clip.length - step * 0.0001) {
@@ -773,6 +812,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     wasHostPlaying = hostPlaying;
     lastFollow = follow;
     midi.swapWith(outputMidi);
+    publishVisualState(blockPeak);
 }
 
 namespace {
