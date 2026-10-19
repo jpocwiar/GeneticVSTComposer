@@ -1,4 +1,7 @@
 .idea/
+.deps/
+build-*/
+.DS_Store
 generated_midi/
 generation/generated_outputs/
 test_scripts/

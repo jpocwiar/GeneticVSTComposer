@@ -1,0 +1,26 @@
+name: Build and test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  plugins:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeneticComposer-${{ matrix.os }}
+          path: |
+            build/GeneticComposer_artefacts/Release/VST3/
+            build/GeneticComposer_artefacts/Release/AU/
+            build/GeneticComposer_artefacts/Release/Standalone/

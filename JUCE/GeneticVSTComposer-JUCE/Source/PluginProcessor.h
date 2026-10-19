@@ -1,120 +1,157 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #pragma once
-
-#include "genetic.hpp"
-#include "notes_generator.hpp"
+#include "ComposerEngine.h"
 #include <JuceHeader.h>
+#include <deque>
+#include <mutex>
+#include <thread>
 
-//==============================================================================
-/**
- */
 class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
-public:
-  //==============================================================================
-  GeneticVSTComposerJUCEAudioProcessor();
-  ~GeneticVSTComposerJUCEAudioProcessor() override;
+  public:
+    GeneticVSTComposerJUCEAudioProcessor();
+    ~GeneticVSTComposerJUCEAudioProcessor() override;
+    void prepareToPlay(double, int) override;
+    void releaseResources() override;
+    bool isBusesLayoutSupported(const BusesLayout&) const override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+    const juce::String getName() const override { return JucePlugin_Name; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return true; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 0.15; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return ""; }
+    void changeProgramName(int, const juce::String&) override {}
+    void getStateInformation(juce::MemoryBlock&) override;
+    void setStateInformation(const void*, int) override;
 
-  //==============================================================================
-  void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-  void releaseResources() override;
-
-#ifndef JucePlugin_PreferredChannelConfigurations
-  bool isBusesLayoutSupported(const BusesLayout &layouts) const override;
-#endif
-
-  void processBlock(juce::AudioBuffer<float> &, juce::MidiBuffer &) override;
-
-  //          CUSTOM
-  // Method to generate melody and save it in the processor using Genetic
-  // Algorithms
-  void GenerateMelody(int composeMode, std::string scale,
-                      std::pair<int, int> noteRange, float diversity,
-                      float dynamics, float arousal, float pauseAmount,
-                      float valence, float jazziness, float weirdness,
-                      float noteDuration, int populationSize,
-                      int numGenerations, float sequenceLength);
-  std::vector<int> originalMelody;
-  std::vector<int> melody;
-  std::vector<int> melodyTemplate;
-  std::vector<std::vector<int>> melodies;
-  bool scaleSnapping = false;
-  std::string debugInfo;
-
-  //==============================================================================
-  juce::AudioProcessorEditor *createEditor() override;
-  bool hasEditor() const override;
-
-  //==============================================================================
-  const juce::String getName() const override;
-
-  bool acceptsMidi() const override;
-  bool producesMidi() const override;
-  bool isMidiEffect() const override;
-  double getTailLengthSeconds() const override;
-
-  //==============================================================================
-  int getNumPrograms() override;
-  int getCurrentProgram() override;
-  void setCurrentProgram(int index) override;
-  const juce::String getProgramName(int index) override;
-  void changeProgramName(int index, const juce::String &newName) override;
-
-  //==============================================================================
-  void getStateInformation(juce::MemoryBlock &destData) override;
-  void setStateInformation(const void *data, int sizeInBytes) override;
-
-private:
-  //==============================================================================
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
-      GeneticVSTComposerJUCEAudioProcessor)
-  juce::AudioPlayHead::CurrentPositionInfo lastPosInfo;
-  std::vector<std::pair<int, int>>
-      noteOffTimes; // To track note offs outside the current block
-  std::array<int, 16> notes{60, 61, 62, -2, -2, -2, 65, -1,
-                            66, 68, -1, 61, 62, 63, 70, 80};
-  int currentNoteIndex = 0;
-  int nextNoteTime = 0;
-  std::vector<int> g_scale_notes;
-  std::pair<int, int> meter{4, 4};
-  int samplesBetweenNotes = 48000;
-  bool isSequencePlaying = false;
-  int activeNotesCount = 0; // Track how many keys are pressed
-  int lastNote = -1;
-  int selectedMelodyIndex = -1;
-  int transposition = 0;
-  int initialVelocity;
-  int composeMode = 0;
-  float fundNoteDuration = 0.25;
-
-  void adjustMelodyForMeter() {
-    if (originalMelody.empty())
-      return;
-
-    // Calculate the number of notes in the melody for one measure
-    int currentMeasureLength = meter.first * 4 / meter.second;
-    int newMeasureLength = meter.first * 4 / meter.second;
-
-    // Adjust melody length
-    std::vector<int> newMelody;
-    if (newMeasureLength < currentMeasureLength) {
-      // Cut the melody to fit the new meter
-      for (int i = 0; i < newMeasureLength; ++i) {
-        newMelody.push_back(originalMelody[i % originalMelody.size()]);
-      }
-    } else {
-      // Extend the melody to fit the new meter
-      newMelody = originalMelody;
-      for (int i = originalMelody.size(); i < newMeasureLength; ++i) {
-        newMelody.push_back(originalMelody[i % originalMelody.size()]);
-      }
+    juce::AudioProcessorValueTreeState parameters;
+    composer::Bank bankSnapshot() const;
+    composer::Clip selectedClip() const;
+    composer::Clip displayedClip() const;
+    int selectedIndex() const { return selected.load(); }
+    int audibleIndex() const { return audibleSlot.load(); }
+    int queuedIndex() const {
+        return isPlaying() && selected.load() != audibleSlot.load() ? selected.load() : -1;
     }
-    melody = newMelody;
-  }
+    void selectClip(int index);
+    void setClip(int index, composer::Clip clip);
+    void toggleFavourite(int index);
+    void undo();
+    void redo();
+    bool canUndo() const;
+    bool canRedo() const;
+    void generate(bool evolve);
+    void cancelGeneration() { cancelled.store(true); }
+    void setPreview(bool enabled);
+    bool previewRequested() const { return preview.load(); }
+    bool isPlaying() const { return playing.load(); }
+    double playPosition() const { return playBeat.load(); }
+    double tempo() const { return displayTempo.load(); }
+    bool isGenerating() const { return busy.load(); }
+    float generationProgress() const { return progress.load(); }
+    uint64_t documentRevision() const { return revision.load(); }
+    juce::String statusText() const;
+    void setStatus(const juce::String&);
+    void applyPreset(int index);
+    juce::Result applyRegion(double start, double end, composer::RegionAction);
+    juce::Result setCustomHarmony(const juce::String&);
+    void clearCustomHarmony();
+    juce::String customHarmonyText() const;
+    composer::Harmony harmonySnapshot() const;
+    juce::Result importHarmonyMidi(const juce::File&);
+    juce::Result importGrooveMidi(const juce::File&);
+    void useSelectedAsGroove();
+    bool hasGrooveReference() const;
+    juce::Result applyGroove(float timing, float velocity);
+    juce::Result previewCombination(int rhythm, int pitches, int accents);
+    juce::Result previewArrangement();
+    bool hasDraft() const;
+    void applyDraft();
+    void discardDraft();
+    juce::String draftDescription() const;
+    void captureComparison();
+    void toggleComparison();
+    void clearComparison();
+    bool hasComparison() const { return comparisonAvailable.load(); }
+    bool isComparing() const { return compareRequested.load(); }
+    bool audibleComparison() const { return heardComparison.load(); }
+    composer::Clip comparisonClip() const;
+    juce::Result exportMidi(const juce::File&) const;
+    juce::Result exportMidiRange(const juce::File&, double start, double end) const;
+    juce::Result importMidi(const juce::File&);
+    juce::Result saveBank(const juce::File&);
+    juce::Result loadBank(const juce::File&);
+    void panic() {
+        panicRequested.store(true);
+        preview.store(false);
+    }
+    static juce::StringArray scaleNames();
+    static juce::StringArray rootNames();
+
+  private:
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
+    float param(const char* id) const { return parameters.getRawParameterValue(id)->load(); }
+    composer::Settings settings() const;
+    void publishLocked();
+    void pushHistoryLocked();
+    bool restore(const void*, int);
+    composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0) const;
+    void setParameter(const char*, float);
+    juce::Result readMidi(const juce::File&, composer::Clip&, bool& truncated) const;
+    juce::Result exportClip(const composer::Clip&, const juce::File&, bool alreadyRendered = false) const;
+    mutable std::mutex documentMutex;
+    composer::Bank bank;
+    composer::Harmony customHarmony;
+    composer::Clip grooveReference, comparison, draft;
+    bool grooveLoaded = false, draftActive = false;
+    int draftSlot = -1;
+    juce::String draftLabel;
+    struct Document {
+        composer::Bank bank;
+        composer::Harmony harmony;
+        composer::Clip groove;
+        bool grooveLoaded = false;
+    };
+    Document documentLocked() const;
+    void restoreDocumentLocked(const Document&);
+    std::deque<Document> undoStack, redoStack;
+    juce::String status{"Choose a variation, or generate something new."};
+    std::atomic<int> selected{0};
+    std::atomic<int> audibleSlot{0};
+    std::atomic<bool> comparisonAvailable{false}, compareRequested{false}, heardComparison{false};
+    std::atomic<bool> customHarmonyEnabled{false};
+    std::atomic<uint64_t> revision{1};
+    std::atomic<bool> busy{false}, cancelled{false}, preview{false}, playing{false}, panicRequested{false};
+    std::atomic<float> progress{0};
+    std::atomic<double> playBeat{0}, displayTempo{120};
+    std::thread worker;
+    juce::Random seedGenerator;
+    // The audio thread only tries this lock, retaining the last bank if busy.
+    juce::SpinLock exchangeLock;
+    composer::Bank pendingBank, audioBank;
+    composer::Clip pendingComparison, pendingDraft, audioComparison, audioDraft, activeClip;
+    bool pendingHasDraft = false, audioHasDraft = false;
+    int pendingDraftSlot = -1, audioDraftSlot = -1;
+    uint64_t pendingRevision = 1, audioRevision = 0;
+    int audioSelection = -1, nextNote = 0, trigger = -1, transpose = 0;
+    bool audioCompare = false, audioDraftActive = false, loopBoundary = false;
+    bool wasPlaying = false, wasHostPlaying = false, lastFollow = false;
+    double phase = 0, expectedPpq = 0, rate = 44100;
+    std::array<bool, 12> heldTriggers{};
+    std::array<bool, 128> heldTranspose{};
+    struct Voice {
+        bool on = false;
+        double remaining = 0, phase = 0, gain = 0, target = 0;
+    };
+    std::array<Voice, 128> voices{};
+    std::array<double, 128> phaseIncrements{};
+    juce::MidiBuffer outputMidi;
+    void allOff(int sample, juce::MidiBuffer&);
+    void noteOn(const composer::Note&, int sample, juce::MidiBuffer&);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GeneticVSTComposerJUCEAudioProcessor)
 };
