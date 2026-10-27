@@ -11,6 +11,8 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     void setReference(const composer::Clip&, bool visible);
     void setHarmony(const composer::Harmony&);
     void setEditable(bool enabled) { editable = enabled; }
+    void setNoteEditing(bool enabled);
+    void setMicrotonal(bool enabled);
     void selectAllTime();
     double regionStart() const { return selectionStart; }
     double regionEnd() const { return selectionEnd; }
@@ -21,9 +23,11 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed(const juce::KeyPress&) override;
     std::function<void(composer::Clip)> onEdit;
+    std::function<void()> onMidiDrag, onAudition;
     std::function<void(double, double)> onRegionChange;
 
   private:
@@ -35,7 +39,8 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     std::array<float, 128> noteActivity{};
     std::array<float, composer::maxNotes> sourceActivity{};
     bool changed = false, resizingNote = false, changingVelocity = false, selectingTime = false;
-    bool editable = true, showReference = false;
+    bool editable = true, showReference = false, microtonal = false;
+    bool noteEditing = false, dragArmed = false, midiDragged = false;
     double selectionStart = 0, selectionEnd = 16, selectionAnchor = 0;
     composer::Note original;
     juce::Rectangle<float> gridArea() const;
@@ -46,7 +51,7 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
 class VariationButton : public juce::Button {
   public:
     explicit VariationButton(int index);
-    void setClip(const composer::Clip&, bool selected);
+    void setClip(const composer::Clip&, bool selected, bool microtonal = false);
     void setPlaybackState(bool audible, bool queued);
     void advanceAnimation(double beat, float pulse, bool animate, float elapsed);
     void paintButton(juce::Graphics&, bool, bool) override;
@@ -56,7 +61,7 @@ class VariationButton : public juce::Button {
 
   private:
     int slot;
-    bool selected = false;
+    bool selected = false, microtonal = false;
     bool audible = false, queued = false;
     float hoverMix = 0, selectMix = 0, energy = 0;
     double beatPosition = 0;
@@ -89,6 +94,16 @@ class MidiDragButton : public juce::TextButton {
     bool dragged = false;
 };
 class ComposerGuide;
+class ChordComposerPanel;
+class TransportButton : public juce::TextButton {
+  public:
+    TransportButton() : TextButton("Play") {}
+    void setPlaying(bool);
+    void paintButton(juce::Graphics&, bool, bool) override;
+
+  private:
+    bool playing = false;
+};
 class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEditor,
                                                    private juce::Timer,
                                                    public juce::FileDragAndDropTarget {
@@ -101,6 +116,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     bool isInterestedInFileDrag(const juce::StringArray&) override;
     void filesDropped(const juce::StringArray&, int, int) override;
     void showGuide();
+    void showChordComposer();
+    void showMelodyComposer();
     void refreshDisplay();
     void showWorkflowPage(int page);
 
@@ -115,40 +132,51 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     ActivityDisplay activity;
     juce::ToggleButton motion{"Motion"};
     std::array<std::unique_ptr<VariationButton>, 12> variants;
-    juce::ComboBox preset, root, scale, bars, grid, meter, mode, harmony, quality;
-    std::array<juce::Slider, 6> knobs;
+    juce::ComboBox preset, root, scale, bars, grid, meter, mode, phraseType, harmony, quality, auditionSound;
+    juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"};
+    bool chordPage = false;
+    juce::ToggleButton editNotes{"Edit notes"}, customSearch{"Custom budget"};
+    juce::Slider searchPopulation, searchGenerations, crossover;
+    juce::TextButton searchDetails{"Search settings..."};
+    juce::Label searchInfo;
+    std::array<juce::Slider, 8> knobs;
     juce::Slider low, high, swing, gate, tempo, volume;
-    juce::ToggleButton snap{"Scale snap"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
-        monitor{"Internal sound"};
+    juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
+        monitor{"Internal sound"}, withChords{"With chords"}, microEnabled{"Micro"};
     juce::ToggleButton quantiseSwitch{"Switch at loop"};
-    juce::TextButton generate{"Generate bank"}, evolve{"Evolve selected"}, play{"Play"}, panic{"Stop all"};
+    juce::TextButton generate{"Generate bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
+    TransportButton play;
     juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save bank"}, load{"Open bank"};
     juce::TextButton import{"Import MIDI"}, exportFile{"Export..."}, help{"?"};
     MidiDragButton drag;
     juce::Label status, phraseTitle, phraseInfo, tempoInfo;
     juce::TextButton captureA{"Capture A"}, compare{"Hear A"}, clearA{"Clear A"};
     juce::Label playbackInfo, workflowInfo, regionInfo;
-    std::array<juce::TextButton, 5> workflowTabs;
+    std::array<juce::TextButton, 7> workflowTabs;
     int workflowPage = 0;
     juce::TextButton allTime{"Whole phrase"}, exportRange{"Export range..."}, simplify{"Simplify"},
         movement{"More movement"}, answer{"Answer"}, resolve{"Resolve"};
     juce::TextEditor chordText;
     juce::TextButton applyHarmony{"Apply chords"}, clearHarmony{"Clear"},
-        importHarmony{"Import harmony MIDI"};
+        importHarmony{"Import harmony MIDI"}, chordComposer{"Chord composer..."};
     juce::TextButton importGroove{"Import groove MIDI"}, captureGroove{"Use selected"},
         applyGroove{"Apply groove"};
     juce::Slider grooveTiming, grooveVelocity;
     juce::TextButton arrange{"Preview arrangement"}, combine{"Preview combination"},
         applyDraft{"Keep preview"}, discardDraft{"Discard"};
     juce::ComboBox rhythmSource, pitchSource, accentSource;
+    juce::ComboBox tuning, microOutput;
+    juce::Slider bendRange;
+    juce::Label microInfo;
     std::unique_ptr<ComposerGuide> guide;
+    std::unique_ptr<ChordComposerPanel> chordPanel;
     std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<ComboAttachment>> comboAttachments;
     std::vector<std::unique_ptr<ButtonAttachment>> buttonAttachments;
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<juce::File> dragFiles;
     uint64_t shownRevision = 0;
-    int shownSlot = -1;
+    int shownSlot = -1, shownTuning = -1, shownOutput = -1, shownBend = -1;
     bool shownBusy = false;
     double lastFrame = 0, motionPhase = 0, lastReportedBeat = -1, beatReceivedAt = 0;
     float onsetPulse = 0;
@@ -158,9 +186,11 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::String shownHarmony;
     void timerCallback() override;
     void chooseFile(int action);
-    void startMidiDrag();
+    void startMidiDrag(juce::Component* source = nullptr);
     void refresh();
     void updateWorkflow();
+    void updateMainPage();
+    juce::String microDescription() const;
     void report(const juce::Result&);
     void label(juce::Graphics&, const juce::String&, juce::Rectangle<int>, bool heading = false);
     void attach(juce::ComboBox&, const char*);

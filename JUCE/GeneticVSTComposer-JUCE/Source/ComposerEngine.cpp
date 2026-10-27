@@ -10,17 +10,93 @@
 #include <sstream>
 
 namespace composer {
+const std::vector<TimeSignature>& timeSignatures() {
+    // Keep the original five first: their automation indices must remain stable.
+    static const std::vector<TimeSignature> meters{
+        {4, 4},  {3, 4},  {5, 4},  {7, 8},  {6, 8},  {2, 4},  {6, 4},   {7, 4},   {8, 4},
+        {9, 4},  {2, 2},  {3, 2},  {4, 2},  {3, 8},  {5, 8},  {9, 8},   {10, 8},  {11, 8},
+        {12, 8}, {13, 8}, {15, 8}, {5, 16}, {7, 16}, {9, 16}, {11, 16}, {13, 16}, {15, 16}};
+    return meters;
+}
+bool parseMeter(const std::string& text, TimeSignature& result, std::string& error) {
+    std::istringstream input(text);
+    int numerator = 0, denominator = 0;
+    char slash = 0;
+    if (!(input >> numerator >> slash >> denominator) || slash != '/' || numerator < 1 || numerator > 32 ||
+        denominator < 1 || denominator > 32 || (denominator & (denominator - 1)) != 0) {
+        error = "Use numerator/denominator: 1-32 over 1, 2, 4, 8, 16 or 32 (e.g. 11/8).";
+        return false;
+    }
+    input >> std::ws;
+    if (!input.eof()) {
+        error = "Enter one time signature, e.g. 11/8.";
+        return false;
+    }
+    result = {numerator, denominator};
+    error.clear();
+    return true;
+}
+const std::vector<ProgressionPreset>& progressionPresets() {
+    static const std::vector<ProgressionPreset> presets{
+        {"Scale only", {}},
+        {"I - IV - V - I", {0, 3, 4, 0}},
+        {"I - VI - IV - V", {0, 5, 3, 4}},
+        {"I - IV - VI - V", {0, 3, 5, 4}},
+        {"II - V - I - I", {1, 4, 0, 0}},
+        {"I - V - VI - IV", {0, 4, 5, 3}},
+        {"VI - IV - I - V", {5, 3, 0, 4}},
+        {"I - VI - II - V", {0, 5, 1, 4}},
+        {"I - III - IV - V", {0, 2, 3, 4}},
+        {"I - II - IV - V", {0, 1, 3, 4}},
+        {"I - V - IV - I", {0, 4, 3, 0}},
+        {"I - IV - I - V", {0, 3, 0, 4}},
+        {"I - VI - IV - I", {0, 5, 3, 0}},
+        {"VI - II - V - I", {5, 1, 4, 0}},
+        {"II - V - I - VI", {1, 4, 0, 5}},
+        {"I - IV - II - V", {0, 3, 1, 4}},
+        {"VI - V - IV - V", {5, 4, 3, 4}},
+        {"I - VII - VI - VII", {0, 6, 5, 6}},
+        {"I - VI - III - VII", {0, 5, 2, 6}},
+        {"I - VII - IV - I", {0, 6, 3, 0}},
+        {"Circle / 8 bars", {0, 3, 6, 2, 5, 1, 4, 0}},
+        {"I / IV / V / 12 bars", {0, 0, 0, 0, 3, 3, 0, 0, 4, 3, 0, 4}},
+        {"I - IV", {0, 3}},
+        {"I - V", {0, 4}},
+        {"Tonic pedal / I", {0}},
+        {"II - V - I", {1, 4, 0}}};
+    return presets;
+}
+SearchBudget searchBudget(const Settings& s) {
+    static constexpr SearchBudget presets[]{{64, 40}, {128, 100}, {256, 300}};
+    const auto preset = presets[std::clamp(s.quality, 0, 2)];
+    return {s.population > 0 ? std::clamp(s.population, 16, 512) : preset.population,
+            s.generations > 0 ? std::clamp(s.generations, 1, 2000) : preset.generations};
+}
+namespace {
+bool validDenominator(int d) {
+    return d >= 1 && d <= 32 && (d & (d - 1)) == 0;
+}
+int progressionDegree(int progression, double time, double bar) {
+    const auto& presets = progressionPresets();
+    const auto& degrees = presets[size_t(std::clamp(progression, 0, int(presets.size()) - 1))].degrees;
+    if (degrees.empty())
+        return 0;
+    return degrees[size_t(std::max(0.0, std::floor(time / bar))) % degrees.size()];
+}
+} // namespace
 const std::vector<int>& scaleIntervals(int scale) {
-    static const std::array<std::vector<int>, 9> scales{{{0, 2, 4, 5, 7, 9, 11},
-                                                         {0, 2, 3, 5, 7, 8, 10},
-                                                         {0, 2, 3, 5, 7, 9, 10},
-                                                         {0, 2, 4, 5, 7, 9, 10},
-                                                         {0, 2, 4, 7, 9},
-                                                         {0, 3, 5, 7, 10},
-                                                         {0, 2, 3, 5, 7, 8, 11},
-                                                         {0, 2, 4, 6, 7, 9, 11},
-                                                         {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}}};
-    return scales[std::clamp(scale, 0, 8)];
+    static const std::array<std::vector<int>, 10> scales{{{0, 2, 4, 5, 7, 9, 11},
+                                                          {0, 2, 3, 5, 7, 8, 10},
+                                                          {0, 2, 3, 5, 7, 9, 10},
+                                                          {0, 2, 4, 5, 7, 9, 10},
+                                                          {0, 2, 4, 7, 9},
+                                                          {0, 3, 5, 7, 10},
+                                                          {0, 2, 3, 5, 7, 8, 11},
+                                                          {0, 2, 4, 6, 7, 9, 11},
+                                                          {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+                                                          // Maqam Saba; selected only by its tuning.
+                                                          {0, 2, 3, 4, 7, 8, 10}}};
+    return scales[std::clamp(scale, 0, 9)];
 }
 int snapPitch(int pitch, int root, int scale, int low, int high) {
     low = std::clamp(low, 0, 127);
@@ -36,12 +112,68 @@ int snapPitch(int pitch, int root, int scale, int low, int high) {
     }
     return result;
 }
+namespace {
+// Inflections (and 12-TET) keep the selected scale: -1.
+constexpr int tuningScales[tuningCount]{-1, -1, 0, 1, 9, 5, 8};
+} // namespace
+int tuningScale(int tuning, int scale) {
+    const int own = tuningScales[std::clamp(tuning, 0, tuningCount - 1)];
+    return own < 0 ? std::clamp(scale, 0, 8) : own;
+}
+bool tuningOwnsScale(int tuning) {
+    return tuningScales[std::clamp(tuning, 0, tuningCount - 1)] >= 0;
+}
+int microOffset(int tuning, int pitchClass) {
+    static constexpr int offsets[tuningCount][12]{
+        {},
+        // Neutral 2nds, 3rds, 6ths and 7ths, midway between the minor and major forms.
+        {0, 50, -50, 50, -50, 0, 0, 0, 50, -50, 50, -50},
+        {0, 0, 0, 0, -50, 0, 0, 0, 0, 0, 0, -50},         // Rast: half-flat 3rd and 7th
+        {0, 0, -50, 0, 0, 0, 0, 0, 0, 0, 0, 0},           // Bayati: half-flat 2nd
+        {0, 0, -50, 0, 0, 0, 0, 0, 0, 0, 0, 0},           // Saba: half-flat 2nd
+        {0, 0, 0, 50, 0, 0, 0, 0, 0, 0, 50, 0},           // blues: neutral 3rd and 7th
+        {0, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}}; // 24-EDO: a quarter tone either way
+    return offsets[std::clamp(tuning, 0, tuningCount - 1)][(pitchClass % 12 + 12) % 12];
+}
+std::pair<int, int> snapTuned(int pitch, int cents, int root, int scale, int tuning, int low, int high) {
+    low = std::clamp(low, 0, 127);
+    high = std::clamp(high, low, 127);
+    tuning = std::clamp(tuning, 0, tuningCount - 1);
+    const auto& tones = scaleIntervals(tuning ? tuningScale(tuning, scale) : scale);
+    const auto inScale = [&](int p) {
+        return std::find(tones.begin(), tones.end(), ((p - root) % 12 + 12) % 12) != tones.end();
+    };
+    // A key's forms in rising pitch; 24-EDO forms go either way.
+    const auto forms = [&](int p) {
+        const int offset = microOffset(tuning, p - root);
+        return std::array<int, 3>{tuning == tuningCount - 1 ? -offset : std::min(offset, 0), 0,
+                                  std::max(offset, 0)};
+    };
+    if (pitch >= low && pitch <= high && inScale(pitch)) {
+        // Already allowed: keep the note's own spelling.
+        const auto own = forms(pitch);
+        if (std::find(own.begin(), own.end(), cents) != own.end())
+            return {pitch, cents};
+    }
+    const int target = std::clamp(pitch, -1, 128) * 100 + std::clamp(cents, -100, 100);
+    std::pair<int, int> result{std::clamp(pitch, low, high), 0};
+    int best = std::numeric_limits<int>::max();
+    for (int p = low; p <= high; ++p)
+        if (inScale(p))
+            // Candidates rise in pitch, so ties resolve downwards as in snapPitch.
+            for (int form : forms(p))
+                if (std::abs(p * 100 + form - target) < best) {
+                    best = std::abs(p * 100 + form - target);
+                    result = {p, form};
+                }
+    return result;
+}
 void sanitise(Clip& clip) {
     clip.length = std::isfinite(clip.length) ? std::clamp(clip.length, 0.125, 128.0) : 16.0;
     clip.grid = std::isfinite(clip.grid) ? std::clamp(clip.grid, 0.03125, 1.0) : 0.25;
     clip.grid = std::min(clip.grid, clip.length);
-    clip.numerator = std::clamp(clip.numerator, 1, 16);
-    if (clip.denominator != 2 && clip.denominator != 4 && clip.denominator != 8 && clip.denominator != 16)
+    clip.numerator = std::clamp(clip.numerator, 1, 32);
+    if (!validDenominator(clip.denominator))
         clip.denominator = 4;
     clip.count = std::clamp(clip.count, 0, maxNotes);
     int count = 0;
@@ -52,6 +184,13 @@ void sanitise(Clip& clip) {
             continue;
         n.duration = std::min(n.duration, clip.length - n.start);
         n.pitch = std::clamp(n.pitch, 0, 127);
+        // Larger offsets move to the nearer key, keeping the sounding pitch where possible.
+        n.cents = std::clamp(n.cents, -1200, 1200);
+        for (; n.cents > 50 && n.pitch < 127; n.cents -= 100)
+            ++n.pitch;
+        for (; n.cents < -50 && n.pitch > 0; n.cents += 100)
+            --n.pitch;
+        n.cents = std::clamp(n.cents, -50, 50);
         n.velocity = std::clamp(n.velocity, 1, 127);
         clip.notes[count++] = n;
     }
@@ -94,6 +233,7 @@ namespace {
 constexpr int chordIntervals[9][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
                                    {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}};
 constexpr const char* chordSuffixes[]{"", "m", "dim", "aug", "7", "maj7", "m7", "sus2", "sus4"};
+bool validPassing(const Clip&, int, const Settings&);
 const ChordEvent* chordAt(const Harmony& harmony, double time) {
     if (!harmony.count || !std::isfinite(time) || harmony.length <= 0.0)
         return nullptr;
@@ -113,16 +253,28 @@ bool belongsToChord(int pitch, const ChordEvent& chord) {
 float unitAmount(float value) {
     return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
 }
+// At 100%, half of all 24-EDO pitch classes take a quarter-tone form, so the 24 steps are about
+// equally likely.
+float microChance(const Settings& s) {
+    return unitAmount(s.microtones) * (s.tuning == tuningCount - 1 ? 0.5f : 1.0f);
+}
+// Plain, or by chance the pitch class's microtonal form. 24-EDO forms go either way, so every
+// quarter tone is reachable while the tonic stays equal-tempered: C#-50 is the step above C.
+template <typename Random> int chooseForm(const Settings& s, int pitchClass, Random&& random) {
+    const int offset = microOffset(s.tuning, pitchClass);
+    if (!offset || random() >= microChance(s))
+        return 0;
+    return s.tuning == tuningCount - 1 && random() < 0.5f ? -offset : offset;
+}
 int harmonicPitch(int desired, double time, const Settings& s, bool rootOnly = false) {
     const int low = std::clamp(s.low, 0, 127), high = std::clamp(s.high, low, 127);
     const auto* chord = chordAt(s.harmony, time);
     if (!chord && s.progression == 0 && !rootOnly)
         return snapPitch(desired, s.root, s.scale, low, high);
-    static constexpr int degrees[4][4]{{0, 3, 4, 0}, {0, 5, 3, 4}, {0, 3, 5, 4}, {1, 4, 0, 0}};
     const auto& scale = scaleIntervals(s.scale);
-    const double bar = std::clamp(s.numerator, 1, 16) * 4.0 / std::clamp(s.denominator, 1, 16);
-    const int degree =
-        s.progression > 0 ? degrees[std::clamp(s.progression - 1, 0, 3)][int(time / bar) % 4] : 0;
+    const double bar =
+        std::clamp(s.numerator, 1, 32) * 4.0 / (validDenominator(s.denominator) ? s.denominator : 4);
+    const int degree = progressionDegree(s.progression, time, bar);
     const int progressionRoot = s.root + (s.progression > 0 ? scale[degree % scale.size()] : 0);
     const int root = ((chord ? chord->root : progressionRoot) % 12 + 12) % 12;
     int best = std::clamp(desired, low, high), distance = 999;
@@ -325,6 +477,7 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
     s.timeOffset = std::isfinite(s.timeOffset) ? std::max(0.0, s.timeOffset) : 0.0;
     s.numerator = clip.numerator;
     s.denominator = clip.denominator;
+    s.tuning = std::clamp(s.tuning, 0, tuningCount - 1);
     std::vector<int> editable;
     for (int i = 0; i < clip.count; ++i)
         if (!clip.notes[i].locked && clip.notes[i].start >= start && clip.notes[i].start < end)
@@ -344,6 +497,14 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
     const int anchor = clip.notes[editable.front()].pitch;
     std::mt19937 random(s.seed);
     std::uniform_int_distribution<int> direction(0, 1);
+    // Region tools do not invent unscored microtonal genes. A moved note becomes
+    // an ordinary anchor; unchanged valid passing notes can keep their offsets.
+    const auto setPitch = [&](Note& note, int pitch, bool stable = false) {
+        if (pitch == note.pitch && !stable)
+            return;
+        note.cents = 0;
+        note.pitch = pitch;
+    };
     for (size_t position = 0; position < editable.size(); ++position) {
         const int index = editable[position];
         auto& note = clip.notes[index];
@@ -354,7 +515,7 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
                 remove[index] = true;
         } else if (action == RegionAction::MoreMovement) {
             const int step = direction(random) ? 2 : -2;
-            note.pitch = harmonicPitch(note.pitch + step, note.start + s.timeOffset, s);
+            setPitch(note, harmonicPitch(note.pitch + step, note.start + s.timeOffset, s));
             const double split =
                 std::max(clip.grid, std::floor(note.duration / (2.0 * clip.grid)) * clip.grid);
             const double secondStart = note.start + split;
@@ -368,7 +529,7 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
                 Note added = note;
                 added.start = secondStart;
                 added.duration = secondEnd - secondStart;
-                added.pitch = harmonicPitch(note.pitch + step, added.start + s.timeOffset, s);
+                setPitch(added, harmonicPitch(note.pitch + step, added.start + s.timeOffset, s));
                 added.velocity = std::clamp(note.velocity - 5, 1, 127);
                 note.duration = split;
                 clip.notes[clip.count++] = added;
@@ -376,15 +537,15 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
         } else if (action == RegionAction::Answer) {
             // Invert the selected contour around its first pitch, then give the response
             // a settled final note. The rhythm remains recognisable.
-            note.pitch = harmonicPitch(anchor - (note.pitch - anchor), note.start + s.timeOffset, s);
+            setPitch(note, harmonicPitch(anchor - (note.pitch - anchor), note.start + s.timeOffset, s));
             if (position + 1 == editable.size())
-                note.pitch = harmonicPitch(note.pitch, note.start + s.timeOffset, s, true);
+                setPitch(note, harmonicPitch(note.pitch, note.start + s.timeOffset, s, true), true);
         } else if (action == RegionAction::Resolve) {
             // Cadential motion is limited to the final two editable events.
             if (position + 1 == editable.size())
-                note.pitch = harmonicPitch(note.pitch, note.start + s.timeOffset, s, true);
+                setPitch(note, harmonicPitch(note.pitch, note.start + s.timeOffset, s, true), true);
             else if (position + 2 == editable.size())
-                note.pitch = harmonicPitch(note.pitch, note.start + s.timeOffset, s);
+                setPitch(note, harmonicPitch(note.pitch, note.start + s.timeOffset, s));
         }
     }
     if (action == RegionAction::Simplify) {
@@ -395,6 +556,30 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
         clip.count = retained;
     }
     sanitise(clip);
+    for (int i = clip.count - 1; i >= 0; --i) {
+        auto& note = clip.notes[size_t(i)];
+        if (!note.locked && note.start >= start && note.start < end &&
+            (!s.microEnabled || !validPassing(clip, i, s)))
+            note.cents = 0;
+    }
+    return clip;
+}
+Clip retuneRegion(const Clip& source, double start, double end, const Settings& settings) {
+    auto clip = source;
+    sanitise(clip);
+    if (!std::isfinite(start) || !std::isfinite(end))
+        return clip;
+    auto s = settings;
+    s.tuning = std::clamp(s.tuning, 0, tuningCount - 1);
+    std::mt19937 random(s.seed);
+    std::array<int, 12> forms{};
+    for (int pc = 0; pc < 12; ++pc)
+        forms[size_t(pc)] = chooseForm(s, pc, [&] { return std::generate_canonical<float, 24>(random); });
+    for (int i = 0; i < clip.count; ++i) {
+        auto& note = clip.notes[i];
+        if (!note.locked && note.start >= start && note.start < end)
+            note.cents = forms[((note.pitch - s.root) % 12 + 12) % 12];
+    }
     return clip;
 }
 Clip applyGroove(const Clip& source, const Clip& referenceSource, float timingAmount, float velocityAmount) {
@@ -479,8 +664,11 @@ Clip combineParts(const Clip& rhythmSource, const Clip& pitchSource, const Clip&
         if (note.locked)
             continue;
         const double phase = note.start / result.length;
-        if (pitches.count)
-            note.pitch = pitches.notes[nearest(pitches, phase)].pitch;
+        if (pitches.count) {
+            const auto& source = pitches.notes[nearest(pitches, phase)];
+            note.pitch = source.pitch;
+            note.cents = source.cents;
+        }
         if (accents.count)
             note.velocity = accents.notes[nearest(accents, phase)].velocity;
     }
@@ -491,11 +679,206 @@ double similarity(const Clip& a, const Clip& b) {
         return 0.0;
     int matches = 0;
     for (int i = 0; i < std::min(a.count, b.count); ++i)
-        if (std::abs(a.notes[i].start - b.notes[i].start) < 0.01 && a.notes[i].pitch == b.notes[i].pitch)
+        if (std::abs(a.notes[i].start - b.notes[i].start) < 0.01 && a.notes[i].pitch == b.notes[i].pitch &&
+            a.notes[i].cents == b.notes[i].cents)
             ++matches;
     return double(matches) / std::max(a.count, b.count);
 }
+double intervalCost(double cents) {
+    if (!std::isfinite(cents))
+        return 20.0;
+    const double distance = std::abs(cents);
+    // Small steps are inexpensive. Register-sized leaps remain expensive rather
+    // than disappearing through pitch-class modulo arithmetic.
+    constexpr double positions[]{0, 50, 100, 200, 300, 400, 500, 600, 700, 900, 1200};
+    constexpr double costs[]{0.03, 0.06, 0.10, 0.22, 0.40, 0.62, 0.83, 1.15, 1.05, 1.55, 2.0};
+    for (int i = 1; i < 11; ++i)
+        if (distance <= positions[i]) {
+            const double fraction = (distance - positions[i - 1]) / (positions[i] - positions[i - 1]);
+            return costs[i - 1] + fraction * (costs[i] - costs[i - 1]);
+        }
+    const double octaves = (distance - 1200.0) / 1200.0;
+    return 2.0 + 3.0 * octaves + octaves * octaves;
+}
 namespace {
+double actualPitch(const Note& note) {
+    return note.pitch * 100.0 + note.cents;
+}
+double passingLimit(const Clip& clip) {
+    return std::min(0.5, std::max(0.03125, clip.grid));
+}
+int genePalette(const Settings& s) {
+    return s.microEnabled ? std::clamp(s.tuning ? s.tuning : tuningCount - 1, 1, tuningCount - 1) : 0;
+}
+bool validPassing(const Clip& clip, int index, const Settings& settings) {
+    const auto& note = clip.notes[size_t(index)];
+    if (!note.cents || note.duration > passingLimit(clip) + 1e-8 || index == 0 || index + 1 >= clip.count)
+        return false;
+    const int palette = genePalette(settings);
+    const int offset = microOffset(palette, note.pitch - settings.root);
+    if (!palette || !offset ||
+        (note.cents != offset && !(palette == tuningCount - 1 && note.cents == -offset)))
+        return false;
+    for (int ahead = 1; ahead <= 2 && index + ahead < clip.count; ++ahead) {
+        const auto& anchor = clip.notes[size_t(index + ahead)];
+        if (anchor.cents == 0)
+            return std::abs(actualPitch(anchor) - actualPitch(note)) <= 250.0 &&
+                   anchor.start >= note.start + note.duration - 1e-8 &&
+                   anchor.start - (note.start + note.duration) <= 0.5 + 1e-8;
+    }
+    return false;
+}
+struct Repetition {
+    double exact = 0, rhythm = 0;
+};
+Repetition repetitionAt(const Clip& clip, double lag, double begin = -1) {
+    Repetition result;
+    if (lag <= 0 || clip.length < lag * 1.5)
+        return result;
+    int considered = 0;
+    for (int i = 0; i < clip.count; ++i) {
+        const auto& note = clip.notes[size_t(i)];
+        if (note.start + 1e-8 < std::max(lag, begin))
+            continue;
+        ++considered;
+        const double target = note.start - lag;
+        const auto found =
+            std::lower_bound(clip.notes.begin(), clip.notes.begin() + clip.count, target - 1e-8,
+                             [](const Note& n, double time) { return n.start < time; });
+        if (found != clip.notes.begin() + clip.count && std::abs(found->start - target) < 1e-7 &&
+            std::abs(found->duration - note.duration) < 0.02) {
+            result.rhythm += 1;
+            if (std::abs(actualPitch(*found) - actualPitch(note)) < 1)
+                result.exact += 1;
+        }
+    }
+    if (considered) {
+        result.exact /= considered;
+        result.rhythm /= considered;
+    }
+    return result;
+}
+} // namespace
+PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
+    auto clip = source;
+    sanitise(clip);
+    PhraseDiagnostics result;
+    if (!clip.count)
+        return result;
+    double middle = 0, edges = 0, first = 0, third = 0;
+    double durationSum = 0, durationSquared = 0;
+    double lowest = 12800, highest = 0;
+    int directed = 0, ascending = 0;
+    int middleCount = 0, edgeCount = 0, firstCount = 0, thirdCount = 0;
+    for (int i = 0; i < clip.count; ++i) {
+        const auto& note = clip.notes[size_t(i)];
+        if (clip.count > 1) {
+            const auto& previous = clip.notes[size_t(i ? i - 1 : clip.count - 1)];
+            const double delta = std::abs(actualPitch(note) - actualPitch(previous));
+            result.meanIntervalCents += delta / clip.count;
+            result.intervalPenalty += intervalCost(delta) / clip.count;
+            result.smallStepRatio += delta > 0 && delta <= 250 ? 1.0 / clip.count : 0;
+            if (i == 0)
+                result.loopIntervalCents = delta;
+            if (i > 0 && delta > 0) {
+                ++directed;
+                ascending += actualPitch(note) > actualPitch(previous);
+            }
+        }
+        if (note.cents) {
+            ++result.microtonalNotes;
+            if (validPassing(clip, i, settings))
+                ++result.resolvedPassingNotes;
+            else
+                ++result.invalidPassingNotes;
+        }
+        const double phase = note.start / clip.length;
+        lowest = std::min(lowest, actualPitch(note));
+        highest = std::max(highest, actualPitch(note));
+        result.meanPitch += actualPitch(note) / (100.0 * clip.count);
+        result.offbeatRatio += std::abs(note.start - std::round(note.start)) > 0.01 ? 1.0 / clip.count : 0;
+        const double duration = std::log2(std::max(0.03125, note.duration));
+        durationSum += duration;
+        durationSquared += duration * duration;
+        if (phase >= 0.25 && phase < 0.75) {
+            middle += actualPitch(note);
+            ++middleCount;
+        } else {
+            edges += actualPitch(note);
+            ++edgeCount;
+        }
+        if (phase < 0.25) {
+            first += actualPitch(note);
+            ++firstCount;
+        } else if (phase >= 0.5 && phase < 0.75) {
+            third += actualPitch(note);
+            ++thirdCount;
+        }
+    }
+    const double bar = clip.numerator * 4.0 / clip.denominator;
+    for (double lag : {bar * 0.5, bar, bar * 2.0}) {
+        const auto repetition = repetitionAt(clip, lag);
+        result.repetition = std::max(result.repetition, repetition.exact);
+        result.rhythmicRepetition = std::max(result.rhythmicRepetition, repetition.rhythm);
+    }
+    result.motifReturn = repetitionAt(clip, clip.length * 0.75, clip.length * 0.75).exact;
+    // The final quarter compares to the first even though the lag exceeds half the clip.
+    if (clip.length >= clip.grid * 4) {
+        int matches = 0, total = 0;
+        for (int i = 0; i < clip.count; ++i) {
+            const auto& note = clip.notes[size_t(i)];
+            if (note.start < clip.length * 0.75 - 1e-8)
+                continue;
+            ++total;
+            const double target = note.start - clip.length * 0.75;
+            const auto found =
+                std::lower_bound(clip.notes.begin(), clip.notes.begin() + clip.count, target - 1e-8,
+                                 [](const Note& n, double time) { return n.start < time; });
+            if (found != clip.notes.begin() + clip.count && std::abs(found->start - target) < 1e-7 &&
+                std::abs(found->duration - note.duration) < 0.02 &&
+                std::abs(actualPitch(*found) - actualPitch(note)) < 1)
+                ++matches;
+        }
+        result.motifReturn = total ? double(matches) / total : 0;
+    }
+    if (middleCount && edgeCount)
+        result.contourArc = (middle / middleCount - edges / edgeCount) / 1200.0;
+    if (firstCount && thirdCount)
+        result.middleContrast = std::abs(third / thirdCount - first / firstCount) / 1200.0;
+    result.rhythmVariation =
+        std::sqrt(std::max(0.0, durationSquared / clip.count - std::pow(durationSum / clip.count, 2)));
+    result.pitchSpan = (highest - lowest) / 100.0;
+    result.upwardRatio = directed ? double(ascending) / directed : 0.5;
+    return result;
+}
+namespace {
+Settings normaliseSearchSettings(Settings s) {
+    s.bars = std::clamp(s.bars, 1, 8);
+    s.low = std::clamp(s.low, 0, 126);
+    s.high = std::clamp(s.high, s.low + 1, 127);
+    s.root = (s.root % 12 + 12) % 12;
+    s.scale = std::clamp(s.scale, 0, 9);
+    s.phraseType = std::clamp(s.phraseType, 0, 2);
+    s.numerator = std::clamp(s.numerator, 1, 32);
+    if (!validDenominator(s.denominator))
+        s.denominator = 4;
+    if (s.division != 8 && s.division != 16 && s.division != 32)
+        s.division = 16;
+    s.density = unitAmount(s.density);
+    s.diversity = unitAmount(s.diversity);
+    s.syncopation = unitAmount(s.syncopation);
+    s.tension = unitAmount(s.tension);
+    s.space = unitAmount(s.space);
+    s.mutation = unitAmount(s.mutation);
+    s.crossover = unitAmount(s.crossover);
+    s.dynamics = unitAmount(s.dynamics);
+    s.valence = unitAmount(s.valence);
+    s.arousal = unitAmount(s.arousal);
+    s.weirdness = unitAmount(s.weirdness);
+    s.tuning = std::clamp(s.tuning, 0, tuningCount - 1);
+    sanitise(s.harmony);
+    return s;
+}
 struct Evolution {
     Settings s;
     std::mt19937 rng;
@@ -512,14 +895,147 @@ struct Evolution {
     }
     float random() { return std::generate_canonical<float, 24>(rng); }
     int integer(int lo, int hi) { return std::uniform_int_distribution<int>(lo, std::max(lo, hi))(rng); }
+    double activity() const { return std::clamp(double(s.density + (s.arousal - 0.5f) * 0.65f), 0.0, 1.0); }
+    double offbeatTarget() const {
+        return std::clamp(double(s.syncopation + (s.weirdness - 0.1f) * 0.55f), 0.0, 1.0);
+    }
+    // Pitch and cents are independent genes; changing the key keeps the offset
+    // until the deterministic passing-note constraints below have been checked.
+    void setPitch(Note& n, int pitch, bool reroll) {
+        (void)reroll;
+        n.pitch = pitch;
+    }
+    double cellLength() const {
+        return s.phraseType == 0 ? std::min(bar, length)
+                                 : std::max(std::min(grid, length), std::min(bar * 0.5, length / 4.0));
+    }
+    bool structured() const {
+        if (s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
+            return false;
+        return !parent || (s.mutation > 0 && parent->count && parent->notes[0].start < cellLength() &&
+                           std::none_of(parent->notes.begin(), parent->notes.begin() + parent->count,
+                                        [](const Note& note) { return note.locked; }));
+    }
+    void constrainMicro(Clip& c) const {
+        // This repair only removes invalid genes. It never adds random cents
+        // after scoring or changes locked events/rhythmic templates.
+        for (int i = c.count - 1; i >= 0; --i) {
+            auto& n = c.notes[size_t(i)];
+            if (n.locked)
+                continue;
+            if (!s.microEnabled || s.mode == 1 || !validPassing(c, i, s)) {
+                const bool wasPassing = n.cents != 0;
+                n.cents = 0;
+                // A rejected chromatic approach becomes a stable chord anchor.
+                if (wasPassing && s.harmony.count && s.tension == 0 && s.mode != 1)
+                    n.pitch = harmonicPitch(n.pitch, n.start, s);
+            }
+        }
+    }
+    void mutateMicro(Clip& c, int index) {
+        auto& note = c.notes[size_t(index)];
+        if (note.locked || !s.microEnabled || s.mode == 1 || index == 0 || index + 1 >= c.count)
+            return;
+        if (random() < 0.30f) {
+            note.cents = 0;
+            return;
+        }
+        const auto& target = c.notes[size_t(index + 1)];
+        if (target.cents != 0 || target.start <= note.start ||
+            target.start - (note.start + note.duration) > 0.5 + 1e-8)
+            return;
+        if (note.duration > passingLimit(c) + 1e-8) {
+            if (s.lockRhythm || s.mode == 2)
+                return;
+            // Retain the onset and put a short approach immediately before the
+            // next anchor only when the existing note already reaches it.
+            if (target.start - note.start > passingLimit(c) + 1e-8)
+                return;
+            note.duration = std::min(note.duration, passingLimit(c));
+        }
+        std::array<std::pair<int, int>, 12> options{};
+        int count = 0;
+        const int palette = genePalette(s);
+        for (int key = std::max(s.low, target.pitch - 2); key <= std::min(s.high, target.pitch + 2); ++key) {
+            const int offset = microOffset(palette, key - s.root);
+            // A resolving passing note may sit outside the chord even at zero
+            // Jazziness. Stable anchors still follow the harmonic constraints.
+            if (!offset)
+                continue;
+            for (int sign : {1, -1}) {
+                if (sign < 0 && palette != tuningCount - 1)
+                    continue;
+                const int cents = sign * offset;
+                if (std::abs(key * 100 + cents - target.pitch * 100) <= 250)
+                    options[size_t(count++)] = {key, cents};
+            }
+        }
+        if (count) {
+            const auto selected = options[size_t(integer(0, count - 1))];
+            note.pitch = selected.first;
+            note.cents = selected.second;
+        }
+    }
+    void shape(Clip& c) const {
+        if (!structured() || c.count == 0)
+            return;
+        const double cell = cellLength();
+        const auto source = c;
+        c.count = 0;
+        const int anchor = source.notes[0].pitch;
+        const int segments = int(std::ceil(c.length / cell - 1e-9));
+        for (int segment = 0; segment < segments && c.count < maxNotes; ++segment) {
+            const double offset = segment * cell;
+            const int section = std::min(3, int(offset / c.length * 4.0 + 1e-8));
+            for (int i = 0; i < source.count && source.notes[size_t(i)].start < cell - 1e-8; ++i) {
+                auto n = source.notes[size_t(i)];
+                const double originalStart = n.start;
+                n.start += offset;
+                if (n.start >= c.length - 1e-8)
+                    break;
+                n.duration = std::min({n.duration, cell - originalStart, c.length - n.start});
+                if (s.mode != 1 && segment) {
+                    int desired = n.pitch;
+                    if (s.phraseType == 1) {
+                        if (section == 1 && originalStart >= cell * 0.5)
+                            desired += 2;
+                        else if (section == 2)
+                            desired = anchor + 4 - (n.pitch - anchor);
+                    }
+                    if (s.progression || s.harmony.count)
+                        desired +=
+                            harmonicPitch(60, n.start, s, true) - harmonicPitch(60, originalStart, s, true);
+                    n.pitch = n.cents != 0 ? std::clamp(desired, s.low, s.high)
+                              : (s.progression || s.harmony.count)
+                                  ? harmonicPitch(desired, n.start, s)
+                                  : snapPitch(desired, s.root, s.scale, s.low, s.high);
+                }
+                // An imported/custom harmonic boundary may not coincide with the
+                // repeated cell's grid. Split there before the candidate is scored.
+                while (n.duration > 1e-8 && c.count < maxNotes) {
+                    auto piece = n;
+                    if (const auto* custom = chordAt(s.harmony, n.start)) {
+                        const double boundary =
+                            custom->start + custom->duration - std::fmod(n.start, s.harmony.length);
+                        if (boundary > 1e-8)
+                            piece.duration = std::min(piece.duration, boundary);
+                        if (s.tension == 0 && piece.cents == 0)
+                            piece.pitch = harmonicPitch(piece.pitch, piece.start, s);
+                    }
+                    c.notes[size_t(c.count++)] = piece;
+                    n.start += piece.duration;
+                    n.duration -= piece.duration;
+                }
+            }
+        }
+    }
     bool chordTone(int pitch, double time) const {
         if (const auto* custom = chordAt(s.harmony, time))
             return belongsToChord(pitch, *custom);
         if (s.progression == 0)
             return true;
-        static constexpr int degrees[4][4]{{0, 3, 4, 0}, {0, 5, 3, 4}, {0, 3, 5, 4}, {1, 4, 0, 0}};
         const auto& scale = scaleIntervals(s.scale);
-        const int degree = degrees[std::clamp(s.progression - 1, 0, 3)][int(time / bar) % 4];
+        const int degree = progressionDegree(s.progression, time, bar);
         const int pc = ((pitch - s.root) % 12 + 12) % 12;
         for (int third : {0, 2, 4})
             if (pc == scale[(degree + third) % scale.size()])
@@ -527,8 +1043,14 @@ struct Evolution {
         return false;
     }
     int pitch(int previous, double time) {
-        int p = std::clamp(previous + integer(-int(3 + s.diversity * 9), int(3 + s.diversity * 9)), s.low,
-                           s.high);
+        // Mostly adjacent movement, with occasional wider gestures for diversity.
+        int step = integer(-2, 2);
+        if (random() < s.diversity * 0.16f + s.weirdness * 0.24f)
+            step = integer(-int(4 + s.dynamics * 5 + s.weirdness * 5),
+                           int(4 + s.dynamics * 5 + s.weirdness * 5));
+        if (random() < std::abs(s.valence - 0.5f) * 0.5f)
+            step = s.valence >= 0.5f ? std::abs(step) : -std::abs(step);
+        int p = std::clamp(previous + step, s.low, s.high);
         if (random() > s.tension * 0.25f)
             p = snapPitch(p, s.root, s.scale, s.low, s.high);
         if ((s.harmony.count || (s.progression > 0 && std::fmod(time, 1.0) < 0.01)) && random() > s.tension)
@@ -547,14 +1069,17 @@ struct Evolution {
         c.numerator = s.numerator;
         c.denominator = s.denominator;
         c.seed = s.seed;
-        int previous = snapPitch((s.low + s.high) / 2, s.root, s.scale, s.low, s.high);
+        int previous =
+            snapPitch((s.low + s.high) / 2 + int((s.valence - 0.5f) * 10), s.root, s.scale, s.low, s.high);
         for (double time = 0.0; time < length - 0.001 && c.count < maxNotes;) {
-            const int maxSteps = std::max(1, int(std::round((0.3 + (1.0 - s.density) * 1.8) / grid)));
+            const int maxSteps = std::max(1, int(std::round((0.3 + (1.0 - activity()) * 1.8) / grid)));
             int steps = integer(1, maxSteps);
-            if (random() > s.syncopation) {
+            if (random() > offbeatTarget()) {
                 const int options[]{1, 2, 4, 8};
                 steps = options[integer(0, std::min(3, int(std::log2(maxSteps))))];
             }
+            if (random() > s.dynamics)
+                steps = std::max(1, int(std::round((0.3 + (1.0 - activity()) * 0.8) / grid)));
             double duration = std::min(steps * grid, length - time);
             if (const auto* custom = chordAt(s.harmony, time)) {
                 const double localTime = std::fmod(time, s.harmony.length);
@@ -563,21 +1088,76 @@ struct Evolution {
                     duration = std::min(duration, untilChange);
             }
             if (random() >= s.space || c.count == 0) {
+                int origin = previous;
+                if (s.phraseType == 2 && s.mode != 1) {
+                    const double arch = std::sin(3.141592653589793 * time / length);
+                    const int contour = (s.low + s.high) / 2 - 3 + int((s.valence - 0.5f) * 10) +
+                                        int(arch * (4 + s.arousal * 8));
+                    origin = int(std::lround(previous * 0.70 + contour * 0.30));
+                }
                 previous = s.mode == 1 ? snapPitch(60 + s.root, s.root, s.scale, s.low, s.high)
-                                       : pitch(previous, time);
-                c.notes[c.count++] = {time, duration, previous, integer(77, 108), false};
+                                       : pitch(origin, time);
+                c.notes[c.count] = {time, duration, previous, integer(77, 108), false};
+                ++c.count;
             }
             time += duration;
         }
+        if (s.phraseType == 2 && s.mode != 1 && c.count)
+            c.notes[size_t(c.count - 1)].pitch = harmonicPitch(c.notes[size_t(c.count - 1)].pitch,
+                                                               c.notes[size_t(c.count - 1)].start, s, true);
+        for (int i = c.count - 2; i > 0; --i)
+            if (random() < 0.40f)
+                mutateMicro(c, i);
+        shape(c);
+        constrainMicro(c);
         return c;
+    }
+    void cross(Clip& child, const Clip& other) {
+        const bool protectedTiming = s.lockRhythm || s.mode == 2 ||
+                                     std::any_of(child.notes.begin(), child.notes.begin() + child.count,
+                                                 [](const Note& n) { return n.locked; });
+        if (protectedTiming) {
+            // Locked events and rhythmic templates must keep exact boundaries.
+            for (int i = child.count / 2; i < std::min(child.count, other.count); ++i)
+                if (!child.notes[i].locked) {
+                    if (s.mode != 1) {
+                        child.notes[i].pitch = other.notes[i].pitch;
+                        child.notes[i].cents = other.notes[i].cents;
+                        if (s.harmony.count && s.tension == 0.0f && child.notes[i].cents == 0)
+                            setPitch(child.notes[i],
+                                     harmonicPitch(child.notes[i].pitch, child.notes[i].start, s), false);
+                    }
+                    child.notes[i].velocity = other.notes[i].velocity;
+                }
+            return;
+        }
+        // One-point crossover exchanges phrase sections, including the rhythm.
+        // Cutting on the grid keeps both parents' musical positions meaningful.
+        const double editableLength = structured() ? cellLength() : child.length;
+        const int steps = std::max(1, int(std::ceil(editableLength / grid)) - 1);
+        const double cut = std::min(editableLength, integer(1, steps) * grid);
+        Clip mixed = child;
+        mixed.count = 0;
+        for (int i = 0; i < child.count && mixed.count < maxNotes; ++i)
+            if (child.notes[i].start < cut) {
+                auto note = child.notes[i];
+                note.duration = std::min(note.duration, cut - note.start);
+                mixed.notes[mixed.count++] = note;
+            }
+        for (int i = 0; i < other.count && mixed.count < maxNotes; ++i)
+            if (other.notes[i].start >= cut)
+                mixed.notes[mixed.count++] = other.notes[i];
+        child = mixed;
     }
     void mutate(Clip& c, float amount) {
         for (int i = 0; i < c.count; ++i) {
             auto& n = c.notes[i];
+            if (structured() && n.start >= cellLength() - 1e-8)
+                break;
             if (n.locked || random() >= amount)
                 continue;
             if (s.mode != 1)
-                n.pitch = pitch(n.pitch, n.start);
+                setPitch(n, pitch(n.pitch, n.start), true);
             n.velocity = std::clamp(n.velocity + integer(-12, 12), 40, 120);
             if (!s.lockRhythm && s.mode != 2) {
                 double end = c.length;
@@ -589,61 +1169,115 @@ struct Evolution {
                 n.duration = std::clamp(n.duration + integer(-1, 1) * grid, std::min(grid, end - n.start),
                                         end - n.start);
             }
+            if (s.microEnabled && random() < 0.60f)
+                mutateMicro(c, i);
         }
         if (!s.lockRhythm && s.mode != 2 && random() < amount && c.count > 2) {
-            const int i = integer(0, c.count - 1);
+            int editableCount = c.count;
+            if (structured()) {
+                editableCount = 0;
+                while (editableCount < c.count && c.notes[size_t(editableCount)].start < cellLength() - 1e-8)
+                    ++editableCount;
+            }
+            const int i = integer(0, std::max(0, editableCount - 1));
             auto n = c.notes[i];
             if (!n.locked && n.duration >= 2 * grid && c.count < maxNotes) {
                 c.notes[i].duration = grid;
                 n.start += grid;
                 n.duration -= grid;
-                n.pitch = s.mode == 1 ? n.pitch : pitch(n.pitch, n.start);
+                if (s.mode != 1)
+                    setPitch(n, pitch(n.pitch, n.start), true);
                 c.notes[c.count++] = n;
             }
         }
         sanitise(c);
+        shape(c);
+        constrainMicro(c);
     }
     double score(const Clip& c) const {
         if (c.count == 0)
             return -1000.0;
-        double scaleFit = 0.0, harmonic = 0.0, movement = 0.0, repeated = 0.0, occupied = 0.0;
-        int offbeats = 0, leaps = 0;
-        std::array<bool, 128> unique{};
+        double scaleFit = 0.0, harmonic = 0.0, occupied = 0.0, consonanceCost = 0.0, microDuration = 0.0;
+        int offbeats = 0;
+        std::array<bool, 384> unique{};
         for (int i = 0; i < c.count; ++i) {
             const auto& n = c.notes[i];
-            unique[n.pitch] = true;
+            unique[size_t(n.pitch * 3 + (n.cents < 0 ? 0 : n.cents > 0 ? 2 : 1))] = true;
             occupied += n.duration;
+            if (n.cents != 0)
+                microDuration += n.duration;
             // Borrowed/custom chord tones are valid even when absent from the global scale.
             scaleFit += (snapPitch(n.pitch, s.root, s.scale) == n.pitch ||
                          (s.harmony.count && chordTone(n.pitch, n.start)))
                             ? 1.0
                             : 0.0;
-            harmonic += chordTone(n.pitch, n.start) ? 1.0 : 0.0;
-            offbeats += std::abs(n.start - std::round(n.start)) > 0.01 ? 1 : 0;
-            if (i > 0) {
-                const int delta = std::abs(n.pitch - c.notes[i - 1].pitch);
-                movement += delta;
-                leaps += delta > 12;
-            }
-            // Reward recognisable rhythmic/pitch motifs across bars.
-            for (int j = 0; j < i; ++j)
-                if (std::abs(n.start - c.notes[j].start - bar) < 0.01 && n.pitch == c.notes[j].pitch) {
-                    repeated += 1.0;
-                    break;
+            // A short resolving approach earns partial harmonic credit through
+            // its stable destination. Otherwise repeated passing genes lose the
+            // entire chord reward on every copy despite resolving correctly.
+            if (n.cents == 0)
+                harmonic += chordTone(n.pitch, n.start) ? 1.0 : 0.0;
+            else if (validPassing(c, i, s))
+                for (int ahead = 1; ahead <= 2 && i + ahead < c.count; ++ahead) {
+                    const auto& anchor = c.notes[size_t(i + ahead)];
+                    if (anchor.cents == 0) {
+                        harmonic += chordTone(anchor.pitch, anchor.start) ? 0.75 : 0.0;
+                        break;
+                    }
                 }
+            const auto* chord = chordAt(s.harmony, n.start);
+            const int root = chord ? chord->root : s.root;
+            double relative = std::fmod(actualPitch(n) - root * 100.0 + 13200.0, 1200.0) / 100.0;
+            constexpr double tonalCosts[]{0, 0.9, 0.6, 0.2, 0.15, 0.1, 1.0, 0.0, 0.3, 0.2, 0.7, 0.8, 0};
+            const int semitone = int(relative);
+            consonanceCost += tonalCosts[semitone] +
+                              (relative - semitone) * (tonalCosts[semitone + 1] - tonalCosts[semitone]);
+            offbeats += std::abs(n.start - std::round(n.start)) > 0.01 ? 1 : 0;
         }
         const double count = c.count;
-        const double targetNotes = c.length / (0.3 + (1.0 - s.density) * 1.1) * (1.0 - s.space * 0.7);
+        const double targetNotes = c.length / (0.3 + (1.0 - activity()) * 1.1) * (1.0 - s.space * 0.7);
         double result = -6.0 * std::abs(scaleFit / count - (1.0 - s.tension * 0.25)) +
                         ((s.progression || s.harmony.count) ? 3.0 * harmonic / count : 0.0);
         result -= 2.0 * std::abs(count - targetNotes) / std::max(1.0, targetNotes);
         result -= 2.0 * std::abs(1.0 - std::min(1.0, occupied / c.length) - s.space);
-        result -= std::abs(offbeats / count - s.syncopation) * 1.5;
+        result -= std::abs(offbeats / count - offbeatTarget()) * 1.5;
+        const auto musical = analysePhrase(c, s);
+        result -= std::abs(musical.rhythmVariation - s.dynamics * 1.1) * 0.8;
         if (s.mode != 1) {
-            result -= std::abs(movement / count - (2.0 + s.diversity * 5.0)) * 0.25;
-            result -= leaps / count * 2.0;
+            result -= musical.intervalPenalty * (1.8 - s.diversity * 0.4 - s.weirdness * 0.6);
+            result += musical.smallStepRatio * 0.65;
             result += std::min(1.0, std::count(unique.begin(), unique.end(), true) / 8.0) * s.diversity;
-            result += repeated / count * (1.0 - s.diversity) * 2.0;
+            const double registerSpan = std::max(1, s.high - s.low);
+            const double spanTarget = std::min(registerSpan, 4.0 + s.dynamics * 6.0 + s.arousal * 8.0);
+            result -= std::abs(musical.pitchSpan - spanTarget) / 12.0 * 0.8;
+            const double pitchTarget =
+                (s.low + s.high) * 0.5 + (s.valence - 0.5) * 10.0 + (s.arousal - 0.5) * 4.0;
+            result -= std::abs(musical.meanPitch - pitchTarget) / registerSpan * 1.5;
+            result -= std::abs(musical.upwardRatio - (0.3 + s.valence * 0.4)) * 0.6;
+            result -= consonanceCost / count * (0.2 + s.valence * 0.8);
+            if (s.phraseType == 0) {
+                result += musical.repetition * 1.8 + musical.rhythmicRepetition * 0.7;
+                result -= std::max(0.0, musical.loopIntervalCents - 500.0) / 1200.0;
+            } else if (s.phraseType == 1) {
+                result += musical.motifReturn * 1.5 + musical.rhythmicRepetition * 0.5;
+                result -= std::abs(musical.middleContrast - 0.30) * 1.4;
+                result -= std::abs(musical.repetition - 0.50) * 0.7;
+            } else {
+                result -= std::abs(musical.contourArc - 0.32) * 2.2;
+                result -= std::max(0.0, musical.repetition - 0.45) * 1.5;
+                const auto& final = c.notes[size_t(c.count - 1)];
+                const int destination = harmonicPitch(final.pitch, final.start, s, true);
+                result -= intervalCost(actualPitch(final) - destination * 100.0) * 0.7;
+            }
+            if (s.microEnabled) {
+                // Optional but audible embellishment, not a fixed percentage
+                // painted onto the winner. Both absence and excess affect fitness.
+                // Short repeated approaches may be a third of the events but
+                // only a small part of the sounding time. The target measures
+                // duration, avoiding an accidental penalty for short motifs.
+                result -= std::abs(microDuration / std::max(0.03125, occupied) - 0.14) * 3.0;
+                result += musical.resolvedPassingNotes / count * 1.6;
+                result -= musical.invalidPassingNotes / count * 5.0;
+            }
         }
         if (parent)
             result -= std::abs(similarity(c, *parent) - (1.0 - s.mutation)) * 3.0;
@@ -651,35 +1285,38 @@ struct Evolution {
     }
 };
 } // namespace
+double fitnessScore(const Clip& source, const Settings& settings) {
+    auto clip = source;
+    sanitise(clip);
+    auto s = normaliseSearchSettings(settings);
+    s.numerator = clip.numerator;
+    s.denominator = clip.denominator;
+    return Evolution(s, nullptr).score(clip);
+}
 std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<bool>& cancelled,
-                           const std::function<void(float)>& progress) {
-    s.bars = std::clamp(s.bars, 1, 8);
-    s.low = std::clamp(s.low, 0, 126);
-    s.high = std::clamp(s.high, s.low + 1, 127);
-    s.numerator = std::clamp(s.numerator, 1, 12);
-    if (s.denominator != 4 && s.denominator != 8)
-        s.denominator = 4;
-    if (s.division != 8 && s.division != 16 && s.division != 32)
-        s.division = 16;
-    s.density = unitAmount(s.density);
-    s.diversity = unitAmount(s.diversity);
-    s.syncopation = unitAmount(s.syncopation);
-    s.tension = unitAmount(s.tension);
-    s.space = unitAmount(s.space);
-    s.mutation = unitAmount(s.mutation);
-    sanitise(s.harmony);
+                           const std::function<void(float)>& progress,
+                           const std::function<void(const SearchStats&)>& statistics) {
+    s = normaliseSearchSettings(s);
     Clip parent;
     if (source) {
         parent = *source;
         sanitise(parent);
         if (parent.count == 0)
             source = nullptr;
-        else
+        else {
             source = &parent;
+            s.numerator = parent.numerator;
+            s.denominator = parent.denominator;
+        }
     }
+    if (!source && s.bars * s.numerator * 4.0 / s.denominator > 128.0)
+        return {};
     Evolution e(s, source);
-    const int sizes[]{40, 72, 112}, generations[]{20, 40, 72};
-    const int quality = std::clamp(s.quality, 0, 2), size = sizes[quality], rounds = generations[quality];
+    const auto budget = searchBudget(s);
+    const int size = budget.population, rounds = budget.generations;
+    SearchStats stats;
+    stats.population = size;
+    stats.generations = rounds;
     std::vector<Clip> population(size);
     for (auto& clip : population) {
         if (cancelled.load())
@@ -695,10 +1332,24 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
     for (int generation = 0; generation <= rounds; ++generation) {
         if (cancelled.load())
             return {};
-        for (int i = 0; i < size; ++i)
+        for (int i = 0; i < size; ++i) {
+            if (cancelled.load())
+                return {};
             scores[i] = e.score(population[i]);
+            if (std::any_of(population[i].notes.begin(), population[i].notes.begin() + population[i].count,
+                            [](const Note& n) { return n.cents != 0; }))
+                ++stats.microtonalEvaluations;
+        }
         std::iota(order.begin(), order.end(), 0);
         std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return scores[a] > scores[b]; });
+        stats.generation = generation;
+        stats.evaluations += uint64_t(size);
+        stats.bestFitness = scores[order[0]];
+        stats.meanFitness = std::accumulate(scores.begin(), scores.end(), 0.0) / size;
+        if (generation == 0)
+            stats.initialBest = stats.bestFitness;
+        if (statistics)
+            statistics(stats);
         if (progress)
             progress(float(generation) / rounds);
         if (generation == rounds)
@@ -721,15 +1372,10 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             };
             Clip child = population[select()];
             const auto& other = population[select()];
-            // Pitch crossover keeps note boundaries and all locked events intact.
-            if (s.mode != 1)
-                for (int i = child.count / 2; i < std::min(child.count, other.count); ++i)
-                    if (!child.notes[i].locked) {
-                        child.notes[i].pitch = other.notes[i].pitch;
-                        if (s.harmony.count && s.tension == 0.0f)
-                            child.notes[i].pitch =
-                                harmonicPitch(child.notes[i].pitch, child.notes[i].start, s);
-                    }
+            if (e.random() < s.crossover) {
+                ++stats.crossovers;
+                e.cross(child, other);
+            }
             e.mutate(child, source ? s.mutation * 0.4f : 0.25f);
             next.push_back(child);
         }
@@ -753,7 +1399,8 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         if (cancelled.load())
             return {};
         auto c = population[order[results.size() % size]];
-        e.mutate(c, source ? s.mutation : 0.6f);
+        // Every output is an evaluated chromosome, including cents. A small
+        // search may return related alternatives rather than unscored mutations.
         results.push_back(c);
     }
     return results;

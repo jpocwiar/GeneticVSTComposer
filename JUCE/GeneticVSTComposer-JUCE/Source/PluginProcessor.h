@@ -1,4 +1,5 @@
 #pragma once
+#include "ChordGenerator.h"
 #include "ComposerEngine.h"
 #include <JuceHeader.h>
 #include <deque>
@@ -48,6 +49,22 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     void generate(bool evolve);
     void cancelGeneration() { cancelled.store(true); }
     void setPreview(bool enabled);
+    void startAudition();
+    void startChordAudition();
+    bool isAuditioningChords() const { return chordPreview.load(); }
+    bool audibleChords() const { return heardChordPreview.load(); }
+    bool audibleChordLayer() const { return heardChordPreview.load() || heardChordLayer.load(); }
+    double chordPlayPosition() const { return chordBeat.load(); }
+    juce::Result generateChords();
+    juce::Result revoiceChords();
+    composer::Clip chordClipSnapshot() const;
+    juce::Result exportChordMidi(const juce::File&) const;
+    juce::Result setTimeSignature(const juce::String&);
+    composer::TimeSignature timeSignature() const;
+    void setProgressionPreset(int index);
+    int progressionIndex() const;
+    composer::SearchBudget configuredSearchBudget() const;
+    juce::String searchDescription() const;
     bool previewRequested() const { return preview.load(); }
     bool isPlaying() const { return playing.load(); }
     double playPosition() const { return playBeat.load(); }
@@ -62,6 +79,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     };
     // MIDI activity is independent of the internal monitor; peak includes its audible release tail.
     VisualState visualState() const noexcept;
+    VisualState chordVisualState() const noexcept;
     bool isGenerating() const { return busy.load(); }
     float generationProgress() const { return progress.load(); }
     uint64_t documentRevision() const { return revision.load(); }
@@ -69,6 +87,11 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     void setStatus(const juce::String&);
     void applyPreset(int index);
     juce::Result applyRegion(double start, double end, composer::RegionAction);
+    bool microtonesEnabled() const { return param("microEnabled") > 0.5f; }
+    int tuningIndex() const { return microtonesEnabled() ? std::max(1, int(param("tuning"))) : 0; }
+    // MIDI encoding of microtonal pitches: 0 is plain 12-TET (tuning off), 1 pitch bend on
+    // channel 1, 2 MPE with one member channel per note.
+    int microtonalOutput() const { return tuningIndex() > 0 ? 1 + int(param("microOutput")) : 0; }
     juce::Result setCustomHarmony(const juce::String&);
     void clearCustomHarmony();
     juce::String customHarmonyText() const;
@@ -99,9 +122,11 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     void panic() {
         panicRequested.store(true);
         preview.store(false);
+        chordPreview.store(false);
     }
     static juce::StringArray scaleNames();
     static juce::StringArray rootNames();
+    static juce::StringArray tuningNames();
 
   private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
@@ -113,11 +138,13 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0) const;
     void setParameter(const char*, float);
     juce::Result readMidi(const juce::File&, composer::Clip&, bool& truncated) const;
-    juce::Result exportClip(const composer::Clip&, const juce::File&, bool alreadyRendered = false) const;
+    juce::Result exportClip(const composer::Clip&, const juce::File&, bool alreadyRendered = false,
+                            bool plainMidi = false) const;
+    composer::VoicingSettings voicingSettings() const;
     mutable std::mutex documentMutex;
     composer::Bank bank;
     composer::Harmony customHarmony;
-    composer::Clip grooveReference, comparison, draft;
+    composer::Clip grooveReference, comparison, draft, chordClip;
     bool grooveLoaded = false, draftActive = false;
     int draftSlot = -1;
     juce::String draftLabel;
@@ -126,6 +153,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
         composer::Harmony harmony;
         composer::Clip groove;
         bool grooveLoaded = false;
+        composer::Clip chords;
     };
     Document documentLocked() const;
     void restoreDocumentLocked(const Document&);
@@ -135,9 +163,13 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     std::atomic<int> audibleSlot{0};
     std::atomic<bool> comparisonAvailable{false}, compareRequested{false}, heardComparison{false};
     std::atomic<bool> customHarmonyEnabled{false};
+    std::atomic<bool> chordPreview{false}, heardChordPreview{false};
     std::atomic<uint64_t> revision{1};
     std::atomic<bool> busy{false}, cancelled{false}, preview{false}, playing{false}, panicRequested{false};
     std::atomic<float> progress{0};
+    mutable std::mutex searchMutex;
+    composer::SearchStats lastSearch;
+    double searchSeconds = 0;
     std::atomic<double> playBeat{0}, displayTempo{120};
     std::thread worker;
     juce::Random seedGenerator;
@@ -145,26 +177,50 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     juce::SpinLock exchangeLock;
     composer::Bank pendingBank, audioBank;
     composer::Clip pendingComparison, pendingDraft, audioComparison, audioDraft, activeClip;
+    composer::Clip pendingChords, audioChords;
     bool pendingHasDraft = false, audioHasDraft = false;
     int pendingDraftSlot = -1, audioDraftSlot = -1;
     uint64_t pendingRevision = 1, audioRevision = 0;
     int audioSelection = -1, nextNote = 0, trigger = -1, transpose = 0;
     bool audioCompare = false, audioDraftActive = false, loopBoundary = false;
+    bool audioChordPreview = false;
     bool wasPlaying = false, wasHostPlaying = false, lastFollow = false;
     double phase = 0, expectedPpq = 0, rate = 44100;
     std::array<bool, 12> heldTriggers{};
     std::array<bool, 128> heldTranspose{};
     struct Voice {
         bool on = false;
-        int sourceIndex = -1;
-        double remaining = 0, phase = 0, gain = 0, target = 0;
+        int sourceIndex = -1, channel = 1;
+        double remaining = 0, phase = 0, gain = 0, target = 0, increment = 0;
     };
     std::array<Voice, 128> voices{};
+    // Internal accompaniment has independent voices: melody pitch bend/MPE can never detune it.
+    // MIDI exports and MIDI output remain separate from this audition-only layer.
+    std::array<Voice, 128> chordVoices{};
+    bool chordLayerPlaying = false;
+    int nextChordNote = 0;
+    double lastChordPhase = -1, accompanimentBeat = 0;
+    uint64_t chordNoteOnSerial = 0;
+    void stopChordLayer() noexcept;
+    void scheduleChordLayer(bool run, bool restart, double beat, double step) noexcept;
+    double renderVoice(Voice&, bool monitor, int sound, double step) noexcept;
     std::array<double, 128> phaseIncrements{};
+    // Notes and last use per MIDI channel, so an MPE note takes the longest-idle member channel.
+    std::array<int, 17> channelNotes{};
+    std::array<uint64_t, 17> channelUse{};
+    uint64_t channelClock = 0;
+    int outputMode = 0, outputBendRange = 2;
+    bool outputConfigured = false;
+    void resetOutput(int sample, juce::MidiBuffer&);
     // Bounded, lock-free publication once per callback; the UI never touches audio-thread voices.
     static_assert(std::atomic<float>::is_always_lock_free && std::atomic<int>::is_always_lock_free &&
                       std::atomic<uint64_t>::is_always_lock_free,
                   "Visual telemetry requires lock-free atomics");
+    std::array<std::atomic<float>, 128> visualChordNotes;
+    std::array<std::atomic<int>, 128> visualChordSourceNotes;
+    std::atomic<uint64_t> visualChordSerial{0};
+    std::atomic<bool> heardChordLayer{false};
+    std::atomic<double> chordBeat{-1};
     std::array<std::atomic<float>, 128> visualNotes;
     std::array<std::atomic<int>, 128> visualSourceNotes;
     std::atomic<float> visualOutputPeak{0};
@@ -174,6 +230,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     void publishVisualState(float peak) noexcept;
     juce::MidiBuffer outputMidi;
     void allOff(int sample, juce::MidiBuffer&);
+    void releaseVoice(int pitch, int sample, juce::MidiBuffer&);
     void noteOn(const composer::Note&, int sourceIndex, int sample, juce::MidiBuffer&);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GeneticVSTComposerJUCEAudioProcessor)
 };

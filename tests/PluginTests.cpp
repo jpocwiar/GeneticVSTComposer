@@ -1,3 +1,4 @@
+#include "ChordComposerPanel.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include <chrono>
@@ -25,6 +26,12 @@ struct PlayHead : juce::AudioPlayHead {
 };
 void runWorkflowTests();
 void runVisualTelemetryTests();
+void runMicrotonalTests();
+void runUsabilityTests();
+void runChordPluginTests();
+void runChordPanelTests();
+void runPlaybackArchitectureTests();
+void renderMusicalExamples(const juce::File&);
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
     try {
@@ -214,6 +221,11 @@ int main(int argc, char** argv) {
         require(p->selectedClip().notes[0].pitch == 47, "stale worker overwrote a newer edit");
         runWorkflowTests();
         runVisualTelemetryTests();
+        runMicrotonalTests();
+        runUsabilityTests();
+        runChordPluginTests();
+        runChordPanelTests();
+        runPlaybackArchitectureTests();
         if (argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());
@@ -242,12 +254,68 @@ int main(int argc, char** argv) {
                 output.truncate();
                 png.writeImageToStream(image, output);
             };
+            {
+                auto chordDemo = std::make_unique<Processor>();
+                chordDemo->setTimeSignature("7/8");
+                parameter(*chordDemo, "chordOriginality", 0.82f);
+                parameter(*chordDemo, "chordRhythm", 2);
+                require(chordDemo
+                            ->setCustomHarmony(
+                                "Cm:1.75 Abmaj7:1.75 D7:1.75 G7:1.75 Fm7:1.75 Db7:1.75 G7:1.75 Cm:1.75")
+                            .wasOk(),
+                        "chord snapshot harmony");
+                chordDemo->prepareToPlay(48000, 128);
+                chordDemo->startChordAudition();
+                juce::AudioBuffer<float> audio(2, 128);
+                juce::MidiBuffer midi;
+                chordDemo->processBlock(audio, midi);
+                std::unique_ptr<juce::AudioProcessorEditor> chordEditor(chordDemo->createEditor());
+                auto* chordPage =
+                    dynamic_cast<GeneticVSTComposerJUCEAudioProcessorEditor*>(chordEditor.get());
+                require(chordPage != nullptr, "chord page editor type");
+                chordPage->showChordComposer();
+                auto chordSnapshot = [&](const char* name, int width, int height) {
+                    chordEditor->setSize(width, height);
+                    chordPage->refreshDisplay();
+                    auto image = chordEditor->createComponentSnapshot(chordEditor->getLocalBounds());
+                    juce::FileOutputStream output{juce::File(argv[1]).getSiblingFile(name)};
+                    require(output.openedOk(), "chord snapshot output");
+                    output.setPosition(0);
+                    output.truncate();
+                    png.writeImageToStream(image, output);
+                };
+                chordSnapshot("ui-chords.png", 1180, 900);
+                chordSnapshot("ui-chords-compact.png", 870, 630);
+                chordDemo->setPreview(false);
+            }
             demo->setCustomHarmony("Cm:4 Fm:2 G7:2");
             demo->captureComparison();
             for (int page = 0; page < 5; ++page) {
                 workflowEditor->showWorkflowPage(page);
                 snapshot("ui-workflow-" + juce::String(page) + ".png");
             }
+            demo->generate(false);
+            const auto searchDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            while (demo->isGenerating() && std::chrono::steady_clock::now() < searchDeadline)
+                juce::Thread::sleep(1);
+            require(!demo->isGenerating(), "search snapshot timeout");
+            workflowEditor->showWorkflowPage(6);
+            workflowEditor->refreshDisplay();
+            snapshot("ui-search.png");
+            editor->setSize(870, 630);
+            snapshot("ui-search-compact.png");
+            editor->setSize(1180, 900);
+            parameter(*demo, "microEnabled", 1);
+            parameter(*demo, "tuning", 1);
+            demo->generate(false);
+            const auto microDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+            while (demo->isGenerating() && std::chrono::steady_clock::now() < microDeadline)
+                juce::Thread::sleep(1);
+            require(!demo->isGenerating(), "micro search snapshot timeout");
+            workflowEditor->showWorkflowPage(5);
+            snapshot("ui-microtonal.png");
+            demo->undo();
+            parameter(*demo, "microEnabled", 0);
             demo->previewArrangement();
             workflowEditor->showWorkflowPage(3);
             snapshot("ui-arrangement.png");
@@ -287,8 +355,10 @@ int main(int argc, char** argv) {
                 animated->setPreview(false);
             }
         }
+        if (argc > 3)
+            renderMusicalExamples(juce::File(argv[3]));
         std::cout << "Plugin: session restore, undo/redo, MIDI round trip, note scheduling, audition, "
-                     "triggers and host transport passed.\n";
+                     "triggers, host transport and microtonal output passed.\n";
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

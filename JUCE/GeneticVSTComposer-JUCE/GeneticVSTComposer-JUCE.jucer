@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<JUCERPROJECT id="cAmDdb" name="GeneticComposer" projectType="audioplug" useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn" pluginFormats="buildAU,buildStandalone,buildVST3" pluginVST3Category="Instrument,Tools" version="2.2.0" companyName="Genetic Composer" bundleIdentifier="com.geneticcomposer.plugin" pluginName="Genetic Composer" pluginManufacturerCode="Gnco" pluginCode="Gnc2" cppLanguageStandard="17">
+<JUCERPROJECT id="cAmDdb" name="GeneticComposer" projectType="audioplug" useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn" pluginFormats="buildAU,buildStandalone,buildVST3" pluginVST3Category="Instrument,Tools" version="2.5.0" companyName="Genetic Composer" bundleIdentifier="com.geneticcomposer.plugin" pluginName="Genetic Composer" pluginManufacturerCode="Gnco" pluginCode="Gnc2" cppLanguageStandard="17">
   <MAINGROUP id="R6yz7R" name="GeneticVSTComposer-JUCE">
     <GROUP id="{C990335F-8FF4-29F1-1A20-77FBC2FC51B7}" name="Source">
       <FILE id="cth" name="ComposerTheme.h" compile="0" resource="0" file="Source/ComposerTheme.h" />
@@ -18,6 +18,10 @@
       <FILE id="CSGrRJ" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h" />
       <FILE id="GcEngC" name="ComposerEngine.cpp" compile="1" resource="0" file="Source/ComposerEngine.cpp" />
       <FILE id="GcEngH" name="ComposerEngine.h" compile="0" resource="0" file="Source/ComposerEngine.h" />
+      <FILE id="GcChdC" name="ChordGenerator.cpp" compile="1" resource="0" file="Source/ChordGenerator.cpp" />
+      <FILE id="GcChdH" name="ChordGenerator.h" compile="0" resource="0" file="Source/ChordGenerator.h" />
+      <FILE id="GcCplC" name="ChordComposerPanel.cpp" compile="1" resource="0" file="Source/ChordComposerPanel.cpp" />
+      <FILE id="GcCplH" name="ChordComposerPanel.h" compile="0" resource="0" file="Source/ChordComposerPanel.h" />
     </GROUP>
   </MAINGROUP>
   <MODULES>

@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include <cmath>
+#include <tuple>
 
 using Processor = GeneticVSTComposerJUCEAudioProcessor;
 namespace {
@@ -16,10 +17,32 @@ bool samePlayback(const composer::Clip& a, const composer::Clip& b) {
     for (int i = 0; i < a.count; ++i) {
         const auto& x = a.notes[i];
         const auto& y = b.notes[i];
-        if (x.start != y.start || x.duration != y.duration || x.pitch != y.pitch || x.velocity != y.velocity)
+        if (x.start != y.start || x.duration != y.duration || x.pitch != y.pitch ||
+            x.velocity != y.velocity || x.cents != y.cents)
             return false;
     }
     return true;
+}
+constexpr int mpeBendRange = 48;
+// 14-bit pitch-wheel position for an offset in cents at a bend range in semitones.
+int bendPosition(int cents, int range) {
+    return juce::jlimit(0, 16383, 8192 + int(std::lround(cents * 8192.0 / (range * 100.0))));
+}
+template <typename Add> void addRpn(Add&& add, int channel, int number, int value) {
+    add(juce::MidiMessage::controllerEvent(channel, 101, number >> 7));
+    add(juce::MidiMessage::controllerEvent(channel, 100, number & 127));
+    add(juce::MidiMessage::controllerEvent(channel, 6, value));
+}
+// Sent before microtonal notes: channel 1's bend range, or for MPE a lower zone of 15 member
+// channels at the standard per-note range, with ±2 on the master channel.
+template <typename Add> void microtonalSetup(int output, int range, Add&& add) {
+    if (output == 1)
+        addRpn(add, 1, 0, range);
+    if (output == 2) {
+        addRpn(add, 1, 6, 15);
+        addRpn(add, 2, 0, mpeBendRange);
+        addRpn(add, 1, 0, 2);
+    }
 }
 } // namespace
 juce::StringArray Processor::rootNames() {
@@ -29,6 +52,15 @@ juce::StringArray Processor::scaleNames() {
     return {"Major",          "Natural minor",    "Dorian",
             "Mixolydian",     "Major pentatonic", "Minor pentatonic",
             "Harmonic minor", "Lydian",           "Chromatic"};
+}
+juce::StringArray Processor::tuningNames() {
+    return {"Off (12-TET)",
+            "Quarter-tone inflections",
+            "Maqam Rast",
+            "Maqam Bayati",
+            "Maqam Saba",
+            "Neutral blues pentatonic",
+            "Quarter tones (24-EDO)"};
 }
 juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters() {
     juce::AudioProcessorValueTreeState::ParameterLayout p;
@@ -53,10 +85,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
            {"Scale only", "I - IV - V - I", "I - VI - IV - V", "I - IV - VI - V", "II - V - I - I"}, 0);
     choice("quality", "Search depth", {"Quick", "Balanced", "Deep"}, 1);
     number("density", "Density", 0, 1, 0.5f);
-    number("diversity", "Variety", 0, 1, 0.5f);
+    number("diversity", "Diversity", 0, 1, 0.5f);
     number("syncopation", "Syncopation", 0, 1, 0.25f);
-    number("tension", "Tension", 0, 1, 0.15f);
-    number("space", "Space", 0, 0.85f, 0.15f);
+    number("tension", "Jazziness", 0, 1, 0.15f);
+    number("space", "Pause amount", 0, 0.85f, 0.15f);
     number("mutation", "Evolution amount", 0, 1, 0.35f);
     number("low", "Lowest note", 24, 96, 48, 1);
     number("high", "Highest note", 36, 108, 84, 1);
@@ -64,11 +96,41 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     number("gate", "Gate", 0.1f, 1, 0.9f);
     number("tempo", "Preview tempo", 40, 240, 120, 1);
     number("volume", "Monitor level", 0, 1, 0.65f);
-    toggle("snap", "Snap playback to scale", true);
+    toggle("snap", "Fit to scale", false);
     toggle("lockRhythm", "Keep rhythm", false);
     toggle("follow", "Follow host transport", false);
     toggle("monitor", "Internal sound", true);
     toggle("quantiseSwitch", "Switch at next loop", true);
+    choice("tuning", "Microtonal tuning", tuningNames(), 0);
+    number("microtones", "Microtones", 0, 1, 1);
+    choice("microOutput", "Microtonal MIDI", {"Pitch bend (mono)", "MPE"}, 0);
+    number("bendRange", "Pitch-bend range", 1, 48, 2, 1);
+    // New choices use separate parameters so existing normalized automation keeps its meaning.
+    toggle("meterOverride", "Custom time signature", false);
+    number("meterNumerator", "Meter numerator", 1, 32, 4, 1);
+    choice("meterDenominator", "Meter denominator", {"1", "2", "4", "8", "16", "32"}, 2);
+    juce::StringArray extended{"Use Harmony parameter"};
+    const auto& progressions = composer::progressionPresets();
+    for (size_t i = 5; i < progressions.size(); ++i)
+        extended.add(progressions[i].name);
+    choice("extendedProgression", "Extended harmony", extended, 0);
+    toggle("customSearch", "Custom search budget", false);
+    number("searchPopulation", "Search population", 16, 512, 128, 1);
+    number("searchGenerations", "Search generations", 1, 2000, 100, 1);
+    number("crossover", "Crossover probability", 0, 1, 0.9f);
+    choice("auditionSound", "Audition sound", {"Soft keys", "Sine", "Warm organ"}, 0);
+    number("chordOriginality", "Chord originality", 0, 1, 0.35f);
+    choice("chordRhythm", "Chord rhythm", {"Two bars", "One bar", "Half bar"}, 1);
+    choice("chordVoicing", "Chord voicing", {"Smooth inversions", "Root position", "Open voicings"}, 0);
+    number("chordCentre", "Chord register", 36, 72, 60, 1);
+    toggle("chordResolve", "Resolve chords to tonic", true);
+    toggle("microEnabled", "Microtones enabled", false);
+    choice("phraseType", "Phrase type", {"Riff", "Motif", "Melody"}, 0);
+    toggle("auditionChords", "Play with chords", false);
+    number("dynamics", "Dynamics", 0, 1, 0.5f);
+    number("valence", "Valence", 0, 1, 0.5f);
+    number("arousal", "Arousal", 0, 1, 0.5f);
+    number("weirdness", "Weirdness", 0, 1, 0.1f);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -89,6 +151,18 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& layout) const {
 void Processor::prepareToPlay(double sampleRate, int) {
     rate = sampleRate;
     voices = {};
+    chordVoices = {};
+    chordLayerPlaying = false;
+    nextChordNote = 0;
+    lastChordPhase = -1;
+    accompanimentBeat = 0;
+    chordNoteOnSerial = 0;
+    visualChordSerial.store(0);
+    channelNotes = {};
+    channelUse = {};
+    channelClock = 0;
+    outputMode = 0;
+    outputConfigured = false;
     audioNoteOnSerial = 0;
     visualNoteOnSerial.store(0, std::memory_order_relaxed);
     clearVisualState();
@@ -100,7 +174,8 @@ void Processor::prepareToPlay(double sampleRate, int) {
     heldTriggers = {};
     heldTranspose = {};
     audioSelection = -1;
-    audioCompare = audioDraftActive = loopBoundary = false;
+    audioCompare = audioDraftActive = audioChordPreview = loopBoundary = false;
+    heardChordPreview.store(false);
     heardComparison.store(false);
     for (int p = 0; p < 128; ++p)
         phaseIncrements[p] = 440.0 * std::exp2((p - 69.0) / 12.0) / rate;
@@ -109,6 +184,10 @@ void Processor::prepareToPlay(double sampleRate, int) {
 void Processor::releaseResources() {
     playing.store(false);
     preview.store(false);
+    chordPreview.store(false);
+    heardChordPreview.store(false);
+    heardChordLayer.store(false);
+    chordBeat.store(-1);
     clearVisualState();
 }
 Processor::VisualState Processor::visualState() const noexcept {
@@ -121,7 +200,24 @@ Processor::VisualState Processor::visualState() const noexcept {
     state.noteOnSerial = visualNoteOnSerial.load(std::memory_order_relaxed);
     return state;
 }
+Processor::VisualState Processor::chordVisualState() const noexcept {
+    if (heardChordPreview.load())
+        return visualState();
+    VisualState state;
+    for (size_t i = 0; i < state.notes.size(); ++i) {
+        state.notes[i] = visualChordNotes[i].load(std::memory_order_relaxed);
+        state.sourceNotes[i] = visualChordSourceNotes[i].load(std::memory_order_relaxed);
+    }
+    state.noteOnSerial = visualChordSerial.load(std::memory_order_relaxed);
+    return state;
+}
 void Processor::clearVisualState() noexcept {
+    for (auto& note : visualChordNotes)
+        note.store(0, std::memory_order_relaxed);
+    for (auto& index : visualChordSourceNotes)
+        index.store(-1, std::memory_order_relaxed);
+    heardChordLayer.store(false);
+    chordBeat.store(-1);
     for (auto& note : visualNotes)
         note.store(0, std::memory_order_relaxed);
     for (auto& index : visualSourceNotes)
@@ -133,6 +229,13 @@ void Processor::publishVisualState(float peak) noexcept {
         visualNotes[p].store(voices[p].on ? float(voices[p].target) : 0.0f, std::memory_order_relaxed);
         visualSourceNotes[p].store(voices[p].on ? voices[p].sourceIndex : -1, std::memory_order_relaxed);
     }
+    for (size_t p = 0; p < chordVoices.size(); ++p) {
+        visualChordNotes[p].store(chordVoices[p].on ? float(chordVoices[p].target) : 0.0f,
+                                  std::memory_order_relaxed);
+        visualChordSourceNotes[p].store(chordVoices[p].on ? chordVoices[p].sourceIndex : -1,
+                                        std::memory_order_relaxed);
+    }
+    visualChordSerial.store(chordNoteOnSerial, std::memory_order_relaxed);
     visualOutputPeak.store(peak, std::memory_order_relaxed);
     visualNoteOnSerial.store(audioNoteOnSerial, std::memory_order_relaxed);
 }
@@ -169,11 +272,14 @@ void Processor::selectClip(int index) {
         audibleSlot.store(index);
 }
 Processor::Document Processor::documentLocked() const {
-    return {bank, customHarmony, grooveReference, grooveLoaded};
+    return {bank, customHarmony, grooveReference, grooveLoaded, chordClip};
 }
 void Processor::restoreDocumentLocked(const Document& d) {
     bank = d.bank;
     customHarmony = d.harmony;
+    chordClip = d.chords;
+    if (chordClip.count == 0 && chordPreview.exchange(false))
+        preview.store(false);
     grooveReference = d.groove;
     grooveLoaded = d.grooveLoaded;
     customHarmonyEnabled.store(customHarmony.count > 0);
@@ -190,6 +296,7 @@ void Processor::publishLocked() {
     pendingBank = bank;
     pendingComparison = comparison;
     pendingDraft = draft;
+    pendingChords = chordClip;
     pendingHasDraft = draftActive;
     pendingDraftSlot = draftSlot;
     pendingRevision = revision.fetch_add(1) + 1;
@@ -243,6 +350,139 @@ void Processor::redo() {
 }
 void Processor::setPreview(bool enabled) {
     preview.store(enabled);
+    if (!enabled)
+        chordPreview.store(false);
+}
+void Processor::startAudition() {
+    chordPreview.store(false);
+    setParameter("follow", 0);
+    setParameter("monitor", 1);
+    if (param("volume") <= 0)
+        setParameter("volume", 0.65f);
+    setPreview(true);
+    setStatus(
+        "Playing the selected phrase. Stop ends playback; With chords adds the internal accompaniment.");
+}
+void Processor::startChordAudition() {
+    if (chordClipSnapshot().count == 0) {
+        setStatus("Generate or enter chords before auditioning them.");
+        return;
+    }
+    setParameter("follow", 0);
+    setParameter("monitor", 1);
+    if (param("volume") <= 0)
+        setParameter("volume", 0.65f);
+    compareRequested.store(false);
+    chordPreview.store(true);
+    preview.store(true);
+    setStatus("Playing chords. Drag the chord roll to export these exact voicings.");
+}
+composer::VoicingSettings Processor::voicingSettings() const {
+    return {int(param("chordCentre")), int(param("chordVoicing"))};
+}
+composer::Clip Processor::chordClipSnapshot() const {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    return chordClip;
+}
+juce::Result Processor::generateChords() {
+    composer::ChordGenerationSettings s;
+    s.root = int(param("root"));
+    s.scale = int(param("scale"));
+    s.bars = 1 << int(param("bars"));
+    const auto meter = timeSignature();
+    s.numerator = meter.numerator;
+    s.denominator = meter.denominator;
+    s.originality = param("chordOriginality");
+    s.harmonicRhythm = int(param("chordRhythm"));
+    s.resolve = param("chordResolve") > 0.5f;
+    s.seed = uint32_t(seedGenerator.nextInt());
+    const auto harmony = composer::generateHarmony(s);
+    if (harmony.count == 0)
+        return juce::Result::fail("This phrase exceeds 128 beats. Choose fewer bars or a shorter meter.");
+    const auto voiced = composer::voiceHarmony(harmony, s.numerator, s.denominator, voicingSettings());
+    cancelled.store(true);
+    std::lock_guard<std::mutex> lock(documentMutex);
+    if (draftActive)
+        return juce::Result::fail("Apply or discard the melody preview before changing harmony.");
+    pushHistoryLocked();
+    customHarmony = harmony;
+    chordClip = voiced;
+    customHarmonyEnabled.store(true);
+    publishLocked();
+    status = "New chords are active. Generate or evolve a melody to follow them; existing variations are "
+             "retained.";
+    return juce::Result::ok();
+}
+juce::Result Processor::revoiceChords() {
+    const auto voicing = voicingSettings();
+    std::lock_guard<std::mutex> lock(documentMutex);
+    if (customHarmony.count == 0)
+        return juce::Result::fail("Generate or enter chords first.");
+    const auto voiced =
+        composer::voiceHarmony(customHarmony, chordClip.numerator, chordClip.denominator, voicing);
+    pushHistoryLocked();
+    chordClip = voiced;
+    publishLocked();
+    status = "Chord voicings updated. The harmonic sequence and melody notes are unchanged.";
+    return juce::Result::ok();
+}
+composer::TimeSignature Processor::timeSignature() const {
+    if (param("meterOverride") > 0.5f)
+        return {int(param("meterNumerator")), 1 << int(param("meterDenominator"))};
+    return composer::timeSignatures()[size_t(juce::jlimit(0, 4, int(param("meter"))))];
+}
+juce::Result Processor::setTimeSignature(const juce::String& text) {
+    composer::TimeSignature meter{};
+    std::string error;
+    if (!composer::parseMeter(text.toStdString(), meter, error))
+        return juce::Result::fail(juce::String(error));
+    const auto& presets = composer::timeSignatures();
+    for (int i = 0; i < 5; ++i)
+        if (presets[size_t(i)].numerator == meter.numerator &&
+            presets[size_t(i)].denominator == meter.denominator) {
+            setParameter("meter", float(i));
+            setParameter("meterOverride", 0);
+            return juce::Result::ok();
+        }
+    setParameter("meterNumerator", float(meter.numerator));
+    setParameter("meterDenominator", float(std::log2(meter.denominator)));
+    setParameter("meterOverride", 1);
+    return juce::Result::ok();
+}
+int Processor::progressionIndex() const {
+    const int extended = int(param("extendedProgression"));
+    return extended > 0 ? extended + 4 : int(param("progression"));
+}
+void Processor::setProgressionPreset(int index) {
+    index = juce::jlimit(0, int(composer::progressionPresets().size()) - 1, index);
+    if (customHarmonyEnabled.load())
+        clearCustomHarmony();
+    if (index < 5) {
+        setParameter("progression", float(index));
+        setParameter("extendedProgression", 0);
+    } else
+        setParameter("extendedProgression", float(index - 4));
+}
+composer::SearchBudget Processor::configuredSearchBudget() const {
+    composer::Settings s;
+    s.quality = int(param("quality"));
+    if (param("customSearch") > 0.5f) {
+        s.population = int(param("searchPopulation"));
+        s.generations = int(param("searchGenerations"));
+    }
+    return composer::searchBudget(s);
+}
+juce::String Processor::searchDescription() const {
+    std::lock_guard<std::mutex> lock(searchMutex);
+    if (lastSearch.population == 0)
+        return "Tournament selection / 2 elites / crossover / mutation. Fitness is an internal score.";
+    return "Generation " + juce::String(lastSearch.generation) + "/" + juce::String(lastSearch.generations) +
+           "  |  Population " + juce::String(lastSearch.population) + "  |  Evaluations " +
+           juce::String(lastSearch.evaluations) + "  |  Crossovers " + juce::String(lastSearch.crossovers) +
+           "  |  Microtonal candidates " + juce::String(lastSearch.microtonalEvaluations) +
+           "\nBest fitness " + juce::String(lastSearch.bestFitness, 3) + " (initial " +
+           juce::String(lastSearch.initialBest, 3) + ")  |  Mean " + juce::String(lastSearch.meanFitness, 3) +
+           "  |  " + juce::String(searchSeconds, 3) + " s";
 }
 composer::Settings Processor::settings() const {
     composer::Settings s;
@@ -250,14 +490,13 @@ composer::Settings Processor::settings() const {
     s.scale = int(param("scale"));
     s.bars = 1 << int(param("bars"));
     s.division = 8 << int(param("grid"));
-    const int nums[]{4, 3, 5, 7, 6}, dens[]{4, 4, 4, 8, 8};
-    const int m = int(param("meter"));
-    s.numerator = nums[m];
-    s.denominator = dens[m];
+    const auto meter = timeSignature();
+    s.numerator = meter.numerator;
+    s.denominator = meter.denominator;
     s.low = int(param("low"));
     s.high = int(param("high"));
     s.mode = int(param("mode"));
-    s.progression = int(param("progression"));
+    s.progression = progressionIndex();
     s.quality = int(param("quality"));
     s.density = param("density");
     s.diversity = param("diversity");
@@ -267,6 +506,17 @@ composer::Settings Processor::settings() const {
     s.mutation = param("mutation");
     s.lockRhythm = param("lockRhythm") > 0.5f;
     s.harmony = harmonySnapshot();
+    s.tuning = tuningIndex();
+    s.microEnabled = microtonesEnabled();
+    s.phraseType = int(param("phraseType"));
+    s.dynamics = param("dynamics");
+    s.valence = param("valence");
+    s.arousal = param("arousal");
+    s.weirdness = param("weirdness");
+    const auto budget = configuredSearchBudget();
+    s.population = budget.population;
+    s.generations = budget.generations;
+    s.crossover = param("crossover");
     return s;
 }
 void Processor::generate(bool evolve) {
@@ -285,11 +535,29 @@ void Processor::generate(bool evolve) {
     const auto parent = selectedClip();
     const auto startRevision = revision.load();
     const bool useParent = evolve || s.mode == 2;
+    if ((!useParent || parent.count == 0) && s.bars * s.numerator * 4.0 / s.denominator > 128.0) {
+        setStatus("This meter and bar count exceed 128 quarter-note beats. Choose fewer bars.");
+        busy.store(false);
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(searchMutex);
+        lastSearch = {};
+        lastSearch.population = s.population;
+        lastSearch.generations = s.generations;
+        searchSeconds = 0;
+    }
     setStatus(evolve ? "Evolving the selected phrase..." : "Searching for new phrases...");
     worker = std::thread([this, s, parent, startRevision, useParent] {
         try {
-            auto results = composer::generate(s, useParent ? &parent : nullptr, cancelled,
-                                              [this](float p) { progress.store(p); });
+            const auto startTime = juce::Time::getMillisecondCounterHiRes();
+            auto results = composer::generate(
+                s, useParent ? &parent : nullptr, cancelled, [this](float p) { progress.store(p); },
+                [this, startTime](const composer::SearchStats& stats) {
+                    std::lock_guard<std::mutex> lock(searchMutex);
+                    lastSearch = stats;
+                    searchSeconds = (juce::Time::getMillisecondCounterHiRes() - startTime) / 1000.0;
+                });
             std::lock_guard<std::mutex> lock(documentMutex);
             if (!results.empty() && !cancelled.load() && revision.load() == startRevision) {
                 pushHistoryLocked();
@@ -298,7 +566,9 @@ void Processor::generate(bool evolve) {
                     if (!c.favourite)
                         c = results[size_t(next++)];
                 publishLocked();
-                status = next > 0 ? "New phrases ready. Pin favourites to keep them in the next generation."
+                status = next > 0 ? "Ready: " + juce::String(s.generations) + " generations x " +
+                                        juce::String(s.population) +
+                                        " individuals. Audition a phrase; drag its piano roll to your DAW."
                                   : "All variations are pinned. Unpin a slot to generate into it.";
             } else
                 status = "Generation cancelled. Your previous phrases are safe.";
@@ -340,10 +610,15 @@ juce::Result Processor::setCustomHarmony(const juce::String& text) {
     std::string error;
     if (!composer::parseHarmony(text.toStdString(), parsed, error))
         return juce::Result::fail(juce::String(error));
+    const auto meter = timeSignature();
+    const auto voiced = composer::voiceHarmony(parsed, meter.numerator, meter.denominator, voicingSettings());
     cancelled.store(true);
     std::lock_guard<std::mutex> lock(documentMutex);
     pushHistoryLocked();
     customHarmony = parsed;
+    chordClip = voiced;
+    if (voiced.count == 0 && chordPreview.exchange(false))
+        preview.store(false);
     customHarmonyEnabled.store(parsed.count > 0);
     publishLocked();
     status = "Custom chords set. Generate or evolve to use them; playback scale snap is bypassed.";
@@ -356,6 +631,9 @@ void Processor::clearCustomHarmony() {
         return;
     pushHistoryLocked();
     customHarmony = {};
+    chordClip = {};
+    if (chordPreview.exchange(false))
+        preview.store(false);
     customHarmonyEnabled.store(false);
     publishLocked();
     status = "Custom harmony cleared. The scale and progression controls apply again.";
@@ -369,10 +647,13 @@ juce::Result Processor::importHarmonyMidi(const juce::File& file) {
     if (inferred.count == 0)
         return juce::Result::fail(
             "No chords could be recognised. Import block chords or enter them manually.");
+    const auto voiced =
+        composer::voiceHarmony(inferred, reference.numerator, reference.denominator, voicingSettings());
     cancelled.store(true);
     std::lock_guard<std::mutex> lock(documentMutex);
     pushHistoryLocked();
     customHarmony = inferred;
+    chordClip = voiced;
     customHarmonyEnabled.store(true);
     publishLocked();
     status = truncated ? "Harmony imported from a truncated reference. Check the chord names and lengths."
@@ -448,6 +729,7 @@ juce::Result Processor::applyRegion(double start, double end, composer::RegionAc
     status = "Selected region edited. Notes outside the range and locked notes are preserved.";
     return juce::Result::ok();
 }
+
 bool Processor::hasDraft() const {
     std::lock_guard<std::mutex> lock(documentMutex);
     return draftActive;
@@ -560,6 +842,7 @@ void Processor::toggleComparison() {
         setStatus("Capture A before comparing.");
         return;
     }
+    chordPreview.store(false);
     compareRequested.store(!compareRequested.load());
     setStatus(param("quantiseSwitch") > 0.5f && playing.load() ? "A/B change queued for the next loop."
                                                                : "A/B audition changed.");
@@ -577,24 +860,51 @@ composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& c
     n.start = std::min(n.start, clip.length - 0.001);
     n.duration = std::max(0.001, std::min(n.duration * param("gate"), clip.length - n.start));
     n.pitch = juce::jlimit(0, 127, n.pitch + transposition);
-    if (param("snap") > 0.5f && !customHarmonyEnabled.load())
+    // With the tuning off, stored offsets are kept but the output is plain 12-TET.
+    const int tuning = tuningIndex();
+    if (tuning == 0)
+        n.cents = 0;
+    // Fit to scale is an explicit performance projection, including live transposition.
+    // It never invents offsets after the search; optimized passing-note cents are retained.
+    if (param("snap") > 0.5f)
         n.pitch = composer::snapPitch(n.pitch, int(param("root")), int(param("scale")));
+
     return n;
+}
+void Processor::releaseVoice(int pitch, int sample, juce::MidiBuffer& midi) {
+    auto& v = voices[size_t(pitch)];
+    midi.addEvent(juce::MidiMessage::noteOff(v.channel, pitch), sample);
+    channelNotes[size_t(v.channel)] = std::max(0, channelNotes[size_t(v.channel)] - 1);
+    channelUse[size_t(v.channel)] = ++channelClock;
+    v.on = false;
+    v.sourceIndex = -1;
+    v.target = 0;
 }
 void Processor::allOff(int sample, juce::MidiBuffer& midi) {
     for (int p = 0; p < 128; ++p)
-        if (voices[p].on) {
-            midi.addEvent(juce::MidiMessage::noteOff(1, p), sample);
-            voices[p].on = false;
-            voices[p].sourceIndex = -1;
-            voices[p].target = 0;
-        }
+        if (voices[p].on)
+            releaseVoice(p, sample, midi);
+}
+// Centres the bends the current output used; leaving MPE also clears its zone, so a receiver
+// returns to ordinary channel-1 playback.
+void Processor::resetOutput(int sample, juce::MidiBuffer& midi) {
+    if (outputMode == 1)
+        midi.addEvent(juce::MidiMessage::pitchWheel(1, 8192), sample);
+    if (outputMode == 2) {
+        for (int channel = 2; channel <= 16; ++channel)
+            midi.addEvent(juce::MidiMessage::pitchWheel(channel, 8192), sample);
+        addRpn([&](const juce::MidiMessage& m) { midi.addEvent(m, sample); }, 1, 6, 0);
+    }
 }
 void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) {
     audio.clear();
     if (audio.getNumSamples() > 0)
         allOff(0, midi);
     voices = {};
+    chordVoices = {};
+    chordLayerPlaying = false;
+    channelNotes = {};
+    outputConfigured = false;
     heldTriggers = {};
     heldTranspose = {};
     trigger = -1;
@@ -602,6 +912,9 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     wasPlaying = false;
     wasHostPlaying = false;
     preview.store(false);
+    chordPreview.store(false);
+    heardChordPreview.store(false);
+    audioChordPreview = false;
     playing.store(false);
     playBeat.store(-1);
     clearVisualState();
@@ -609,13 +922,93 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
 void Processor::noteOn(const composer::Note& n, int sourceIndex, int sample, juce::MidiBuffer& midi) {
     auto& v = voices[n.pitch];
     if (v.on)
-        midi.addEvent(juce::MidiMessage::noteOff(1, n.pitch), sample);
+        releaseVoice(n.pitch, sample, midi);
+    int channel = 1;
+    if (outputMode == 2) {
+        // An idle member channel with the oldest release tail; shared only when all are busy.
+        channel = 2;
+        for (int candidate = 3; candidate <= 16; ++candidate)
+            if (std::make_pair(channelNotes[size_t(candidate)] > 0, channelUse[size_t(candidate)]) <
+                std::make_pair(channelNotes[size_t(channel)] > 0, channelUse[size_t(channel)]))
+                channel = candidate;
+    }
+    ++channelNotes[size_t(channel)];
+    channelUse[size_t(channel)] = ++channelClock;
+    if (outputMode != 0)
+        midi.addEvent(juce::MidiMessage::pitchWheel(
+                          channel, bendPosition(n.cents, outputMode == 2 ? mpeBendRange : outputBendRange)),
+                      sample);
     v.on = true;
+    v.channel = channel;
     v.sourceIndex = sourceIndex;
     v.remaining = n.duration;
     v.target = n.velocity / 127.0;
-    midi.addEvent(juce::MidiMessage::noteOn(1, n.pitch, juce::uint8(n.velocity)), sample);
+    v.increment = phaseIncrements[size_t(n.pitch)] * std::exp2(n.cents / 1200.0);
+    midi.addEvent(juce::MidiMessage::noteOn(channel, n.pitch, juce::uint8(n.velocity)), sample);
     ++audioNoteOnSerial;
+}
+void Processor::stopChordLayer() noexcept {
+    for (auto& voice : chordVoices) {
+        voice.on = false;
+        voice.target = 0;
+        voice.sourceIndex = -1;
+    }
+    chordLayerPlaying = false;
+    lastChordPhase = -1;
+}
+void Processor::scheduleChordLayer(bool run, bool restart, double beat, double step) noexcept {
+    if (!run || audioChords.count == 0) {
+        if (chordLayerPlaying)
+            stopChordLayer();
+        return;
+    }
+    const double position = std::fmod(std::max(0.0, beat), audioChords.length);
+    const bool chase = restart || !chordLayerPlaying || position + step * 0.5 < lastChordPhase;
+    if (chase) {
+        stopChordLayer();
+        nextChordNote = 0;
+    }
+    chordLayerPlaying = true;
+    for (auto& voice : chordVoices)
+        if (voice.on && voice.remaining <= 1e-9) {
+            voice.on = false;
+            voice.target = 0;
+            voice.sourceIndex = -1;
+        }
+    while (nextChordNote < audioChords.count) {
+        const auto& n = audioChords.notes[nextChordNote];
+        if (n.start > position + step * 0.5)
+            break;
+        const double remaining = n.start + n.duration - position;
+        if (remaining > step * 0.5 && (chase || n.start >= position - step * 1.5)) {
+            auto& voice = chordVoices[size_t(n.pitch)];
+            voice.on = true;
+            voice.target = n.velocity / 127.0;
+            voice.remaining = remaining;
+            voice.increment = phaseIncrements[size_t(n.pitch)];
+            voice.sourceIndex = nextChordNote;
+            ++chordNoteOnSerial;
+        }
+        ++nextChordNote;
+    }
+    lastChordPhase = position;
+}
+double Processor::renderVoice(Voice& v, bool monitor, int sound, double step) noexcept {
+    if (v.on)
+        v.remaining -= step;
+    const double target = monitor ? v.target : 0.0;
+    v.gain += (target - v.gain) * (target > v.gain ? 0.004 : 0.0015);
+    if (v.gain <= 0.00005)
+        return 0;
+    v.phase += v.increment;
+    v.phase -= std::floor(v.phase);
+    const double angle = juce::MathConstants<double>::twoPi * v.phase;
+    const double fundamental = std::sin(angle);
+    const double tone = sound == 1 ? fundamental
+                        : sound == 2
+                            ? (fundamental + 0.28 * std::sin(angle * 2) + 0.12 * std::sin(angle * 3)) / 1.12
+                            : fundamental + 0.22 * std::sin(angle * 2.0);
+    return v.gain * tone * 0.1;
 }
 void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
@@ -624,21 +1017,24 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const int samples = audio.getNumSamples();
     if (samples <= 0)
         return;
-    bool bankChanged = false;
+    bool bankChanged = false, chordsChanged = false;
     {
         juce::SpinLock::ScopedTryLockType lock(exchangeLock);
         if (lock.isLocked() && pendingRevision != audioRevision) {
             const int slot = juce::jlimit(0, 11, audioSelection);
             const bool nextHasDraft = pendingHasDraft && pendingDraftSlot == slot;
-            const auto& nextClip = audioCompare   ? pendingComparison
-                                   : nextHasDraft ? pendingDraft
-                                                  : pendingBank[slot];
-            const bool switchingLater =
-                wasPlaying && param("quantiseSwitch") > 0.5f && selected.load() != audioSelection;
+            const auto& nextClip = audioChordPreview ? pendingChords
+                                   : audioCompare    ? pendingComparison
+                                   : nextHasDraft    ? pendingDraft
+                                                     : pendingBank[slot];
+            const bool switchingLater = !audioChordPreview && wasPlaying && param("quantiseSwitch") > 0.5f &&
+                                        selected.load() != audioSelection;
             bankChanged = audioSelection >= 0 && !switchingLater && !samePlayback(activeClip, nextClip);
             audioBank = pendingBank;
             audioComparison = pendingComparison;
             audioDraft = pendingDraft;
+            chordsChanged = !samePlayback(audioChords, pendingChords);
+            audioChords = pendingChords;
             audioHasDraft = pendingHasDraft;
             audioDraftSlot = pendingDraftSlot;
             audioRevision = pendingRevision;
@@ -663,11 +1059,22 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const bool follow = param("follow") > 0.5f;
     const bool hostJump =
         follow && hostPlaying && hasPosition && (!wasHostPlaying || std::abs(ppq - expectedPpq) > step * 2.0);
+    // Chord audition is a local preview. Enabling Follow DAW returns to the melody.
+    if (follow)
+        chordPreview.store(false);
+    const int melodyOutput = microtonalOutput(), bendRange = int(param("bendRange"));
+    if (bendRange != outputBendRange) {
+        outputBendRange = bendRange;
+        outputConfigured = outputMode != 1 && outputConfigured;
+    }
     const bool panicNow = panicRequested.exchange(false);
     if (panicNow) {
         allOff(0, outputMidi);
-        outputMidi.addEvent(juce::MidiMessage::controllerEvent(1, 64, 0), 0);
-        outputMidi.addEvent(juce::MidiMessage::allNotesOff(1), 0);
+        stopChordLayer();
+        for (int channel = 1; channel <= (outputMode == 2 ? 16 : 1); ++channel) {
+            outputMidi.addEvent(juce::MidiMessage::controllerEvent(channel, 64, 0), 0);
+            outputMidi.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
+        }
         heldTriggers = {};
         heldTranspose = {};
         trigger = -1;
@@ -678,10 +1085,13 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const auto end = midi.cend();
     const bool monitor = param("monitor") > 0.5f;
     const float volume = param("volume");
+    const int auditionSound = int(param("auditionSound"));
     const double swingAmount = param("swing");
     const bool quantise = param("quantiseSwitch") > 0.5f;
+    const bool accompany = param("auditionChords") > 0.5f;
     float blockPeak = 0;
     for (int sample = 0; sample < samples; ++sample) {
+        bool restartLayer = sample == 0 && chordsChanged;
         while (incoming != end && (*incoming).samplePosition <= sample) {
             const auto message = (*incoming).getMessage();
             ++incoming;
@@ -693,6 +1103,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                     trigger = slot;
                     selected.store(slot);
                     compareRequested.store(false);
+                    chordPreview.store(false);
                     restart = true;
                 } else if (trigger == slot) {
                     trigger = -1;
@@ -718,11 +1129,13 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                 }
             } else if (message.isAllNotesOff() || message.isAllSoundOff()) {
                 allOff(sample, outputMidi);
+                stopChordLayer();
                 trigger = -1;
                 heldTriggers = {};
                 heldTranspose = {};
                 transpose = 0;
                 preview.store(false);
+                chordPreview.store(false);
                 outputMidi.addEvent(message, sample);
             } else {
                 outputMidi.addEvent(message, sample);
@@ -731,66 +1144,88 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         const int slot = selected.load();
         const bool requestedA = compareRequested.load() && comparisonAvailable.load();
         const bool requestedDraft = audioHasDraft && audioDraftSlot == slot;
-        const bool run = !panicNow && (follow ? hostPlaying : (preview.load() || trigger >= 0));
+        const bool wantsChords = chordPreview.load() && !follow;
+        const bool previewOn = preview.load();
+        // A UI request may arrive after the bank exchange or while its lock is busy.
+        // Wait for the first published chord clip rather than briefly playing the melody.
+        const bool run = !panicNow && (!wantsChords || audioChords.count > 0) &&
+                         (follow ? hostPlaying : (previewOn || trigger >= 0));
+        const bool requestedChords = wantsChords && previewOn && audioChords.count > 0;
+        const bool sourceChanged = requestedChords != audioChordPreview;
+        const int requestedOutput = requestedChords ? 0 : melodyOutput;
+        if (requestedOutput != outputMode) {
+            // Sounding notes end on the channels on which they began, before resetting bends/MPE.
+            allOff(sample, outputMidi);
+            resetOutput(sample, outputMidi);
+            outputMode = requestedOutput;
+            outputConfigured = false;
+        }
         const bool requestChanged =
-            slot != audioSelection || requestedA != audioCompare || requestedDraft != audioDraftActive;
+            !requestedChords &&
+            (slot != audioSelection || requestedA != audioCompare || requestedDraft != audioDraftActive);
         const bool boundarySwitch = loopBoundary && requestChanged;
-        if (restart || run != wasPlaying || audioSelection < 0 ||
+        if (restart || sourceChanged || run != wasPlaying || audioSelection < 0 ||
             (requestChanged && (!quantise || !wasPlaying || loopBoundary))) {
             allOff(sample, outputMidi);
+            restartLayer = true;
             audioSelection = slot;
+            audioChordPreview = requestedChords;
             audioCompare = requestedA;
             audioDraftActive = requestedDraft;
             audibleSlot.store(slot);
-            heardComparison.store(requestedA);
-            activeClip = audioCompare ? audioComparison : requestedDraft ? audioDraft : audioBank[slot];
+            heardComparison.store(!audioChordPreview && requestedA);
+            activeClip = audioChordPreview ? audioChords
+                         : audioCompare    ? audioComparison
+                         : requestedDraft  ? audioDraft
+                                           : audioBank[slot];
             phase = boundarySwitch          ? 0.0
                     : follow && hasPosition ? std::fmod(std::max(0.0, ppq + sample * step), activeClip.length)
                                             : 0.0;
+            accompanimentBeat = follow && hasPosition ? std::max(0.0, ppq + sample * step) : 0.0;
             nextNote = 0;
             while (nextNote < activeClip.count &&
-                   renderedNote(activeClip.notes[nextNote], activeClip).start < phase - step * 0.5)
+                   (audioChordPreview
+                        ? activeClip.notes[nextNote].start
+                        : renderedNote(activeClip.notes[nextNote], activeClip).start) < phase - step * 0.5)
                 ++nextNote;
             restart = false;
         }
         loopBoundary = false;
         const auto& clip = activeClip;
         wasPlaying = run;
-        for (int p = 0; p < 128; ++p) {
-            auto& v = voices[p];
-            if (v.on && v.remaining <= 1.0e-9) {
-                outputMidi.addEvent(juce::MidiMessage::noteOff(1, p), sample);
-                v.on = false;
-                v.sourceIndex = -1;
-                v.target = 0;
-            }
+        heardChordPreview.store(run && audioChordPreview);
+        for (int p = 0; p < 128; ++p)
+            if (voices[p].on && voices[p].remaining <= 1.0e-9)
+                releaseVoice(p, sample, outputMidi);
+        // Each start of playback repeats the setup, in case the receiver was reset meanwhile.
+        if (!run)
+            outputConfigured = false;
+        else if (outputMode != 0 && !outputConfigured) {
+            microtonalSetup(outputMode, outputBendRange,
+                            [&](const juce::MidiMessage& m) { outputMidi.addEvent(m, sample); });
+            outputConfigured = true;
         }
         if (run) {
             while (nextNote < clip.count) {
                 const auto& raw = clip.notes[nextNote];
                 const double start =
-                    std::min(clip.length - 0.001, swingTime(raw.start, clip.grid, swingAmount));
+                    audioChordPreview
+                        ? raw.start
+                        : std::min(clip.length - 0.001, swingTime(raw.start, clip.grid, swingAmount));
                 if (start > phase + step * 0.5)
                     break;
-                auto n = renderedNote(raw, clip, transpose);
+                auto n = audioChordPreview ? raw : renderedNote(raw, clip, transpose);
                 if (n.start >= phase - step * 1.5)
                     noteOn(n, nextNote, sample, outputMidi);
                 ++nextNote;
             }
         }
+        scheduleChordLayer(run && monitor && accompany && !audioChordPreview, restartLayer, accompanimentBeat,
+                           step);
         double signal = 0.0;
         for (int p = 0; p < 128; ++p) {
-            auto& v = voices[p];
-            if (v.on)
-                v.remaining -= step;
-            const double target = monitor ? v.target : 0.0;
-            v.gain += (target - v.gain) * (target > v.gain ? 0.004 : 0.0015);
-            if (v.gain > 0.00005) {
-                v.phase += phaseIncrements[p];
-                v.phase -= std::floor(v.phase);
-                const double angle = juce::MathConstants<double>::twoPi * v.phase;
-                signal += v.gain * (std::sin(angle) + 0.22 * std::sin(angle * 2.0)) * 0.1;
-            }
+            signal += renderVoice(voices[p], monitor, auditionSound, step);
+            signal += renderVoice(chordVoices[p], monitor, auditionSound, step) * 0.65;
         }
         const float value = float(std::tanh(signal * volume));
         for (int ch = 0; ch < audio.getNumChannels(); ++ch)
@@ -798,6 +1233,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         if (audio.getNumChannels() > 0)
             blockPeak = std::max(blockPeak, std::abs(value));
         if (run) {
+            accompanimentBeat += step;
             phase += step;
             if (phase >= clip.length - step * 0.0001) {
                 phase = std::max(0.0, phase - clip.length);
@@ -806,6 +1242,10 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
             }
         }
     }
+    heardChordLayer.store(chordLayerPlaying);
+    chordBeat.store(wasPlaying && (audioChordPreview || chordLayerPlaying)
+                        ? std::fmod(audioChordPreview ? phase : accompanimentBeat, audioChords.length)
+                        : -1.0);
     playing.store(wasPlaying);
     playBeat.store(wasPlaying ? phase : -1.0);
     expectedPpq = ppq + samples * step;
@@ -832,6 +1272,8 @@ juce::ValueTree clipState(const composer::Clip& c, const char* type) {
         note.setProperty("pitch", n.pitch, nullptr);
         note.setProperty("velocity", n.velocity, nullptr);
         note.setProperty("locked", n.locked, nullptr);
+        if (n.cents != 0)
+            note.setProperty("cents", n.cents, nullptr);
         clip.addChild(note, -1, nullptr);
     }
     return clip;
@@ -848,17 +1290,44 @@ bool readClipState(const juce::ValueTree& child, composer::Clip& c) {
     c.seed = uint32_t(juce::int64(child.getProperty("seed", 0)));
     for (const auto& note : child)
         if (note.hasType("Note"))
-            c.notes[c.count++] = {double(note.getProperty("start", 0.0)),
-                                  double(note.getProperty("duration", 0.25)),
-                                  int(note.getProperty("pitch", 60)), int(note.getProperty("velocity", 96)),
-                                  bool(note.getProperty("locked", false))};
+            c.notes[c.count++] = {
+                double(note.getProperty("start", 0.0)),  double(note.getProperty("duration", 0.25)),
+                int(note.getProperty("pitch", 60)),      int(note.getProperty("velocity", 96)),
+                bool(note.getProperty("locked", false)), int(note.getProperty("cents", 0))};
     composer::sanitise(c);
+    return true;
+}
+// Validate saved inversions against the harmonic timeline before changing any live state.
+// Octaves may differ; every pitch class must occur exactly once per chord.
+bool validChordVoicing(const composer::Harmony& harmony, const composer::Clip& clip) {
+    const auto reference = composer::voiceHarmony(harmony, clip.numerator, clip.denominator, {});
+    if (clip.count != reference.count || std::abs(clip.length - harmony.length) > 1e-8)
+        return false;
+    std::array<bool, composer::maxNotes> matched{};
+    for (int i = 0; i < clip.count; ++i) {
+        const auto& n = clip.notes[i];
+        if (n.cents != 0)
+            return false;
+        int match = -1;
+        for (int j = 0; j < reference.count; ++j) {
+            const auto& expected = reference.notes[j];
+            if (!matched[j] && n.pitch % 12 == expected.pitch % 12 &&
+                std::abs(n.start - expected.start) < 1e-8 &&
+                std::abs(n.duration - expected.duration) < 1e-8) {
+                match = j;
+                break;
+            }
+        }
+        if (match < 0)
+            return false;
+        matched[match] = true;
+    }
     return true;
 }
 } // namespace
 void Processor::getStateInformation(juce::MemoryBlock& dest) {
     juce::ValueTree state("GeneticComposer");
-    state.setProperty("version", 3, nullptr);
+    state.setProperty("version", 5, nullptr);
     state.addChild(parameters.copyState(), -1, nullptr);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
@@ -866,6 +1335,8 @@ void Processor::getStateInformation(juce::MemoryBlock& dest) {
         state.setProperty("harmony", juce::String(composer::harmonyText(customHarmony)), nullptr);
         for (const auto& c : bank)
             state.addChild(clipState(c, "Clip"), -1, nullptr);
+        if (chordClip.count > 0)
+            state.addChild(clipState(chordClip, "ChordVoicing"), -1, nullptr);
         if (grooveLoaded)
             state.addChild(clipState(grooveReference, "Groove"), -1, nullptr);
         if (comparisonAvailable.load())
@@ -883,7 +1354,7 @@ bool Processor::restore(const void* data, int size) {
         return false;
     const auto state = juce::ValueTree::fromXml(*xml);
     const int version = state.getProperty("version", 0);
-    if ((version != 2 && version != 3) || !state.getChildWithName("Parameters").isValid())
+    if ((version < 2 || version > 5) || !state.getChildWithName("Parameters").isValid())
         return false;
     Document restored;
     int index = 0;
@@ -910,9 +1381,44 @@ bool Processor::restore(const void* data, int size) {
         if (hasA && !readClipState(a, restoredComparison))
             return false;
     }
+    if (version >= 4) {
+        const auto chords = state.getChildWithName("ChordVoicing");
+        if (restored.harmony.count > 0) {
+            if (!readClipState(chords, restored.chords) ||
+                !validChordVoicing(restored.harmony, restored.chords))
+                return false;
+        } else if (chords.isValid())
+            return false;
+    } else if (restored.harmony.count > 0) {
+        // Older sessions have chord names but no saved inversions. Reconstruct once, deterministically.
+        const int slot = juce::jlimit(0, 11, int(state.getProperty("selected", 0)));
+        const auto& clip = restored.bank[slot];
+        restored.chords = composer::voiceHarmony(restored.harmony, clip.numerator, clip.denominator, {});
+    }
     cancelled.store(true);
     panic();
-    parameters.replaceState(state.getChildWithName("Parameters"));
+    // A parameter missing from an older session takes its default, not the current value, so
+    // earlier projects open with the microtonal tuning off.
+    auto parameterState = state.getChildWithName("Parameters").createCopy();
+    if (version < 5 && !parameterState.getChildWithProperty("id", "microEnabled").isValid()) {
+        const auto legacyTuning = parameterState.getChildWithProperty("id", "tuning");
+        parameterState.appendChild(
+            juce::ValueTree("PARAM", {{"id", "microEnabled"},
+                                      {"value", float(int(legacyTuning.getProperty("value", 0)) > 0)}}),
+            nullptr);
+    }
+    if (version < 5 && restored.harmony.count > 0) {
+        // Old sessions bypassed scale fit silently whenever custom harmony was present.
+        // Make that previous audible behavior explicit in the restored switch.
+        auto fit = parameterState.getChildWithProperty("id", "snap");
+        if (fit.isValid())
+            fit.setProperty("value", 0.0f, nullptr);
+    }
+    for (auto* parameter : getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter);
+            ranged && !parameterState.getChildWithProperty("id", ranged->paramID).isValid())
+            parameterState.appendChild(juce::ValueTree("PARAM", {{"id", ranged->paramID}}), nullptr);
+    parameters.replaceState(parameterState);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         restoreDocumentLocked(restored);
@@ -949,6 +1455,9 @@ juce::Result Processor::loadBank(const juce::File& file) {
 juce::Result Processor::exportMidi(const juce::File& file) const {
     return exportClip(displayedClip(), file);
 }
+juce::Result Processor::exportChordMidi(const juce::File& file) const {
+    return exportClip(chordClipSnapshot(), file, true, true);
+}
 juce::Result Processor::exportMidiRange(const juce::File& file, double start, double end) const {
     const auto source = displayedClip();
     if (!std::isfinite(start) || !std::isfinite(end) || start < 0 || end <= start || end > source.length)
@@ -968,19 +1477,39 @@ juce::Result Processor::exportMidiRange(const juce::File& file, double start, do
     }
     return exportClip(result, file, true);
 }
-juce::Result Processor::exportClip(const composer::Clip& clip, const juce::File& file,
-                                   bool alreadyRendered) const {
+juce::Result Processor::exportClip(const composer::Clip& clip, const juce::File& file, bool alreadyRendered,
+                                   bool plainMidi) const {
     if (clip.count == 0)
         return juce::Result::fail("This variation is empty.");
     juce::MidiMessageSequence sequence;
     sequence.addEvent(juce::MidiMessage::tempoMetaEvent(int(60000000.0 / tempo())));
     sequence.addEvent(juce::MidiMessage::timeSignatureMetaEvent(clip.numerator, clip.denominator));
+    // Microtonal files carry the same setup and bends as live output. Sorted notes let an MPE
+    // note take the member channel whose last note ended first.
+    const int output = plainMidi ? 0 : microtonalOutput();
+    const int range = output == 2 ? mpeBendRange : int(param("bendRange"));
+    microtonalSetup(output, range, [&](const juce::MidiMessage& m) { sequence.addEvent(m); });
+    std::array<double, 17> channelEnd;
+    channelEnd.fill(-1.0);
     for (int i = 0; i < clip.count; ++i) {
         const auto n = alreadyRendered ? clip.notes[i] : renderedNote(clip.notes[i], clip);
-        auto on = juce::MidiMessage::noteOn(1, n.pitch, juce::uint8(n.velocity));
+        int channel = 1;
+        if (output == 2) {
+            channel = 2;
+            for (int candidate = 3; candidate <= 16; ++candidate)
+                if (channelEnd[size_t(candidate)] < channelEnd[size_t(channel)])
+                    channel = candidate;
+            channelEnd[size_t(channel)] = n.start + n.duration;
+        }
+        if (output != 0) {
+            auto bend = juce::MidiMessage::pitchWheel(channel, bendPosition(n.cents, range));
+            bend.setTimeStamp(n.start * 960);
+            sequence.addEvent(bend);
+        }
+        auto on = juce::MidiMessage::noteOn(channel, n.pitch, juce::uint8(n.velocity));
         on.setTimeStamp(n.start * 960);
         sequence.addEvent(on);
-        auto off = juce::MidiMessage::noteOff(1, n.pitch);
+        auto off = juce::MidiMessage::noteOff(channel, n.pitch);
         off.setTimeStamp((n.start + n.duration) * 960);
         sequence.addEvent(off);
     }
@@ -1010,6 +1539,7 @@ juce::Result Processor::readMidi(const juce::File& file, composer::Clip& clip, b
     clip.grid = 4.0 / (8 << int(param("grid")));
     double endTime = 0.0;
     truncated = false;
+    std::array<int, composer::maxNotes> channels{};
     for (int track = 0; track < midi.getNumTracks(); ++track) {
         auto sequence = *midi.getTrack(track);
         sequence.updateMatchedPairs();
@@ -1027,6 +1557,7 @@ juce::Result Processor::readMidi(const juce::File& file, composer::Clip& clip, b
                 truncated = true;
                 continue;
             }
+            channels[size_t(clip.count)] = event->message.getChannel();
             clip.notes[clip.count++] = {start, finish - start, event->message.getNoteNumber(),
                                         event->message.getVelocity(), false};
             endTime = std::max(endTime, finish);
@@ -1034,7 +1565,58 @@ juce::Result Processor::readMidi(const juce::File& file, composer::Clip& clip, b
     }
     if (clip.count == 0)
         return juce::Result::fail("No complete notes were found in this MIDI file.");
-    const double bar = std::max(1.0, clip.numerator * 4.0 / std::max(1, clip.denominator));
+    if (tuningIndex() > 0) {
+        // The bend on a note's channel at its onset becomes its offset. Ranges follow RPN 0, and
+        // an MPE zone message sets ±48 on its member channels; otherwise ±2 is assumed.
+        juce::MidiMessageSequence merged;
+        for (int track = 0; track < midi.getNumTracks(); ++track)
+            merged.addSequence(*midi.getTrack(track), 0);
+        std::array<double, 17> range;
+        range.fill(2.0);
+        juce::MidiRPNDetector rpn;
+        struct Bend {
+            double start, cents;
+            int channel;
+        };
+        std::vector<Bend> bends;
+        for (const auto* event : merged) {
+            const auto& message = event->message;
+            const int channel = message.getChannel();
+            if (message.isController())
+                if (const auto parsed =
+                        rpn.tryParse(channel, message.getControllerNumber(), message.getControllerValue());
+                    parsed && !parsed->isNRPN) {
+                    const int value = parsed->is14BitValue ? parsed->value >> 7 : parsed->value;
+                    if (parsed->parameterNumber == 0)
+                        range[size_t(channel)] =
+                            value + (parsed->is14BitValue ? (parsed->value & 127) / 100.0 : 0);
+                    if (parsed->parameterNumber == 6 && (channel == 1 || channel == 16)) {
+                        range[size_t(channel)] = 2;
+                        for (int member = 1; member <= std::min(value, 15); ++member)
+                            range[size_t(channel == 1 ? 1 + member : 16 - member)] = mpeBendRange;
+                    }
+                }
+            if (message.isPitchWheel())
+                bends.push_back(
+                    {message.getTimeStamp() / midi.getTimeFormat(),
+                     (message.getPitchWheelValue() - 8192) / 8192.0 * range[size_t(channel)] * 100, channel});
+        }
+        for (int i = 0; i < clip.count; ++i) {
+            auto& note = clip.notes[i];
+            double cents = 0;
+            for (const auto& bend : bends) {
+                if (bend.start > note.start + 1e-9)
+                    break;
+                if (bend.channel == channels[size_t(i)])
+                    cents = bend.cents;
+            }
+            // Nearest key, so a +60 bend on E becomes F-40.
+            const int total = note.pitch * 100 + int(std::lround(cents));
+            note.pitch = int(std::floor((total + 50) / 100.0));
+            note.cents = total - note.pitch * 100;
+        }
+    }
+    const double bar = std::max(0.125, clip.numerator * 4.0 / std::max(1, clip.denominator));
     clip.length = std::clamp(std::ceil(endTime / bar - 0.0001) * bar, bar, 128.0);
     composer::sanitise(clip);
     if (clip.count == 0)

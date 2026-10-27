@@ -17,6 +17,7 @@ void validate(const Clip& c) {
         require(n.start >= previous && n.start >= 0 && n.start < c.length, "unsorted/out-of-range start");
         require(n.duration > 0 && n.start + n.duration <= c.length + 1e-8, "invalid duration");
         require(n.pitch >= 0 && n.pitch <= 127 && n.velocity > 0 && n.velocity <= 127, "invalid MIDI");
+        require(std::abs(n.cents) <= 50, "microtonal offset out of range");
         previous = n.start;
     }
 }
@@ -239,8 +240,186 @@ void testGrooveAndCombine() {
     for (int i = 0; i < target.count; ++i)
         require(sameNote(noParts.notes[i], target.notes[i]), "empty combination sources changed target");
 }
+int pitchClass(int pitch, int root = 0) {
+    return ((pitch - root) % 12 + 12) % 12;
+}
+// Unlocked notes of one pitch class share one form within a phrase.
+bool oneFormPerPitchClass(const Clip& clip, int root = 0) {
+    std::array<int, 12> form{};
+    std::array<bool, 12> known{};
+    for (int i = 0; i < clip.count; ++i) {
+        const auto& note = clip.notes[i];
+        const int pc = pitchClass(note.pitch, root);
+        if (note.locked)
+            continue;
+        if (known[pc] && form[pc] != note.cents)
+            return false;
+        known[pc] = true;
+        form[pc] = note.cents;
+    }
+    return true;
+}
+void testMicrotonal() {
+    for (int tuning = 0; tuning < tuningCount; ++tuning)
+        for (int octave : {-12, 0, 12})
+            require(microOffset(tuning, octave) == 0, "every tuning keeps an equal-tempered tonic");
+    require(microOffset(2, 4) == -50 && microOffset(2, 11) == -50 && microOffset(2, 16) == -50 &&
+                microOffset(2, 3) == 0 && microOffset(3, 2) == -50 && microOffset(5, 3) == 50,
+            "maqam and blues forms");
+    require(microOffset(1, 3) == 50 && microOffset(1, 4) == -50 && microOffset(1, 7) == 0 &&
+                microOffset(6, 7) == 50,
+            "neutral inflections and 24-EDO steps");
+    require(tuningScale(0, 6) == 6 && tuningScale(1, 6) == 6 && tuningScale(2, 6) == 0 &&
+                tuningScale(4, 6) == 9 && scaleIntervals(9).size() == 7,
+            "tunings select their own scales");
+    require(snapTuned(63, 0, 0, 1, 2) == std::make_pair(64, -50), "Eb did not snap to Rast's E half-flat");
+    require(snapTuned(63, 50, 0, 1, 2) == std::make_pair(64, -50), "Eb+50 must respell as E half-flat");
+    require(snapTuned(64, 0, 0, 1, 2) == std::make_pair(64, 0), "plain form of a degree was not kept");
+    // 24-EDO reaches the step above the tonic from C#; the tonic itself has no other form.
+    require(snapTuned(60, 30, 0, 0, 6) == std::make_pair(61, -50), "24-EDO nearest quarter tone");
+    require(snapTuned(62, -50, 0, 0, 6) == std::make_pair(62, -50), "valid spelling was not kept");
+    require(snapTuned(64, -50, 0, 0, 0) == std::make_pair(64, 0), "12-TET snap must clear offsets");
+    for (int tuning = 0; tuning < tuningCount; ++tuning)
+        for (int root : {0, 5, 11})
+            for (int pitch = 0; pitch < 128; ++pitch)
+                for (int cents : {-50, -20, 0, 35, 50}) {
+                    const auto snapped = snapTuned(pitch, cents, root, 3, tuning);
+                    require(snapped.first >= 0 && snapped.first <= 127 && std::abs(snapped.second) <= 50,
+                            "tuned snap out of range");
+                    require(snapTuned(snapped.first, snapped.second, root, 3, tuning) == snapped,
+                            "tuned snap not idempotent");
+                }
+
+    Clip offsets;
+    offsets.length = 4;
+    offsets.count = 4;
+    offsets.notes[0] = {0, 1, 60, 90, false, 80};
+    offsets.notes[1] = {1, 1, 127, 90, false, 80};
+    offsets.notes[2] = {2, 1, 0, 90, false, -80};
+    offsets.notes[3] = {3, 1, 64, 90, false, -50};
+    sanitise(offsets);
+    require(offsets.notes[0].pitch == 61 && offsets.notes[0].cents == -20 && offsets.notes[1].pitch == 127 &&
+                offsets.notes[1].cents == 50 && offsets.notes[2].pitch == 0 &&
+                offsets.notes[2].cents == -50 && offsets.notes[3].pitch == 64 &&
+                offsets.notes[3].cents == -50,
+            "cents normalisation");
+
+    std::atomic<bool> cancelled{false};
+    Settings s;
+    s.quality = 0;
+    s.seed = 11;
+    s.scale = 0;
+    s.tension = 0;
+    s.tuning = 2;
+    s.microEnabled = true;
+    const auto rast = generate(s, nullptr, cancelled);
+    for (const auto& clip : rast) {
+        validate(clip);
+        require(analysePhrase(clip, s).invalidPassingNotes == 0,
+                "generated microtones must be short resolving passing notes");
+        for (int i = 0; i < clip.count; ++i)
+            require(clip.notes[i].cents == 0 || clip.notes[i].cents == microOffset(2, clip.notes[i].pitch),
+                    "generated passing note left the selected palette");
+    }
+    const auto again = generate(s, nullptr, cancelled);
+    for (size_t i = 0; i < rast.size(); ++i)
+        require(similarity(rast[i], again[i]) == 1, "microtonal seed reproducibility");
+    s.microEnabled = false;
+    for (const auto& clip : generate(s, nullptr, cancelled))
+        for (int i = 0; i < clip.count; ++i)
+            require(clip.notes[i].cents == 0, "Microtones OFF must stay equal-tempered");
+    s.microEnabled = true;
+    s.root = 0;
+
+    auto parent = rast[0];
+    parent.notes[0].locked = true;
+    parent.notes[0].cents = 25;
+    parent.notes[1].locked = true;
+    s.tuning = 6;
+    s.microtones = 1;
+    s.mutation = 0.8f;
+    s.lockRhythm = true;
+    for (const auto& clip : generate(s, &parent, cancelled)) {
+        validate(clip);
+        require(clip.count == parent.count, "microtonal evolution changed rhythmic template");
+        for (int i = 0; i < clip.count; ++i) {
+            require(clip.notes[i].start == parent.notes[i].start, "microtonal evolution changed rhythm");
+            if (parent.notes[i].locked)
+                require(clip.notes[i].locked && clip.notes[i].pitch == parent.notes[i].pitch &&
+                            clip.notes[i].cents == parent.notes[i].cents,
+                        "locked microtonal note changed");
+        }
+    }
+    s.lockRhythm = false;
+
+    Clip riff;
+    riff.length = 8;
+    const int riffPitches[]{60, 62, 64, 65, 67, 69, 71, 72, 64, 71};
+    for (int i = 0; i < 10; ++i)
+        riff.notes[riff.count++] = {i * 0.75, 0.5, riffPitches[i], 90, i == 2};
+    s.tuning = 2;
+    s.microtones = 1;
+    const auto retuned = retuneRegion(riff, 0, 7, s);
+    for (int i = 0; i < riff.count; ++i) {
+        const bool inside = !riff.notes[i].locked && riff.notes[i].start < 7;
+        require(retuned.notes[i].pitch == riff.notes[i].pitch &&
+                    retuned.notes[i].start == riff.notes[i].start,
+                "retuning moved a note");
+        require(retuned.notes[i].cents == (inside ? microOffset(2, riff.notes[i].pitch) : 0),
+                "retuning ignored the range, a lock or Rast's forms");
+    }
+    s.microtones = 0;
+    const auto cleared = retuneRegion(retuned, 0, 8, s);
+    for (int i = 0; i < riff.count; ++i)
+        require(cleared.notes[i].cents == 0, "clearing left a microtonal offset");
+    s.tuning = 6;
+    s.microtones = 1;
+    for (uint32_t seed = 1; seed < 20; ++seed) {
+        s.seed = seed;
+        require(oneFormPerPitchClass(retuneRegion(riff, 0, 8, s)), "retuning mixed forms");
+    }
+
+    // Region edits keep notes outside the range, and a moved note follows its pitch class.
+    auto rastPhrase = retuned;
+    rastPhrase.notes[2].locked = false;
+    rastPhrase.notes[2].cents = -50;
+    s.tuning = 2;
+    s.scale = 0;
+    for (auto action : {RegionAction::MoreMovement, RegionAction::Answer, RegionAction::Resolve}) {
+        const auto changed = transformRegion(rastPhrase, 2, 5, action, s);
+        validate(changed);
+        for (int i = 0; i < rastPhrase.count; ++i) {
+            const auto& note = rastPhrase.notes[i];
+            if (note.start < 2 || note.start >= 5) {
+                bool kept = false;
+                for (int j = 0; j < changed.count; ++j)
+                    kept |= sameNote(changed.notes[j], note) && changed.notes[j].cents == note.cents;
+                require(kept, "microtonal region edit changed a note outside its range");
+            }
+        }
+        for (int i = 0; i < changed.count; ++i) {
+            const auto& note = changed.notes[i];
+            if (note.start >= 2 && note.start < 5)
+                require(note.cents == 0, "region edit invented unscored microtonal offsets");
+        }
+    }
+
+    auto plain = rastPhrase;
+    for (int i = 0; i < plain.count; ++i)
+        plain.notes[i].cents = 0;
+    require(similarity(plain, rastPhrase) < 1, "similarity ignored microtonal forms");
+    const auto combined = combineParts(plain, rastPhrase, plain);
+    for (int i = 0; i < combined.count; ++i)
+        require(combined.notes[i].cents == rastPhrase.notes[i].cents, "combination lost pitch offsets");
+}
+void runSearchTests();
+void runChordGeneratorTests();
+void runMusicalArchitectureTests();
 int main() {
     try {
+        runSearchTests();
+        runChordGeneratorTests();
+        runMusicalArchitectureTests();
         std::atomic<bool> cancelled{false};
         Settings s;
         s.quality = 0;
@@ -327,8 +506,10 @@ int main() {
         testHarmony();
         testRegionTransforms();
         testGrooveAndCombine();
-        std::cout << "Engine: seeds, scales, diversity, locks, rhythm, meters, cancellation, validation, "
-                     "custom harmony, region transforms, groove and recombination passed.\n";
+        testMicrotonal();
+        std::cout
+            << "Engine: seeds, scales, diversity, locks, rhythm, meters, cancellation, validation, "
+               "custom harmony, region transforms, groove, recombination and microtonal tunings passed.\n";
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

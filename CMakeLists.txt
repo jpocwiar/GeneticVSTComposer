@@ -2,17 +2,18 @@ cmake_minimum_required(VERSION 3.22)
 if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
-project(GeneticComposer VERSION 2.2.0 LANGUAGES C CXX)
+project(GeneticComposer VERSION 2.5.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CTest)
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/GeneticVSTComposer-JUCE/Source")
-add_library(composer_engine STATIC "${SOURCE_DIR}/ComposerEngine.cpp")
+add_library(composer_engine STATIC "${SOURCE_DIR}/ComposerEngine.cpp"
+    "${SOURCE_DIR}/ChordGenerator.cpp" "${SOURCE_DIR}/ChordGenerator.h")
 target_include_directories(composer_engine PUBLIC "${SOURCE_DIR}")
 set_target_properties(composer_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(BUILD_TESTING)
-    add_executable(engine_tests tests/EngineTests.cpp)
+    add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp tests/MusicalArchitectureTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
     add_test(NAME engine COMMAND engine_tests)
 endif()
@@ -53,6 +54,7 @@ target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginProcessor.cpp" "${SOURCE_DIR}/PluginProcessor.h"
     "${SOURCE_DIR}/PluginEditor.cpp" "${SOURCE_DIR}/PluginEditor.h"
     "${SOURCE_DIR}/ComposerTheme.cpp" "${SOURCE_DIR}/ComposerTheme.h"
+    "${SOURCE_DIR}/ChordComposerPanel.cpp" "${SOURCE_DIR}/ChordComposerPanel.h"
     "${SOURCE_DIR}/ActivityDisplay.cpp" "${SOURCE_DIR}/ActivityDisplay.h")
 target_compile_definitions(GeneticComposer PUBLIC
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
@@ -72,7 +74,8 @@ endif()
 if(BUILD_TESTING)
     add_executable(plugin_tests)
     set_target_properties(plugin_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugin_tests_artefacts/$<CONFIG>")
-    target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp)
+    target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp
+        tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp)
     target_link_libraries(plugin_tests PRIVATE GeneticComposer juce::juce_audio_utils)
     target_include_directories(plugin_tests PRIVATE "${SOURCE_DIR}" "${CMAKE_BINARY_DIR}/GeneticComposer_artefacts/JuceLibraryCode")
     add_test(NAME plugin COMMAND plugin_tests)

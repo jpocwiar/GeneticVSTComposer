@@ -1,4 +1,6 @@
 #include "PluginEditor.h"
+#include "ChordComposerPanel.h"
+#include "ChordGenerator.h"
 #include <cmath>
 using namespace palette;
 namespace {
@@ -12,13 +14,34 @@ juce::Font font(float size, bool bold = false) {
 juce::String noteName(int pitch) {
     return juce::MidiMessage::getMidiNoteName(pitch, true, true, 4);
 }
+// E4-50 is E4 a quarter tone flat.
+juce::String noteName(const composer::Note& note, bool microtonal) {
+    if (!microtonal || note.cents == 0)
+        return noteName(note.pitch);
+    return noteName(note.pitch) + (note.cents > 0 ? "+" : "") + juce::String(note.cents);
+}
 } // namespace
 PianoRoll::PianoRoll() {
     setWantsKeyboardFocus(true);
+    setNoteEditing(false);
+}
+void PianoRoll::setNoteEditing(bool enabled) {
+    noteEditing = enabled;
+    setMouseCursor(enabled ? juce::MouseCursor::NormalCursor : juce::MouseCursor::DraggingHandCursor);
     setTooltip(
-        "Click to add a note. Drag to move; drag its right edge to resize. Shift-click locks a note. "
-        "Right-click or Delete removes it. Drag the bar ruler to select a region; drag in the velocity lane "
-        "to edit velocity. Mouse wheel changes the visible register.");
+        enabled
+            ? "Edit notes: click to add, drag to move or resize; right-click to delete. Shift-click locks. "
+              "Microtonal passing notes are chosen by the generator."
+            : "Drag the piano roll to an instrument track to export MIDI. Double-click to audition. "
+              "Shift-click a note to lock it. Drag the bar ruler to select a range. Enable Edit notes for "
+              "manual editing.");
+    repaint();
+}
+void PianoRoll::setMicrotonal(bool enabled) {
+    if (microtonal != enabled) {
+        microtonal = enabled;
+        repaint();
+    }
 }
 void PianoRoll::setClip(const composer::Clip& c, bool resetView) {
     const auto previous = chosen >= 0 && chosen < clip.count ? clip.notes[chosen] : composer::Note{};
@@ -104,7 +127,9 @@ juce::Rectangle<float> PianoRoll::gridArea() const {
 juce::Rectangle<float> PianoRoll::noteRect(const composer::Note& n) const {
     auto r = gridArea();
     const float row = r.getHeight() / (high - low + 1);
-    return {r.getX() + float(n.start / clip.length) * r.getWidth(), r.getY() + (high - n.pitch) * row + 1,
+    // Microtonal notes sit between rows: E half-flat is half a row below E.
+    const float pitch = n.pitch + (microtonal ? n.cents / 100.0f : 0.0f);
+    return {r.getX() + float(n.start / clip.length) * r.getWidth(), r.getY() + (high - pitch) * row + 1,
             std::max(3.0f, float(n.duration / clip.length) * r.getWidth() - 1), std::max(2.0f, row - 2)};
 }
 double PianoRoll::beatAt(float x) const {
@@ -168,7 +193,6 @@ void PianoRoll::paint(juce::Graphics& g) {
     g.setColour(muted);
     g.drawText("BARS", 3, 1, 40, 20, juce::Justification::centredRight);
     if (harmony.count > 0) {
-        static const char* qualities[]{"", "m", "dim", "+", "7", "maj7", "m7", "sus2", "sus4"};
         for (double offset = 0; offset < clip.length; offset += std::max(0.25, harmony.length)) {
             for (int i = 0; i < harmony.count; ++i) {
                 const auto& chord = harmony.chords[i];
@@ -181,8 +205,7 @@ void PianoRoll::paint(juce::Graphics& g) {
                 g.setColour(i % 2 == 0 ? surface : panel);
                 g.fillRect(x, 25.0f, width - 1, 17.0f);
                 g.setColour(gold);
-                const auto name = juce::MidiMessage::getMidiNoteName(chord.root + 60, true, false, 4) +
-                                  qualities[juce::jlimit(0, 8, chord.quality)];
+                const auto name = juce::String(composer::chordName(chord));
                 g.drawFittedText(name, int(x) + 4, 25, std::max(1, int(width) - 6), 17,
                                  juce::Justification::centredLeft, 1);
             }
@@ -202,7 +225,8 @@ void PianoRoll::paint(juce::Graphics& g) {
             bool unchanged = false;
             for (int j = 0; j < clip.count; ++j) {
                 const auto& current = clip.notes[j];
-                if (current.pitch == n.pitch && std::abs(current.start - n.start) < 0.001 &&
+                if (current.pitch == n.pitch && (!microtonal || current.cents == n.cents) &&
+                    std::abs(current.start - n.start) < 0.001 &&
                     std::abs(current.duration - n.duration) < 0.001) {
                     unchanged = true;
                     break;
@@ -218,7 +242,10 @@ void PianoRoll::paint(juce::Graphics& g) {
         const auto& n = clip.notes[i];
         auto bounds = noteRect(n);
         const float energy = playhead >= 0 ? sourceActivity[size_t(i)] : 0.0f;
-        const auto colour = n.locked ? gold : teal.interpolatedWith(accent, float(n.pitch % 12) / 18.0f);
+        const auto colour = n.locked ? gold
+                            : microtonal && n.cents != 0
+                                ? violet
+                                : teal.interpolatedWith(accent, float(n.pitch % 12) / 18.0f);
         if (energy > 0.01f) {
             g.setColour(colour.withAlpha(energy * 0.12f));
             g.fillRoundedRectangle(bounds.expanded(5, 3), 4);
@@ -239,7 +266,7 @@ void PianoRoll::paint(juce::Graphics& g) {
         if (bounds.getWidth() > 28 && bounds.getHeight() > 10) {
             g.setFont(font(9, true));
             g.setColour(background);
-            g.drawText(noteName(n.pitch), bounds.toNearestInt().reduced(3, 0),
+            g.drawText(noteName(n, microtonal), bounds.toNearestInt().reduced(3, 0),
                        juce::Justification::centredLeft);
         }
     }
@@ -274,7 +301,8 @@ void PianoRoll::mouseDown(const juce::MouseEvent& e) {
     grabKeyboardFocus();
     changed = false;
     changingVelocity = false;
-    selectingTime = e.position.y < 24 && e.position.x >= gridArea().getX();
+    dragArmed = midiDragged = false;
+    selectingTime = e.mods.isLeftButtonDown() && e.position.y < 24 && e.position.x >= gridArea().getX();
     if (selectingTime) {
         selectionAnchor = beatAt(e.position.x);
         selectionStart = selectionAnchor;
@@ -284,8 +312,22 @@ void PianoRoll::mouseDown(const juce::MouseEvent& e) {
         repaint();
         return;
     }
-    if (!editable)
+    if (!noteEditing || !editable) {
+        chosen = -1;
+        for (int i = clip.count - 1; i >= 0; --i)
+            if (noteRect(clip.notes[i]).expanded(1).contains(e.position)) {
+                chosen = i;
+                break;
+            }
+        if (editable && chosen >= 0 && e.mods.isShiftDown() && e.mods.isLeftButtonDown()) {
+            clip.notes[chosen].locked = !clip.notes[chosen].locked;
+            if (onEdit)
+                onEdit(clip);
+        } else
+            dragArmed = e.mods.isLeftButtonDown() && clip.count > 0;
+        repaint();
         return;
+    }
     if (e.position.y >= gridArea().getBottom() && e.position.x >= gridArea().getX()) {
         float distance = 9.0f;
         int nearest = -1;
@@ -339,6 +381,12 @@ void PianoRoll::mouseDown(const juce::MouseEvent& e) {
     repaint();
 }
 void PianoRoll::mouseDrag(const juce::MouseEvent& e) {
+    if (dragArmed && !midiDragged && e.getDistanceFromDragStart() > 5) {
+        midiDragged = true;
+        if (onMidiDrag)
+            onMidiDrag();
+        return;
+    }
     if (selectingTime) {
         const double end = beatAt(e.position.x);
         selectionStart = std::min(selectionAnchor, end);
@@ -348,7 +396,7 @@ void PianoRoll::mouseDrag(const juce::MouseEvent& e) {
         repaint();
         return;
     }
-    if (!editable)
+    if (!editable || !noteEditing)
         return;
     if (chosen < 0 || clip.notes[chosen].locked || e.mods.isShiftDown() || e.mods.isPopupMenu())
         return;
@@ -376,6 +424,11 @@ void PianoRoll::mouseUp(const juce::MouseEvent&) {
         onEdit(clip);
     changed = false;
     selectingTime = changingVelocity = false;
+    dragArmed = false;
+}
+void PianoRoll::mouseDoubleClick(const juce::MouseEvent&) {
+    if (!noteEditing && onAudition)
+        onAudition();
 }
 void PianoRoll::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) {
     int shift = w.deltaY > 0 ? 2 : -2;
@@ -391,6 +444,8 @@ bool PianoRoll::keyPressed(const juce::KeyPress& k) {
     auto& n = clip.notes[chosen];
     if (k.getTextCharacter() == 'l' || k.getTextCharacter() == 'L')
         n.locked = !n.locked;
+    else if (!noteEditing)
+        return false;
     else if (!n.locked && (k.getKeyCode() == juce::KeyPress::deleteKey ||
                            k.getKeyCode() == juce::KeyPress::backspaceKey)) {
         for (int i = chosen; i < clip.count - 1; ++i)
@@ -418,9 +473,10 @@ VariationButton::VariationButton(int i) : juce::Button("Variation " + juce::Stri
     setTooltip("Click to select. Double-click to audition. MIDI note " + juce::String(48 + i) +
                " triggers this variation.");
 }
-void VariationButton::setClip(const composer::Clip& c, bool active) {
+void VariationButton::setClip(const composer::Clip& c, bool active, bool showMicrotones) {
     clip = c;
     selected = active;
+    microtonal = showMicrotones;
     pin.setButtonText(c.favourite ? "*" : "+");
     pin.setColour(juce::TextButton::textColourOffId, c.favourite ? gold : muted);
     repaint();
@@ -501,9 +557,13 @@ void VariationButton::paintButton(juce::Graphics& g, bool, bool down) {
     for (int i = 0; i < clip.count; ++i) {
         const auto& n = clip.notes[i];
         const bool sounding = audible && beatPosition >= n.start && beatPosition < n.start + n.duration;
-        g.setColour(n.locked ? gold : sounding ? palette::text : (selected ? accent : teal.withAlpha(0.65f)));
+        g.setColour(n.locked                     ? gold
+                    : sounding                   ? palette::text
+                    : microtonal && n.cents != 0 ? violet
+                                                 : (selected ? accent : teal.withAlpha(0.65f)));
+        const float pitch = n.pitch + (microtonal ? n.cents / 100.0f : 0.0f);
         g.fillRoundedRectangle(r.getX() + float(n.start / clip.length) * r.getWidth(),
-                               r.getY() + float(hi - n.pitch) / (hi - lo) * std::max(1.0f, r.getHeight() - 3),
+                               r.getY() + (hi - pitch) / (hi - lo) * std::max(1.0f, r.getHeight() - 3),
                                std::max(2.0f, float(n.duration / clip.length) * r.getWidth() - 1), 2.5f, 1);
     }
 }
@@ -545,6 +605,10 @@ class ComposerGuide final : public juce::Component {
         setWantsKeyboardFocus(true);
     }
     std::function<void()> onClose;
+    void showChapter(int number) {
+        chapter.setSelectedId(juce::jlimit(1, 11, number), juce::dontSendNotification);
+        updateText();
+    }
     bool keyPressed(const juce::KeyPress& key) override {
         if (key.getKeyCode() == juce::KeyPress::escapeKey && onClose) {
             onClose();
@@ -585,12 +649,14 @@ class ComposerGuide final : public juce::Component {
                 {"1. Pierwsza fraza", "2. Edycja fragmentu", juce::String::fromUTF8("3. Własne akordy"),
                  juce::String::fromUTF8("4. Porównanie A/B"), "5. Groove i velocity",
                  juce::String::fromUTF8("6. Dłuższa forma"), juce::String::fromUTF8("7. Łączenie wariantów"),
-                 juce::String::fromUTF8("8. Studio One i skróty")},
+                 juce::String::fromUTF8("8. Studio One i skróty"), "9. Mikrotony", "10. Algorytm genetyczny",
+                 juce::String::fromUTF8("11. Kreator akordów")},
                 1);
         else
             chapter.addItemList({"1. Your first phrase", "2. Edit a region", "3. Your own harmony",
                                  "4. Compare A/B", "5. Groove and velocity", "6. Build an arrangement",
-                                 "7. Combine variations", "8. Studio One and shortcuts"},
+                                 "7. Combine variations", "8. Studio One and shortcuts", "9. Microtones",
+                                 "10. Genetic search", "11. Chord Composer"},
                                 1);
         chapter.setSelectedId(previous, juce::dontSendNotification);
         updateText();
@@ -601,13 +667,13 @@ class ComposerGuide final : public juce::Component {
 
 1. Wybierz Root (tonikę), Scale (skalę), Length (długość) i Meter (metrum). Starting points ustawia punkt wyjścia dla charakteru melodii.
 
-2. Kliknij Generate bank. Powstanie 12 propozycji. Kliknij kartę wariantu, a potem Play. Dwuklik karty też uruchamia odsłuch. Internal sound włącza prosty instrument do odsłuchu.
+2. Kliknij Generate bank. Powstanie 12 propozycji. Kliknij kartę wariantu, a potem Play. Przycisk włącza Internal sound i wyłącza Follow DAW. Dwuklik karty lub piano rollu też uruchamia odsłuch. Obok wybierz Soft keys, Sine albo Warm organ; Stop kończy odsłuch.
 
 3. Znalazłeś ciekawy motyw? Capture A zachowa go do porównania. Plus na karcie przypina wariant, aby przetrwał następne generowanie. Evolve selected tworzy rozwinięcia wybranej frazy; Evolution określa preferowaną wielkość zmiany.
 
-4. Przeciągnij Drag MIDI na ścieżkę instrumentu albo użyj Export. Plik zawiera aktualnie wyświetlaną frazę lub podgląd, wraz z przetwarzaniem Swing i Gate.
+4. Chwyć piano roll i przeciągnij na ścieżkę instrumentu. Zwykły klik nie tworzy nut. Możesz też użyć Drag MIDI albo Export. Plik zawiera aktualnie wyświetlaną frazę lub podgląd, wraz z przetwarzaniem Swing i Gate.
 
-Density: gęstość nut. Variety: ruch wysokości i różnorodność. Syncopation: preferencja początków między uderzeniami. Tension: swoboda chromatyczna. Space: pauzy. Te parametry współdziałają; nie są dokładnymi procentami słyszalnej cechy.
+Diversity: różnorodność wysokości i interwałów. Dynamics: ruch melodii, nie głośność. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
 
 Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk wewnętrznego instrumentu. Podświetlenia klawiatury reagują na nuty wysyłane przez wtyczkę. Motion w dolnym pasku ogranicza animacje, zachowując wskazania transportu i poziomu.
 
@@ -625,7 +691,7 @@ Operacje dotyczą odblokowanych nut, których początki leżą w zaznaczeniu. Nu
 
 Przykład: wybierz ostatni takt czterotaktowej frazy i kliknij Resolve. Odsłuchaj zakończenie, porównaj z Capture A lub cofnij zmianę.
 
-Piano roll: kliknij pusty obszar, aby dodać nutę; przeciągnij nutę, aby zmienić pozycję i wysokość; przeciągnij prawą krawędź, aby zmienić długość. Shift-klik lub L blokuje nutę. Delete albo prawy klik usuwa odblokowaną nutę. Strzałki góra/dół zmieniają wysokość zaznaczonej nuty. Keep rhythm zachowuje rytm podczas ewolucji.)",
+Piano roll domyślnie służy do przeciągania MIDI. Opcjonalnie włącz Edit notes: kliknij pusty obszar, aby dodać nutę; przeciągnij nutę, aby zmienić pozycję i wysokość; przeciągnij prawą krawędź, aby zmienić długość. Shift-klik lub L blokuje nutę. Delete albo prawy klik usuwa odblokowaną nutę. Strzałki góra/dół zmieniają wysokość zaznaczonej nuty. Keep rhythm zachowuje rytm podczas ewolucji.)",
             R"(WŁASNA HARMONIA
 
 Otwórz Harmony. Wpisz akordy wraz z długością, np.:
@@ -636,7 +702,7 @@ Kliknij Apply chords. Cm trwa cztery ćwierćnuty, Fm dwie, G7 dwie. Liczby ozna
 
 Dostępne jakości: C, Cm, Cdim, Caug, C7, Cmaj7, Cm7, Csus2, Csus4. Możesz używać krzyżyków i bemoli. Pasek nad nutami pokazuje zastosowaną progresję. Krótsza progresja powtarza się przez frazę.
 
-Własne akordy mają pierwszeństwo przed gotową progresją. Wpływają na generowanie i operacje muzyczne; samo Apply chords nie przepisuje istniejących nut. Przy aktywnej własnej harmonii Scale snap jest pomijany, aby globalna skala nie usuwała dźwięków wpisanych akordów. Clear przywraca działanie gotowej progresji i zwykłego Scale snap.
+Własne akordy mają pierwszeństwo przed gotową progresją. Wpływają na generowanie i operacje muzyczne; samo Apply chords nie przepisuje istniejących nut. Fit to scale działa również przy własnej harmonii: dopasowuje wysokości do wybranej skali podczas odtwarzania i eksportu. Może zmienić chromatyczne dźwięki akordowe; wyłącz go, żeby usłyszeć oryginalny wynik generatora. Clear przywraca gotową progresję.
 
 Import harmony MIDI wczytuje osobny plik referencyjny bez zastępowania melodii. Rozpoznawanie akordów jest przybliżone. Sprawdź wynik w polu tekstowym, popraw go i zastosuj. Najczytelniejszy materiał wejściowy to pojedyncza ścieżka akordów bez perkusji.)",
             R"(PORÓWNANIE A/B
@@ -660,7 +726,7 @@ Timing określa siłę dopasowania pozycji nut do wzorca. Velocity określa sił
 
 Przykład: wczytaj groove perkusji, ustaw Timing na 30% i Velocity na 70%. Odsłuchaj, czy melodia lepiej współgra z akcentami. Algorytm przenosi odchylenia najbliższych pozycji siatki, a nie całą strukturę rytmu. Krótszy wzorzec zapętla się; z dłuższego używany jest odpowiedni początkowy fragment. Wysokości i długości nut pozostają zachowane, podobnie jak całe nuty zablokowane.
 
-Velocity pojedynczej nuty: kliknij jej słupek w dolnym pasku VEL piano rollu i przeciągnij pionowo. Jaśniejszy słupek wskazuje wybór. Gdy kilka nut zaczyna się równocześnie, najłatwiej najpierw rozsunąć je albo edytować po eksporcie.
+Velocity pojedynczej nuty: włącz Edit notes, kliknij jej słupek w dolnym pasku VEL piano rollu i przeciągnij pionowo. Jaśniejszy słupek wskazuje wybór. Gdy kilka nut zaczyna się równocześnie, najłatwiej najpierw rozsunąć je albo edytować po eksporcie.
 
 Swing i Gate są osobnymi ustawieniami wykonania. Ich efekt jest uwzględniony w odsłuchu i eksporcie, więc przy ocenie groove sprawdź również te wartości.)",
             R"(DŁUŻSZA FORMA: A — A′ — B — A″
@@ -693,30 +759,69 @@ Capture A przed rozpoczęciem ułatwia porównanie. Zapnij ważne warianty pluse
 
 Najprostszy sposób pracy: odsłuchaj frazę przez Internal sound, a następnie przeciągnij Drag MIDI na ścieżkę wybranego instrumentu w Studio One. Export zapisuje standardowy plik MIDI, który można wczytać ręcznie.
 
-Follow DAW wiąże start, stop, pozycję i tempo odtwarzania z transportem hosta. Gdy jest włączone, przycisk Play jest nieaktywny. Wyłącz Follow DAW do niezależnego odsłuchu i wyzwalania wariantów nutami MIDI. Gdy używasz innego instrumentu do odsłuchu wyjścia MIDI, wyłącz Internal sound, aby uniknąć podwójnego dźwięku. Dostępność routingu MIDI zależy od formatu wtyczki i konfiguracji hosta.
+Follow DAW wiąże start, stop, pozycję i tempo odtwarzania z transportem hosta. Play automatycznie wyłącza Follow DAW i włącza Internal sound do niezależnego odsłuchu. Wyłącz Follow DAW także do wyzwalania wariantów nutami MIDI. Gdy używasz innego instrumentu do odsłuchu wyjścia MIDI, wyłącz Internal sound, aby uniknąć podwójnego dźwięku. Dostępność routingu MIDI zależy od formatu wtyczki i konfiguracji hosta.
 
 MIDI 48–59: przytrzymaj, aby wyzwolić warianty 1–12.
 MIDI 60–127: transpozycja; 60 oznacza oryginalną wysokość. Nazwy oktaw mogą różnić się w DAW.
 
-Spacja: Play / Stop, gdy Follow DAW jest wyłączone.
+Spacja: Play / Stop (Play włącza brzmienie wewnętrzne i wyłącza Follow DAW).
 Cmd/Ctrl+Z: Undo.
 Cmd/Ctrl+Shift+Z: Redo.
 Esc: zamknij instrukcję; poza instrukcją — Stop all.
 Shift-klik lub L: zablokuj / odblokuj nutę.
-Delete / prawy klik: usuń odblokowaną nutę.
+Delete / prawy klik: usuń odblokowaną nutę, gdy Edit notes jest włączone.
 Kółko myszy nad piano rollem: przewijaj wysokości.
 
-Skróty odtwarzania nie działają podczas wpisywania tekstu. Save bank zachowuje bank i ustawienia; stan jest również zapisywany z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.)"};
+Skróty odtwarzania nie działają podczas wpisywania tekstu. Save bank zachowuje bank i ustawienia; stan jest również zapisywany z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.)",
+            R"(MIKROTONY (OPCJONALNIE)
+
+Micro to osobny włącznik w zakładce Micro. Wyłączony daje zwykłą melodię 12-tonową. Włączony pozwala algorytmowi szukać krótkich dźwięków przejściowych między półtonami i rozwiązywać je na stabilnych nutach.
+
+Wybór koloru określa dostępne odcienie: neutralne interwały, Rast, Bayati, Saba, blues albo 24-EDO. Główna Scale nadal prowadzi melodię. Nie ma ręcznego procentu mikrotonów ani przycisku przestrojenia wszystkich nut: ich miejsca, czas trwania i rozwiązania są częścią optymalizacji genetycznej.
+
+Po zmianie ustawień użyj Generate bank lub Evolve selected. W piano rollu fioletowe nuty leżą między wierszami; E4-50 to E4 obniżone o 50 centów. Play odtwarza ich dokładną wysokość. Fit to scale dopasowuje bazową wysokość do Scale, zachowując mikrotonowe odchylenie; wyłącz go, aby usłyszeć niezmienione wysokości generatora.
+
+Wyjście MIDI:
+Pitch bend (mono): kanał 1, dla jednogłosowej melodii. Ustaw w syntezatorze odbierającym zakres pitch bend taki sam jak Bend. Gdy nuty zachodzą na siebie, nowy pitch bend może zmienić wybrzmiewanie poprzedniej nuty.
+MPE: każda nuta na osobnym kanale 2–16, zakres ±48. Instrument odbierający musi obsługiwać MPE.
+
+Export i Drag MIDI zapisują odpowiednie komunikaty stroju. Odsłuch wewnętrzny nie wymaga konfiguracji MIDI. Akordy pozostają w 12-TET i mają osobną warstwę dźwięku, więc mikrotonowy pitch bend melodii ich nie odstraja. Na karcie Melody włącz With chords, żeby odsłuchać obie warstwy.)",
+            R"(ALGORYTM GENETYCZNY, METRUM I PROGRESJE
+
+Search pokazuje rzeczywistą pracę algorytmu. Quick: 64 osobniki i 40 pokoleń. Balanced: 128 i 100. Deep: 256 i 300. Custom budget pozwala ustawić 16-512 osobników i 1-2000 pokoleń. Crossover to prawdopodobieństwo krzyżowania (domyślnie 90%).
+
+Każde pokolenie jest oceniane funkcją fitness. Selekcja turniejowa wybiera rodziców; dwa najlepsze osobniki przechodzą bez zmian. Krzyżowanie wymienia fragmenty fraz, mutacja zmienia ich cechy. Blokady, Keep rhythm i Melody on rhythm chronią granice nut; wtedy krzyżowane są wysokości i velocity. W Rhythm only krzyżowane są także fragmenty rytmu, o ile rytm nie jest chroniony.
+
+Generation, Evaluations, Crossovers oraz Best/Mean fitness pokazują faktyczne obliczenia. Populacja początkowa także jest oceniana, więc liczba ocen to populacja x (pokolenia + 1). Fitness to wewnętrzna miara zgodności z ustawieniami, nie obiektywna ocena muzyki. Więcej pokoleń nie gwarantuje lepszego pomysłu. Cancel search zachowuje poprzedni bank.
+
+To nowy silnik, nie kopia dawnego genetic.cpp. Stary kod miał 128 osobników, 100 pokoleń i 90% krzyżowania. Nowy przechowuje wyniki fitness na czas pokolenia i ma inną funkcję oceny, dlatego nawet pełny przebieg może być szybki. Czas nie jest sztucznie wydłużany.
+
+Meter: wybierz z 27 propozycji albo wpisz np. 11/8. Licznik 1-32; mianownik 1, 2, 4, 8, 16 lub 32. Metrum dotyczy nowego generowania; Evolve zachowuje metrum rodzica. Fraza może mieć do 128 ćwierćnut — przy długim metrum wybierz mniej taktów.
+
+Harmony: 25 progresji oraz Scale only. Stopnie są względne do wybranej skali, jeden akord na takt. Custom chords otwiera wpisywanie akordów i długości, np. Cm:4 Ab:4 Eb:4 Bb:4. Wybór gotowej progresji usuwa aktywną własną harmonię.)",
+            R"(KARTA CHORDS — AKORDY I PRZEWROTY
+
+Melody i Chords to dwie główne karty tego samego interfejsu. Na Melody ustaw Root, Scale, Length i Meter; na Chords twórz progresje, odsłuchuj ich przewroty i przeciągaj akordowe MIDI na osobną ścieżkę.
+
+Originality określa charakter następnej progresji. Nisko: znane funkcjonalne układy. Wyżej: substytucje, rozszerzenia, zapożyczenia modalne i dominanty wtrącone. Generator harmonii używa reguł muzycznych i losowego ziarna; wartość nie jest oceną artystycznej oryginalności. Melodia nadal powstaje w pełnym algorytmie genetycznym z budżetem Search.
+
+Harmonic rhythm wybiera zmianę co dwa takty, takt albo pół taktu. Resolve to tonic zamyka progresję na tonice. Generate chords ustawia ją jako harmonię następnego generowania lub ewolucji. Istniejące melodie nie są automatycznie przepisywane. Generate melody uruchamia wyszukiwanie i wraca na Melody, gdzie widać postęp oraz warianty.
+
+Smooth inversions ogranicza ruch głosów przez całą sekwencję. Root position utrzymuje prymę w basie. Open voicings rozsuwa głosy. Voice centre określa rejestr; po zmianie kliknij Revoice, aby przeliczyć ułożenie głosów bez zmiany progresji. Slash pokazuje faktyczny bas: C/E to C-dur z E na dole.
+
+Trójkąt Play pod akordowym piano rollem odtwarza same akordy, a kwadrat Stop zatrzymuje odsłuch. Na Melody włącz With chords i naciśnij Play, aby usłyszeć melodię wraz z harmonią. Przełączanie kart nie zatrzymuje odtwarzania.
+
+Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciągaj z Melody. Export zapisuje widoczne przewroty i rejestr akordów. MIDI obu warstw pozostaje oddzielne. Akordy mają strój 12-TET również przy włączonym Micro; wewnętrzny odsłuch używa osobnej warstwy, więc pitch bend melodii nie zmienia stroju akordów. Progresja i przewroty zapisują się z bankiem i projektem DAW.)"};
         static const char* english[]{
             R"(YOUR FIRST PHRASE
 
-Choose Root, Scale, Length and Meter, then Generate bank. Select one of the 12 variations and press Play; double-clicking a card also starts audition. Internal sound enables the built-in audition instrument.
+Choose Root, Scale, Length and Meter, then Generate bank. Select one of the 12 variations and press Play: it enables Internal sound and disables Follow DAW. Double-clicking a card or the piano roll also starts audition. Choose Soft keys, Sine or Warm organ beside the button; Stop ends preview.
 
 Capture A keeps a reference for comparison. The plus on a card pins that variation so it survives another bank generation. Evolve selected develops the current phrase; Evolution controls the preferred amount of change.
 
-Drag MIDI onto an instrument track, or use Export. Export writes the displayed phrase or draft, including Swing and Gate processing.
+Drag the piano roll onto an instrument track, or use Drag MIDI / Export. Clicking the roll does not create notes by default. Export writes the displayed phrase or draft, including Swing and Gate processing.
 
-Density targets note density. Variety targets pitch movement and diversity. Syncopation favours off-beat starts. Tension permits chromatic movement. Space favours rests. These controls interact and are not exact percentages of perceptual qualities.
+Diversity shapes pitch and interval variety. Dynamics shapes melodic movement, not loudness. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
 
 The header MIDI trace shows actual emitted note events; OUT meters the internal audio output. Piano keys respond to emitted notes. Turn Motion off in the bottom bar for reduced animation while transport and level indicators remain active.
 
@@ -729,9 +834,9 @@ Simplify thins the selection. More movement increases melodic movement. Answer c
 
 Only unlocked notes whose onsets fall inside the selected range are transformed. Other notes are preserved. These are musical algorithms, not natural-language AI commands. Undo reverses the operation. Export range saves the selection as a separate MIDI file; notes crossing its boundaries are cropped.
 
-Example: select the final bar of a four-bar phrase and press Resolve. Audition the ending and compare it with a captured A reference.
+Example: select the final bar of a four-bar phrase and press Resolve. Play the ending and compare it with a captured A reference.
 
-Piano roll: click an empty area to add; drag a note to move; drag its right edge to resize. Shift-click or L toggles a lock. Delete or right-click removes an unlocked note. Up/down arrows change the selected note's pitch. Keep rhythm preserves note starts and durations during evolution.)",
+The piano roll exports MIDI by default. Enable Edit notes for manual editing: click an empty area to add; drag a note to move; drag its right edge to resize. Shift-click or L toggles a lock. Delete or right-click removes an unlocked note. Up/down arrows change the selected note's pitch. Keep rhythm preserves note starts and durations during evolution.)",
             R"(YOUR OWN HARMONY
 
 Open Harmony and enter, for example:
@@ -742,7 +847,7 @@ Apply chords sets C minor for four quarter-note beats, F minor for two, then G d
 
 Qualities: C, Cm, Cdim, Caug, C7, Cmaj7, Cm7, Csus2 and Csus4. Sharps and flats are supported. The strip above the notes shows the applied progression; a shorter progression repeats through the phrase.
 
-Custom harmony overrides the preset progression. It guides generation and musical transforms; applying chords alone does not rewrite existing notes. Scale snap is bypassed while custom harmony is active, so a global scale cannot erase your chord tones. Clear restores preset harmony and normal Scale snap.
+Custom harmony overrides the preset progression. It guides generation and musical transforms; applying chords alone does not rewrite existing notes. Fit to scale remains available with custom harmony and fits pitches to the chosen scale during playback and export. It can change chromatic chord tones; turn it off to hear the generator's original pitches. Clear restores preset harmony.
 
 Import harmony MIDI reads a separate reference without replacing the melody. Chord recognition is approximate: inspect the text, correct it, and apply. A clean chord track without percussion works best.)",
             R"(COMPARE A/B
@@ -766,7 +871,7 @@ Timing controls how far note starts move towards the reference. Velocity control
 
 Try a drum reference with Timing at 30% and Velocity at 70%. Timing transfers deviations from the nearest reference grid positions, not the entire rhythm structure. A shorter reference loops; a longer reference contributes its opening portion. Pitches and durations are preserved.
 
-To edit one note's velocity, click its bar in the VEL lane below the piano roll and drag vertically. The selected bar is brighter. Notes with identical onsets share the same horizontal position.
+To edit one note's velocity, enable Edit notes and click its bar in the VEL lane below the piano roll and drag vertically. The selected bar is brighter. Notes with identical onsets share the same horizontal position.
 
 Swing and Gate apply additional playback and export processing. Check those values when evaluating the groove.)",
             R"(BUILD A — A′ — B — A″
@@ -790,35 +895,102 @@ Accents supplies velocity values.
 
 For example, select Rhythm 03, Pitches 07 and Accents 02, then Preview combination. Sources with different note counts are matched by relative position within each phrase; a one-to-one note correspondence is not required.
 
-Audition the draft shown in the piano roll. Keep preview writes it to the currently selected bank slot. Discard preserves the previous phrase. You can change source choices and preview again before deciding.
+Play the draft shown in the piano roll. Keep preview writes it to the currently selected bank slot. Discard preserves the previous phrase. You can change source choices and preview again before deciding.
 
 Locked notes in the Rhythm source are preserved in full: their pitch and velocity are not replaced. Locks in the Pitches and Accents sources do not constrain the result.
 
 Capture A before starting for easy comparison. Pin important sources and Save bank to retain the complete source set.)",
             R"(STUDIO ONE AND SHORTCUTS
 
-Audition through Internal sound, then drag Drag MIDI onto your instrument track in Studio One. Export saves a standard MIDI file for manual import.
+Play through Internal sound, then drag Drag MIDI onto your instrument track in Studio One. Export saves a standard MIDI file for manual import.
 
-Follow DAW synchronises playback position, tempo, start and stop with the host. Play is disabled while it is on. Turn Follow DAW off for independent audition and MIDI-note triggering. Disable Internal sound when another instrument receives the MIDI output. MIDI routing availability depends on the plugin format and host setup.
+Follow DAW synchronises playback position, tempo, start and stop with the host. Play automatically disables Follow DAW and enables Internal sound for independent preview. Turn Follow DAW off for MIDI-note triggering too. Disable Internal sound when another instrument receives the MIDI output. MIDI routing availability depends on the plugin format and host setup.
 
 MIDI 48–59: hold to trigger variations 1–12.
 MIDI 60–127: transpose; 60 means original pitch. DAW octave names may differ.
 
-Space: Play / Stop when Follow DAW is off.
+Space: Play / Stop (Play enables the internal sound and turns Follow DAW off).
 Cmd/Ctrl+Z: Undo.
 Cmd/Ctrl+Shift+Z: Redo.
 Esc: close the guide; outside it, Stop all.
 Shift-click or L: toggle a note lock.
-Delete / right-click: delete an unlocked note.
+Delete / right-click: delete an unlocked note when Edit notes is on.
 Mouse wheel over the roll: scroll pitches.
 
-Playback shortcuts are suspended while typing text. Save bank stores the bank and settings; the DAW project also stores plugin state. Keep preview commits a temporary draft before saving.)"};
-        const auto index = juce::jlimit(0, 7, chapter.getSelectedId() - 1);
+Playback shortcuts are suspended while typing text. Save bank stores the bank and settings; the DAW project also stores plugin state. Keep preview commits a temporary draft before saving.)",
+            R"(MICROTONES (OPTIONAL)
+
+Micro is an explicit switch on the Micro tab. Off gives a normal 12-tone melody. On allows the genetic search to place short passing notes between semitones and resolve them into stable notes.
+
+The colour selector supplies neutral intervals, Rast, Bayati, Saba, blues or 24-EDO. The main Scale still guides the melody. There is no manual percentage or blanket retuning action: the placement, duration and resolution of microtonal passing notes are part of the optimisation.
+
+Use Generate bank or Evolve selected after changing the settings. Violet piano-roll notes sit between rows; E4-50 is E4 lowered by 50 cents. Play previews their exact pitches. Fit to scale moves base pitches into Scale while retaining their microtonal offsets; turn it off to hear the generator's original pitches.
+
+MIDI output:
+Pitch bend (mono): channel 1, for a single melody voice. Set the receiving synth's bend range to the Bend value. Overlapping notes may share the new bend during the preceding note's release.
+MPE: one note per channel 2–16, at ±48. The receiving instrument must support MPE.
+
+Export and Drag MIDI include the tuning messages. Internal preview needs no MIDI setup. Chords stay in 12-TET and use a separate sound layer, so melody pitch bends do not detune them. Enable With chords on Melody to hear both layers together.)",
+            R"(GENETIC SEARCH, METER AND PROGRESSIONS
+
+Quick uses 64 individuals and 40 generations; Balanced 128 and 100; Deep 256 and 300. Search > Custom budget allows 16-512 individuals and 1-2000 generations. Crossover is the mating probability (90% by default).
+
+Every population is scored by fitness. Tournament selection chooses parents; two elites survive unchanged. One-point crossover exchanges phrase sections, followed by mutation. Locks, Keep rhythm and Melody on rhythm protect timing; crossover then exchanges pitches and velocities. Rhythm only also crosses rhythm sections when timing is unprotected.
+
+Generation, Evaluations, Crossovers and Best/Mean fitness report real work. The initial population is also evaluated: total evaluations = population x (generations + 1). Fitness is an internal measure of matching settings, not an objective musical rating. More generations do not guarantee a better idea. Cancel search keeps the old bank.
+
+This is a new engine, not a copy of the old genetic.cpp. The old code used 128 individuals, 100 generations and 90% crossover. Cached fitness and a different scoring function make the new search faster; it adds no artificial delay.
+
+Meter offers 27 presets or typed input such as 11/8: numerator 1-32, denominator 1, 2, 4, 8, 16 or 32. Meter affects new generation; Evolve retains the parent's meter. Phrases are limited to 128 quarter-note beats, so choose fewer bars for long meters.
+
+Harmony offers 25 progressions plus Scale only. Degrees follow the chosen scale, one chord per bar. Custom chords opens chord/duration entry such as Cm:4 Ab:4 Eb:4 Bb:4. Selecting a preset clears active custom harmony.)",
+            R"(CHORDS TAB — HARMONY AND VOICINGS
+
+Melody and Chords are the two main pages of one interface. Set Root, Scale, Length and Meter on Melody; use Chords to create progressions, audition inversions and drag chord MIDI to another instrument track.
+
+Originality shapes the next progression. Lower values use familiar functional movement. Higher values favour substitutions, extensions, modal borrowing and secondary dominants. Harmony uses musical rules and a random seed; the value is not an artistic originality score. Melody still uses the full genetic search with your Search budget.
+
+Harmonic rhythm changes chords every two bars, one bar or half a bar. Resolve to tonic ends on the tonic. Generate chords activates the progression for the next melody generation or evolution. Existing melodies are not rewritten. Generate melody starts the search and returns to Melody so you can see its progress and variations.
+
+Smooth inversions limits voice movement across the sequence. Root position keeps the root in the bass. Open voicings spreads the voices. Voice centre sets the register; click Revoice after changing it to update the voices without changing the progression. Slash names show the actual bass: C/E is C major over E.
+
+The triangular Play button below the chord piano roll plays the chords alone; the square Stop ends preview. On Melody, enable With chords and press Play to hear both layers together. Switching tabs does not stop playback.
+
+Drag the Chords piano roll or Drag chord MIDI for the chord part. Drag the Melody piano roll for the melody. Export saves the displayed inversions and register. Each layer remains a separate MIDI export. Chords use 12-TET even with Micro on; internal preview gives them a separate sound layer so melody pitch bends do not detune them. The progression and voicings are saved with the bank and DAW project.)"};
+        const auto index = juce::jlimit(0, 10, chapter.getSelectedId() - 1);
         body.setText(juce::String::fromUTF8(language.getSelectedId() == 1 ? polish[index] : english[index]),
                      false);
         body.moveCaretToTop(false);
     }
 };
+
+void TransportButton::setPlaying(bool active) {
+    if (playing != active) {
+        playing = active;
+        setButtonText(active ? "Stop" : "Play");
+        repaint();
+    }
+}
+void TransportButton::paintButton(juce::Graphics& g, bool over, bool down) {
+    const auto background = findColour(juce::TextButton::buttonColourId);
+    const bool light = background.getPerceivedBrightness() > 0.5f;
+    getLookAndFeel().drawButtonBackground(g, *this, background, over, down);
+    g.setColour(isEnabled() ? (light ? palette::background : palette::accent) : palette::muted);
+    const float y = getHeight() * 0.5f;
+    if (playing)
+        g.fillRoundedRectangle(14, y - 5, 10, 10, 1);
+    else {
+        juce::Path triangle;
+        triangle.startNewSubPath(14, y - 6);
+        triangle.lineTo(14, y + 6);
+        triangle.lineTo(24, y);
+        triangle.closeSubPath();
+        g.fillPath(triangle);
+    }
+    g.setFont(font(13, true));
+    g.setColour(isEnabled() ? (light ? palette::background : palette::text) : palette::muted);
+    g.drawText(getButtonText(), 34, 0, getWidth() - 39, getHeight(), juce::Justification::centredLeft);
+}
 
 using Editor = GeneticVSTComposerJUCEAudioProcessorEditor;
 void Editor::attach(juce::ComboBox& box, const char* id) {
@@ -861,19 +1033,75 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     attach(scale, "scale");
     attach(bars, "bars");
     attach(grid, "grid");
-    attach(meter, "meter");
+    addAndMakeVisible(meter);
+    meter.setEditableText(true);
+    for (const auto& m : composer::timeSignatures())
+        meter.addItem(juce::String(m.numerator) + "/" + juce::String(m.denominator), meter.getNumItems() + 1);
+    meter.setTooltip("Choose a meter or type your own, e.g. 11/8. Numerator 1-32; denominator 1, 2, 4, 8, 16 "
+                     "or 32. Applies to new generations.");
+    meter.onChange = [this] { report(processor.setTimeSignature(meter.getText())); };
     attach(mode, "mode");
-    attach(harmony, "progression");
+    attach(phraseType, "phraseType");
+    phraseType.setTooltip("Riff: a short repeating hook. Motif: a recognisable idea with small changes. "
+                          "Melody: a longer phrase with development and an ending.");
+    addAndMakeVisible(melodyTab);
+    addAndMakeVisible(chordsTab);
+    melodyTab.getProperties().set("segment", true);
+    chordsTab.getProperties().set("segment", true);
+    melodyTab.onClick = [this] { showMelodyComposer(); };
+    chordsTab.onClick = [this] { showChordComposer(); };
+    melodyTab.setTooltip("Generate, play and export a melody, riff or motif.");
+    chordsTab.setTooltip("Create the harmonic sequence, choose inversions and drag chord MIDI.");
+    addAndMakeVisible(harmony);
+    for (const auto& progression : composer::progressionPresets())
+        harmony.addItem(progression.name, harmony.getNumItems() + 1);
+    harmony.addItem("Custom chords...", 1000);
+    harmony.addItem("Chord composer...", 1001);
+    harmony.onChange = [this] {
+        if (harmony.getSelectedId() == 1001) {
+            showChordComposer();
+            refresh();
+        } else if (harmony.getSelectedId() == 1000) {
+            showWorkflowPage(1);
+            chordText.grabKeyboardFocus();
+        } else
+            processor.setProgressionPreset(harmony.getSelectedId() - 1);
+    };
     attach(quality, "quality");
-    const char* ids[]{"density", "diversity", "syncopation", "tension", "space", "mutation"};
+    attach(auditionSound, "auditionSound");
+    auditionSound.setTooltip("Built-in audition tone. These sounds follow microtonal tuning too.");
+    attach(customSearch, "customSearch");
+    attach(searchPopulation, "searchPopulation");
+    attach(searchGenerations, "searchGenerations");
+    attach(crossover, "crossover");
+    crossover.textFromValueFunction = [](double v) { return juce::String(int(std::round(v * 100))) + "%"; };
+    crossover.valueFromTextFunction = [](const juce::String& value) { return value.getDoubleValue() / 100; };
+    crossover.updateText();
+    quality.setTooltip("Quick: 64 x 40. Balanced: 128 x 100. Deep: 256 x 300. Search tab: custom budget and "
+                       "actual statistics.");
+    searchPopulation.setTooltip("Individuals in each generation, 16-512. Applies when Custom budget is on.");
+    searchGenerations.setTooltip(
+        "Evolutionary generations, 1-2000. The initial population is evaluated separately.");
+    crossover.setTooltip("Chance of crossing two tournament-selected parents before mutation.");
+    addAndMakeVisible(searchDetails);
+    searchDetails.onClick = [this] { showWorkflowPage(6); };
+    addAndMakeVisible(searchInfo);
+    searchInfo.setFont(font(10.5f));
+    searchInfo.setColour(juce::Label::textColourId, muted);
+    const char* ids[]{"diversity", "dynamics",  "tension", "valence",
+                      "arousal",   "weirdness", "space",   "mutation"};
     const char* tips[]{
-        "How many notes fill a phrase. Higher values favour shorter, busier phrases.",
-        "Pitch movement and variety. Lower values favour a more recognisable motif.",
-        "Preference for off-beat note starts.",
-        "Allows more chromatic movement and harmonic tension. Turn Scale snap off to hear chromatic notes.",
-        "Room between notes. Higher values leave more silence.",
-        "How far Evolve moves from the selected phrase. Locked notes always stay intact."};
-    for (int i = 0; i < 6; ++i) {
+        "Diversity: variety of pitches and intervals while keeping the phrase recognisable.",
+        "Dynamics: melodic motion and changes of register. This shapes the notes, not output volume.",
+        "Jazziness: chromatic tension and less predictable harmonic colours. Turn Fit to scale off to hear "
+        "the original pitches.",
+        "Valence: preference for brighter consonance and upward melodic direction; a musical bias, not a "
+        "mood measurement.",
+        "Arousal: rhythmic energy, faster movement and a wider, higher register.",
+        "Weirdness: unexpected rhythmic placement and larger melodic jumps.",
+        "Pause Amount: room for silence between notes. Higher settings favour more space.",
+        "Evolution: how far Evolve moves from the selected phrase. Locked notes always stay intact."};
+    for (int i = 0; i < 8; ++i) {
         attach(knobs[i], ids[i], true);
         knobs[i].setTooltip(tips[i]);
     }
@@ -901,16 +1129,19 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         s->updateText();
     }
     attach(snap, "snap");
+    attach(withChords, "auditionChords");
+    withChords.setTooltip("Play the melody and the active chord sequence together through the internal "
+                          "sounds. Melody MIDI and chord MIDI remain separate exports.");
     attach(lockRhythm, "lockRhythm");
     attach(follow, "follow");
     attach(monitor, "monitor");
     attach(quantiseSwitch, "quantiseSwitch");
     follow.setTooltip(
-        "Start, stop and seek with the DAW transport. Turn off for the Play button and MIDI-key triggering.");
+        "Start, stop and seek with the DAW transport. Audition turns this off for independent preview.");
     monitor.setTooltip("Built-in audition sound. Turn off when routing MIDI to another instrument.");
     lockRhythm.setTooltip("Keep all note starts and durations when evolving a phrase.");
-    harmony.setTooltip(
-        "One diatonic chord per bar, repeating every four bars. Chords follow your selected scale.");
+    harmony.setTooltip("Choose a progression, enter Custom chords, or open Chord composer for creative "
+                       "progressions, voiced chord audition and separate chord MIDI export.");
     mode.setTooltip("Melody on rhythm uses the selected variation as a rhythmic template.");
     preset.addItemList({"Starting point: Balanced", "Airy / spacious", "Rhythmic / driving",
                         "Chromatic / restless", "Bass / restrained"},
@@ -918,9 +1149,9 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     preset.setTextWhenNothingSelected("Starting points...");
     addAndMakeVisible(preset);
     preset.onChange = [this] { processor.applyPreset(preset.getSelectedId() - 1); };
-    for (auto* b :
-         {&generate, &evolve, &play, &panic, &undo, &redo, &save, &load, &import, &exportFile, &help})
+    for (auto* b : {&generate, &evolve, &panic, &undo, &redo, &save, &load, &import, &exportFile, &help})
         addAndMakeVisible(*b);
+    addAndMakeVisible(play);
     addAndMakeVisible(drag);
     addAndMakeVisible(roll);
     for (auto* l : {&status, &phraseTitle, &phraseInfo, &tempoInfo}) {
@@ -944,7 +1175,14 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
             processor.generate(false);
     };
     evolve.onClick = [this] { processor.generate(true); };
-    play.onClick = [this] { processor.setPreview(!processor.previewRequested()); };
+    play.onClick = [this] {
+        if (processor.previewRequested() && !processor.isAuditioningChords())
+            processor.setPreview(false);
+        else
+            processor.startAudition();
+    };
+    play.setTooltip("Audition the phrase with the built-in sound. Enables Internal sound and turns Follow "
+                    "DAW off. Click again to stop.");
     panic.onClick = [this] { processor.panic(); };
     undo.onClick = [this] {
         processor.undo();
@@ -961,20 +1199,27 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     drag.onClick = [this] { chooseFile(1); };
     drag.onDrag = [this] { startMidiDrag(); };
     drag.setTooltip("Drag this button onto an instrument track in your DAW. Click to save a MIDI file. "
-                    "Export includes swing, gate and scale snap.");
+                    "Export includes swing, gate and Fit to scale.");
     help.onClick = [this] { showGuide(); };
     help.setTooltip("Read the in-plugin guide: Polish / English, examples and shortcuts.");
     roll.onEdit = [this](composer::Clip c) {
         if (!processor.hasDraft())
             processor.setClip(processor.selectedIndex(), c);
     };
+    roll.onMidiDrag = [this] { startMidiDrag(&roll); };
+    roll.onAudition = [this] { processor.startAudition(); };
+    addAndMakeVisible(editNotes);
+    editNotes.onClick = [this] { roll.setNoteEditing(editNotes.getToggleState()); };
+    editNotes.setTooltip("Optional note drawing and editing. Off: drag the piano roll to export MIDI; "
+                         "double-click to audition.");
     roll.onRegionChange = [this](double start, double end) {
         regionInfo.setText("Beats " + juce::String(start, 2) + " - " + juce::String(end, 2),
                            juce::dontSendNotification);
     };
-    for (auto* button : {&captureA, &compare, &clearA, &allTime, &exportRange, &simplify, &movement, &answer,
-                         &resolve, &applyHarmony, &clearHarmony, &importHarmony, &importGroove,
-                         &captureGroove, &applyGroove, &arrange, &combine, &applyDraft, &discardDraft})
+    for (auto* button : {&captureA,     &compare,       &clearA,        &allTime,      &exportRange,
+                         &simplify,     &movement,      &answer,        &resolve,      &applyHarmony,
+                         &clearHarmony, &importHarmony, &chordComposer, &importGroove, &captureGroove,
+                         &applyGroove,  &arrange,       &combine,       &applyDraft,   &discardDraft})
         addAndMakeVisible(*button);
     for (auto* value : {&playbackInfo, &workflowInfo, &regionInfo}) {
         addAndMakeVisible(*value);
@@ -1000,10 +1245,19 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         "Compare saved A with the selected phrase B. Export always writes the displayed phrase.");
     quantiseSwitch.setTooltip(
         "Switch variations or A/B at the end of the audible loop. Immediate while stopped.");
-    const char* tabs[]{"Region", "Harmony", "Groove", "Arrange", "Combine"};
-    for (int i = 0; i < 5; ++i) {
+    const char* tabs[]{"Edit region", "Harmony", "Groove", "Arrange", "Combine", "Micro", "Search"};
+    const char* tabTips[]{
+        "Change only the selected time range. Locked notes stay intact.",
+        "Enter chord names or import a harmony timeline. The Chords page also generates voiced progressions.",
+        "Transfer timing and velocity from a MIDI reference or a selected variation.",
+        "Develop the selected idea into a four-part arrangement before keeping it.",
+        "Combine rhythm, pitches and accents from different variations.",
+        "Enable genetically chosen microtonal passing notes and configure their MIDI output.",
+        "Set the genetic search budget and inspect actual generations, evaluations, crossovers and fitness."};
+    for (int i = 0; i < 7; ++i) {
         auto& tab = workflowTabs[i];
         tab.setButtonText(tabs[i]);
+        tab.setTooltip(tabTips[i]);
         addAndMakeVisible(tab);
         tab.onClick = [this, i] { showWorkflowPage(i); };
     }
@@ -1033,6 +1287,10 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         refresh();
     };
     importHarmony.onClick = [this] { chooseFile(4); };
+    chordComposer.onClick = [this] { showChordComposer(); };
+    chordComposer.setColour(juce::TextButton::textColourOffId, teal);
+    chordComposer.setTooltip("Create creative progressions with Originality, audition inversions and "
+                             "drag their MIDI from the Chords tab.");
     importGroove.onClick = [this] { chooseFile(5); };
     captureGroove.onClick = [this] {
         processor.useSelectedAsGroove();
@@ -1085,6 +1343,46 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     applyDraft.setColour(juce::TextButton::textColourOffId, background);
     applyDraft.setTooltip("Replace the selected variation with this preview. Undo can restore it.");
     discardDraft.setTooltip("Discard the temporary preview and return to the committed phrase.");
+    attach(microEnabled, "microEnabled");
+    addAndMakeVisible(tuning);
+    const auto tuningOptions = GeneticVSTComposerJUCEAudioProcessor::tuningNames();
+    for (int i = 1; i < tuningOptions.size(); ++i)
+        tuning.addItem(tuningOptions[i], i);
+    tuning.onChange = [this] {
+        if (tuning.getSelectedId() > 0) {
+            auto* parameter = processor.parameters.getParameter("tuning");
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(float(tuning.getSelectedId())));
+        }
+    };
+    microEnabled.onClick = [this] {
+        if (microEnabled.getToggleState() &&
+            processor.parameters.getRawParameterValue("tuning")->load() < 1) {
+            auto* parameter = processor.parameters.getParameter("tuning");
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(1));
+        }
+    };
+    attach(microOutput, "microOutput");
+    attach(bendRange, "bendRange");
+    bendRange.textFromValueFunction = [](double v) {
+        return juce::String::fromUTF8("±") + juce::String(int(v));
+    };
+    bendRange.valueFromTextFunction = [](const juce::String& value) {
+        return value.retainCharacters("0123456789").getDoubleValue();
+    };
+    bendRange.updateText();
+    microEnabled.setTooltip("Enable microtonal generation. The genetic search chooses short passing notes "
+                            "and resolves them into the phrase; the chord layer stays in 12-TET.");
+    tuning.setTooltip("The microtonal colour available to the generator. Micro switches the feature on or "
+                      "off; the algorithm chooses useful passing notes rather than retuning every note.");
+    microOutput.setTooltip("Pitch bend: channel 1 for one melody voice. MPE: independent pitch per note "
+                           "on channels 2-16. Internal preview needs no external setup.");
+    bendRange.setTooltip("Set the receiving synth's pitch-bend range to this value. MPE uses ±48.");
+    addAndMakeVisible(microInfo);
+    microInfo.setFont(font(11));
+    microInfo.setColour(juce::Label::textColourId, muted);
+    microInfo.setText("The search places short microtonal passing notes and resolves them. "
+                      "Play previews exact pitches; chord accompaniment stays in 12-TET.",
+                      juce::dontSendNotification);
     for (int i = 0; i < 12; ++i) {
         variants[i] = std::make_unique<VariationButton>(i);
         addAndMakeVisible(*variants[i]);
@@ -1098,7 +1396,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         };
         variants[i]->onAudition = [this, i] {
             processor.selectClip(i);
-            processor.setPreview(true);
+            processor.startAudition();
             refresh();
         };
     }
@@ -1109,10 +1407,10 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     motion.setToggleState(true, juce::dontSendNotification);
     motion.setTooltip(
         "Animate playback highlights, hover transitions and MIDI activity. Turn off for reduced motion.");
-    for (int i = 0; i < 6; ++i) {
-        knobs[i].getProperties().set("accentColour", int((i == 5   ? violet
-                                                          : i == 3 ? gold
-                                                          : i == 2 ? teal
+    for (int i = 0; i < 8; ++i) {
+        knobs[i].getProperties().set("accentColour", int((i == 7   ? violet
+                                                          : i == 2 ? gold
+                                                          : i == 5 ? teal
                                                                    : accent)
                                                              .getARGB()));
         knobs[i].getProperties().set("displayValue", knobs[i].valueToProportionOfLength(knobs[i].getValue()));
@@ -1121,12 +1419,13 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         tab.getProperties().set("segment", true);
     evolve.setColour(juce::TextButton::textColourOffId, violet);
     setSize(1240, 900);
-    updateWorkflow();
+    updateMainPage();
     timerCallback();
     startTimerHz(60);
 }
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor() {
     stopTimer();
+    chordPanel.reset();
     chooser.reset();
     setLookAndFeel(nullptr);
     for (auto& file : dragFiles)
@@ -1159,9 +1458,11 @@ void Editor::paint(juce::Graphics& g) {
         g.setColour(juce::Colours::white.withAlpha(0.025f));
         g.drawLine(bounds.getX() + 13, bounds.getY() + 1, bounds.getRight() - 13, bounds.getY() + 1);
     };
-    panelSurface({20, 92, 262, 266});
-    panelSurface({20, 370, 262, float(h - 442)});
-    panelSurface({296, 92, float(w - 308), 438});
+    if (!chordPage) {
+        panelSurface({20, 92, 262, 266});
+        panelSurface({20, 370, 262, float(h - 442)});
+        panelSurface({296, 92, float(w - 308), 438});
+    }
     g.setColour(line.withAlpha(0.65f));
     g.drawHorizontalLine(71, 20, float(w - 20));
     g.drawHorizontalLine(h - 64, 0, float(w));
@@ -1181,30 +1482,37 @@ void Editor::paint(juce::Graphics& g) {
     g.setFont(font(10));
     g.setColour(muted);
     g.drawText("M I D I   C O M P O S E R", 72, 45, 200, 16, juce::Justification::centredLeft);
+    if (chordPage) {
+        label(g, "BPM", {650, h - 53, 34, 22});
+        label(g, "Level", {784, h - 53, 34, 22});
+        return;
+    }
     label(g, "COMPOSITION", {36, 105, 220, 18}, true);
     label(g, "Root", {36, 131, 62, 16});
     label(g, "Scale", {108, 131, 158, 16});
     label(g, "Length", {36, 188, 74, 16});
     label(g, "Grid", {118, 188, 66, 16});
     label(g, "Meter", {192, 188, 74, 16});
-    label(g, "Generate", {36, 244, 230, 16});
+    label(g, "Phrase type", {36, 244, 100, 16});
+    label(g, "Source mode", {146, 244, 120, 16});
     label(g, shownHarmony.isNotEmpty() ? "Harmony / custom timeline active" : "Harmony / one chord per bar",
           {36, 300, 230, 16});
     label(g, "CHARACTER", {36, 378, 230, 16}, true);
-    const juce::String names[]{"Density", "Variety", "Syncopation", "Tension", "Space", "Evolution"};
-    for (int i = 0; i < 6; ++i) {
-        g.setFont(font(11));
+    const juce::String names[]{"Diversity", "Dynamics",  "Jazziness",    "Valence",
+                               "Arousal",   "Weirdness", "Pause Amount", "Evolution"};
+    for (int i = 0; i < 8; ++i) {
+        g.setFont(font(10));
         g.setColour(muted);
-        g.drawText(names[i], 36 + (i % 3) * 79, 472 + (i / 3) * 96, 72, 16, juce::Justification::centred);
+        g.drawText(names[i], 36 + (i % 3) * 79, 456 + (i / 3) * 76, 72, 16, juce::Justification::centred);
     }
-    label(g, "Low note", {36, 585, 104, 16});
-    label(g, "High note", {158, 585, 108, 16});
-    label(g, "Search", {36, 650, 56, 18});
+    label(g, "Low note", {36, 628, 104, 16});
+    label(g, "High note", {158, 628, 108, 16});
+    label(g, "Search", {36, 687, 56, 18});
     const int mainX = 304, mainW = w - mainX - 20;
     g.setColour(line);
     g.drawRoundedRectangle(float(mainX) - 0.5f, 173.5f, float(mainW) + 1, 271, 5, 1);
-    label(g, "Swing", {mainX, 498, 45, 24});
-    label(g, "Gate", {mainX + 230, 498, 38, 24});
+    label(g, "Swing", {mainX + 236, 498, 42, 24});
+    label(g, "Gate", {mainX + 426, 498, 32, 24});
     panelSurface({float(mainX), 570, float(mainW), 102});
     if (workflowPage == 2) {
         label(g, "Timing", {mainX + 12, 638, 46, 26});
@@ -1228,27 +1536,34 @@ void Editor::paint(juce::Graphics& g) {
         label(g, "Pitches", {mainX + 24 + width, 595, width, 16});
         label(g, "Accents", {mainX + 36 + width * 2, 595, width, 16});
     }
+    if (workflowPage == 5) {
+        label(g, "Bend", {mainX + 622, 602, 40, 28});
+    }
+    if (workflowPage == 6) {
+        label(g, "Population", {mainX + 156, 602, 78, 28});
+        label(g, "Generations", {mainX + 378, 602, 84, 28});
+        label(g, "Crossover", {mainX + 610, 602, 76, 28});
+    }
     label(g, "VARIATIONS", {mainX, 682, 150, 20}, true);
     g.setColour(muted);
     g.setFont(font(11));
     g.drawText("Select  /  Double-click to play  /  + to pin", mainX + 145, 682, mainW - 145, 20,
                juce::Justification::centredRight);
-    label(g, "BPM", {405, h - 53, 34, 22});
-    label(g, "Level", {552, h - 53, 34, 22});
+    label(g, "BPM", {650, h - 53, 34, 22});
+    label(g, "Level", {784, h - 53, 34, 22});
     if (processor.isGenerating()) {
         g.setColour(line);
-        g.fillRoundedRectangle(36, 678, 230, 3, 1.5f);
+        g.fillRoundedRectangle(36, 713, 230, 3, 1.5f);
         g.setColour(accent);
-        g.fillRoundedRectangle(36, 678, 230 * processor.generationProgress(), 3, 1.5f);
+        g.fillRoundedRectangle(36, 713, 230 * processor.generationProgress(), 3, 1.5f);
     }
-    g.setColour(muted.withAlpha(0.6f));
-    g.setFont(font(10));
-    g.drawText("GENETIC  /  2.2", w - 256, h - 51, 122, 22, juce::Justification::centredRight);
 }
 void Editor::resized() {
     const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom), x = 304, mw = w - x - 20;
-    activity.setBounds(304, 19, 224, 42);
+    melodyTab.setBounds(304, 23, 110, 32);
+    chordsTab.setBounds(420, 23, 110, 32);
+    activity.setBounds(20, h - 58, 224, 34);
     preset.setBounds(w - 550, 25, 188, 30);
     undo.setBounds(w - 350, 25, 54, 30);
     redo.setBounds(w - 290, 25, 54, 30);
@@ -1260,16 +1575,19 @@ void Editor::resized() {
     bars.setBounds(36, 208, 74, 30);
     grid.setBounds(118, 208, 66, 30);
     meter.setBounds(192, 208, 74, 30);
-    mode.setBounds(36, 264, 230, 30);
+    phraseType.setBounds(36, 264, 100, 30);
+    mode.setBounds(146, 264, 120, 30);
     harmony.setBounds(36, 320, 230, 30);
-    for (int i = 0; i < 6; ++i)
-        knobs[i].setBounds(36 + (i % 3) * 79, 396 + (i / 3) * 96, 72, 76);
-    low.setBounds(32, 606, 116, 26);
-    high.setBounds(154, 606, 116, 26);
-    quality.setBounds(94, 644, 172, 28);
-    generate.setBounds(36, 685, 230, 36);
-    evolve.setBounds(36, 685 + 42, 230, 36);
-    lockRhythm.setBounds(x + 240, 456, 120, 30);
+    for (int i = 0; i < 8; ++i)
+        knobs[i].setBounds(36 + (i % 3) * 79, 396 + (i / 3) * 76, 72, 60);
+    low.setBounds(32, 649, 116, 24);
+    high.setBounds(154, 649, 116, 24);
+    quality.setBounds(94, 681, 172, 28);
+    generate.setBounds(36, 720, 230, 34);
+    evolve.setBounds(36, 762, 230, 34);
+    searchDetails.setBounds(36, 804, 230, 24);
+    lockRhythm.setBounds(x + 106, 498, 118, 26);
+    editNotes.setBounds(x + 370, 456, 112, 30);
     phraseTitle.setBounds(x, 96, 320, 32);
     phraseInfo.setBounds(x + 330, 100, mw - 330, 26);
     applyDraft.setBounds(w - 240, 98, 132, 28);
@@ -1280,15 +1598,17 @@ void Editor::resized() {
     quantiseSwitch.setBounds(x + 268, 134, 136, 30);
     playbackInfo.setBounds(x + 414, 135, mw - 414, 28);
     roll.setBounds(x, 174, mw, 270);
-    import.setBounds(x, 456, 100, 30);
-    snap.setBounds(x + 110, 456, 120, 30);
+    play.setBounds(x, 456, 84, 30);
+    withChords.setBounds(x + 94, 456, 126, 30);
+    snap.setBounds(x + 230, 456, 130, 30);
+    import.setBounds(x, 498, 96, 26);
     exportFile.setBounds(w - 250, 456, 92, 30);
     drag.setBounds(w - 150, 456, 130, 30);
-    swing.setBounds(x + 45, 498, 164, 24);
-    gate.setBounds(x + 268, 498, 164, 24);
-    tempoInfo.setBounds(x + 460, 498, mw - 460, 24);
-    const int tabWidth = (mw - 4 * 6) / 5;
-    for (int i = 0; i < 5; ++i)
+    swing.setBounds(x + 278, 498, 134, 24);
+    gate.setBounds(x + 464, 498, 130, 24);
+    tempoInfo.setBounds(x + 616, 498, mw - 616, 24);
+    const int tabWidth = (mw - 6 * 6) / 7;
+    for (int i = 0; i < 7; ++i)
         workflowTabs[i].setBounds(x + i * (tabWidth + 6), 538, tabWidth, 28);
     workflowInfo.setBounds(x + 12, 573, mw - 24, 24);
     regionInfo.setBounds(x + 12, 602, mw - 320, 28);
@@ -1302,6 +1622,7 @@ void Editor::resized() {
     applyHarmony.setBounds(x + 12, 638, 118, 28);
     clearHarmony.setBounds(x + 138, 638, 66, 28);
     importHarmony.setBounds(x + 212, 638, 188, 28);
+    chordComposer.setBounds(x + 412, 638, mw - 424, 28);
     importGroove.setBounds(x + 12, 602, 174, 28);
     captureGroove.setBounds(x + 194, 602, 124, 28);
     grooveTiming.setBounds(x + 60, 638, 174, 26);
@@ -1313,17 +1634,29 @@ void Editor::resized() {
     pitchSource.setBounds(x + 24 + sourceWidth, 612, sourceWidth, 26);
     accentSource.setBounds(x + 36 + 2 * sourceWidth, 612, sourceWidth, 26);
     combine.setBounds(x + 12, 642, 186, 26);
+    microEnabled.setBounds(x + 12, 602, 92, 28);
+    tuning.setBounds(x + 114, 602, 286, 28);
+    microOutput.setBounds(x + 410, 602, 202, 28);
+    bendRange.setBounds(x + 666, 603, mw - 678, 26);
+    microInfo.setBounds(x + 12, 636, mw - 24, 31);
+    customSearch.setBounds(x + 12, 602, 136, 28);
+    searchPopulation.setBounds(x + 234, 603, 136, 26);
+    searchGenerations.setBounds(x + 462, 603, 140, 26);
+    crossover.setBounds(x + 686, 603, mw - 698, 26);
+    searchInfo.setBounds(x + 12, 635, mw - 24, 34);
     const int gap = 8, cardW = (mw - 5 * gap) / 6, cardH = (h - 64 - 712 - 20) / 2;
     for (int i = 0; i < 12; ++i)
         variants[i]->setBounds(x + (i % 6) * (cardW + gap), 712 + (i / 6) * (cardH + 8), cardW, cardH);
-    play.setBounds(20, h - 54, 70, 30);
-    follow.setBounds(102, h - 54, 120, 30);
-    monitor.setBounds(235, h - 54, 145, 30);
-    tempo.setBounds(446, h - 53, 92, 26);
-    volume.setBounds(592, h - 53, 108, 26);
-    panic.setBounds(720, h - 54, 80, 30);
+    auditionSound.setBounds(256, h - 54, 122, 30);
+    monitor.setBounds(386, h - 54, 134, 30);
+    follow.setBounds(526, h - 54, 116, 30);
+    tempo.setBounds(688, h - 53, 80, 26);
+    volume.setBounds(820, h - 53, 94, 26);
+    panic.setBounds(w - 250, h - 54, 80, 30);
     motion.setBounds(w - 116, h - 54, 96, 30);
     status.setBounds(20, h - 22, w - 40, 19);
+    if (chordPanel)
+        chordPanel->setBounds(20, 84, w - 40, h - 154);
     if (guide)
         guide->setBounds(0, 0, w, h);
     for (auto* child : getChildren())
@@ -1337,7 +1670,9 @@ void Editor::report(const juce::Result& result) {
     refresh();
 }
 void Editor::showWorkflowPage(int page) {
-    workflowPage = juce::jlimit(0, 4, page);
+    if (chordPage)
+        showMelodyComposer();
+    workflowPage = juce::jlimit(0, 6, page);
     refresh();
     updateWorkflow();
     repaint();
@@ -1355,40 +1690,137 @@ void Editor::showGuide() {
     guide->toFront(true);
     resized();
 }
+void Editor::showChordComposer() {
+    chordPage = true;
+    if (!chordPanel) {
+        chordPanel = std::make_unique<ChordComposerPanel>(processor);
+        chordPanel->onShowHelp = [this] {
+            showGuide();
+            guide->showChapter(11);
+        };
+        chordPanel->onShowMelody = [this] { showMelodyComposer(); };
+        addChildComponent(*chordPanel);
+    }
+    chordPanel->refreshDisplay();
+    updateMainPage();
+    resized();
+    repaint();
+}
+void Editor::showMelodyComposer() {
+    chordPage = false;
+    updateMainPage();
+    resized();
+    repaint();
+}
+void Editor::updateMainPage() {
+    for (auto* child : getChildren()) {
+        const bool global = child == &melodyTab || child == &chordsTab || child == &activity ||
+                            child == &preset || child == &undo || child == &redo || child == &load ||
+                            child == &save || child == &help || child == &auditionSound ||
+                            child == &monitor || child == &follow || child == &tempo || child == &volume ||
+                            child == &panic || child == &motion || child == &status;
+        if (child == chordPanel.get() || child == guide.get() ||
+            dynamic_cast<juce::ResizableCornerComponent*>(child) != nullptr ||
+            dynamic_cast<juce::ResizableBorderComponent*>(child) != nullptr)
+            continue;
+        child->setVisible(global || !chordPage);
+    }
+    if (chordPanel)
+        chordPanel->setVisible(chordPage);
+    melodyTab.setColour(juce::TextButton::buttonColourId, chordPage ? palette::surface : palette::teal);
+    melodyTab.setColour(juce::TextButton::textColourOffId, chordPage ? palette::muted : palette::background);
+    chordsTab.setColour(juce::TextButton::buttonColourId, chordPage ? palette::teal : palette::surface);
+    chordsTab.setColour(juce::TextButton::textColourOffId, chordPage ? palette::background : palette::muted);
+    if (!chordPage) {
+        updateWorkflow();
+        refresh();
+    }
+}
 void Editor::updateWorkflow() {
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 7; ++i) {
         workflowTabs[i].setColour(juce::TextButton::buttonColourId, i == workflowPage ? teal : surface);
         workflowTabs[i].setColour(juce::TextButton::textColourOffId, i == workflowPage ? background : muted);
     }
     for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &allTime, &exportRange,
                                                                    &simplify, &movement, &answer, &resolve})
-        component->setVisible(workflowPage == 0);
-    for (auto* component :
-         std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony, &importHarmony})
-        component->setVisible(workflowPage == 1);
+        component->setVisible(!chordPage && workflowPage == 0);
+    for (auto* component : std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony,
+                                                                   &importHarmony, &chordComposer})
+        component->setVisible(!chordPage && workflowPage == 1);
     for (auto* component : std::initializer_list<juce::Component*>{
              &importGroove, &captureGroove, &grooveTiming, &grooveVelocity, &applyGroove})
-        component->setVisible(workflowPage == 2);
-    arrange.setVisible(workflowPage == 3);
+        component->setVisible(!chordPage && workflowPage == 2);
+    arrange.setVisible(!chordPage && workflowPage == 3);
     for (auto* component :
          std::initializer_list<juce::Component*>{&rhythmSource, &pitchSource, &accentSource, &combine})
-        component->setVisible(workflowPage == 4);
+        component->setVisible(!chordPage && workflowPage == 4);
+    for (auto* component : std::initializer_list<juce::Component*>{&microEnabled, &tuning, &microOutput,
+                                                                   &bendRange, &microInfo})
+        component->setVisible(!chordPage && workflowPage == 5);
+    for (auto* component : std::initializer_list<juce::Component*>{
+             &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo})
+        component->setVisible(!chordPage && workflowPage == 6);
     const char* descriptions[]{
         "Drag the bar ruler to select a region. Locked notes and other regions stay intact.",
-        "Chord:beats, e.g. Cm:4 Fm:2 G7:2. Quarter-note beats; shorter progressions repeat.",
+        "Enter chord:beats, e.g. Cm:4 Fm:2 G7:2, or open Chord composer to generate and export voiced "
+        "chords.",
         "Import a reference or capture a variation, then apply its timing and accents.",
         "Turn the selected motif into four sections. Audition the preview before keeping it.",
-        "Choose the sources below. Notes are matched by relative phrase position."};
-    workflowInfo.setText(descriptions[workflowPage], juce::dontSendNotification);
+        "Choose the sources below. Notes are matched by relative phrase position.",
+        "",
+        "Real genetic search: tournament selection, two elites, crossover and mutation. No artificial "
+        "delay."};
+    workflowInfo.setText(workflowPage == 5 ? microDescription() : juce::String(descriptions[workflowPage]),
+                         juce::dontSendNotification);
+}
+juce::String Editor::microDescription() const {
+    const bool enabled = processor.parameters.getRawParameterValue("microEnabled")->load() > 0.5f;
+    return enabled ? "Micro is on: the search chooses and resolves short passing notes. Select their colour "
+                     "and MIDI output."
+                   : "Micro is off: plain 12-tone melody. Enable it to let the search explore short "
+                     "microtonal passing notes.";
 }
 void Editor::refresh() {
+    const auto meterNow = processor.timeSignature();
+    const auto meterText = juce::String(meterNow.numerator) + "/" + juce::String(meterNow.denominator);
+    if (!meter.hasKeyboardFocus(true) && meter.getText() != meterText)
+        meter.setText(meterText, juce::dontSendNotification);
+    const bool custom = customSearch.getToggleState();
+    quality.setEnabled(!custom);
+    searchPopulation.setEnabled(custom);
+    searchGenerations.setEnabled(custom);
+    const auto budget = processor.configuredSearchBudget();
+    searchDetails.setButtonText(juce::String(budget.population) + " individuals / " +
+                                juce::String(budget.generations) + " generations...");
+    if (workflowPage == 6)
+        searchInfo.setText(processor.searchDescription(), juce::dontSendNotification);
+    harmony.setSelectedId(processor.customHarmonyText().isNotEmpty() ? 1000
+                                                                     : processor.progressionIndex() + 1,
+                          juce::dontSendNotification);
     const auto version = processor.documentRevision();
     const auto slot = processor.selectedIndex();
     const bool draft = processor.hasDraft();
-    if (version != shownRevision || slot != shownSlot) {
+    const int tuningNow = processor.tuningIndex(), output = processor.microtonalOutput();
+    const int bend = int(processor.parameters.getRawParameterValue("bendRange")->load());
+    const bool microtonal = processor.parameters.getRawParameterValue("microEnabled")->load() > 0.5f;
+    const int rawTuning = std::max(1, int(processor.parameters.getRawParameterValue("tuning")->load()));
+    tuning.setSelectedId(rawTuning, juce::dontSendNotification);
+    const bool tuningChanged = tuningNow != shownTuning || output != shownOutput || bend != shownBend;
+    if (tuningChanged) {
+        if (workflowPage == 5)
+            workflowInfo.setText(microDescription(), juce::dontSendNotification);
+        scale.setEnabled(true);
+        scale.setTooltip("The main scale guides generation. Micro adds passing-note colours without "
+                         "replacing this scale.");
+        roll.setMicrotonal(microtonal);
+        shownTuning = tuningNow;
+        shownOutput = output;
+        shownBend = bend;
+    }
+    if (version != shownRevision || slot != shownSlot || tuningChanged) {
         auto bank = processor.bankSnapshot();
         for (int i = 0; i < 12; ++i)
-            variants[i]->setClip(bank[i], i == slot);
+            variants[i]->setClip(bank[i], i == slot, microtonal);
         const auto c = processor.displayedClip();
         roll.setClip(c, slot != shownSlot);
         roll.setReference(processor.comparisonClip(), processor.hasComparison());
@@ -1401,12 +1833,15 @@ void Editor::refresh() {
         phraseTitle.setTooltip(draft ? processor.draftDescription() : juce::String());
         phraseTitle.setColour(juce::Label::textColourId, draft ? gold : text);
         phraseTitle.setFont(font(draft ? 17 : 20, true));
-        int locked = 0;
-        for (int i = 0; i < c.count; ++i)
+        int locked = 0, microtonalNotes = 0;
+        for (int i = 0; i < c.count; ++i) {
             locked += c.notes[i].locked;
+            microtonalNotes += c.notes[i].cents != 0;
+        }
         phraseInfo.setText(juce::String(c.count) + " notes   /   " +
                                juce::String(c.length / (c.numerator * 4.0 / c.denominator), 1) +
-                               " bars   /   " + juce::String(locked) + " locked",
+                               " bars   /   " + juce::String(locked) + " locked" +
+                               (microtonal ? "   /   " + juce::String(microtonalNotes) + " microtonal" : ""),
                            juce::dontSendNotification);
         regionInfo.setText("Beats " + juce::String(roll.regionStart(), 2) + " - " +
                                juce::String(roll.regionEnd(), 2),
@@ -1416,23 +1851,31 @@ void Editor::refresh() {
             chordText.setText(currentHarmony, false);
             shownHarmony = currentHarmony;
         }
-        const bool customHarmony = processor.harmonySnapshot().count > 0;
-        harmony.setEnabled(!customHarmony);
-        snap.setEnabled(!customHarmony);
-        snap.setTooltip(customHarmony ? "Bypassed while custom harmony is active. Clear the custom timeline "
-                                        "to restore scale snapping."
-                                      : "Snap outgoing notes to the selected scale.");
+        snap.setEnabled(true);
+        snap.setTooltip("Fit melody pitches to the selected scale during playback and export, keeping "
+                        "microtonal offsets. This can change borrowed chord tones. Turn off to hear "
+                        "the generator's original pitches.");
         shownRevision = version;
         shownSlot = slot;
         repaint();
     }
+    const bool hasChords = processor.chordClipSnapshot().count > 0;
+    withChords.setEnabled(hasChords);
+    withChords.setTooltip(
+        hasChords ? "Play melody and chords together through separate internal sound layers. External MIDI "
+                    "still carries only the melody; export chord MIDI from Chords."
+                  : "Create chords in the Chords tab first, then enable this to hear both parts together.");
     roll.setEditable(!draft);
-    applyDraft.setVisible(draft);
-    discardDraft.setVisible(draft);
-    phraseInfo.setVisible(!draft);
+    applyDraft.setVisible(draft && !chordPage);
+    discardDraft.setVisible(draft && !chordPage);
+    phraseInfo.setVisible(!draft && !chordPage);
     for (auto* action : {&simplify, &movement, &answer, &resolve})
         action->setEnabled(!draft && !processor.isGenerating());
     applyGroove.setEnabled(!draft && processor.hasGrooveReference() && !processor.isGenerating());
+    microOutput.setEnabled(microtonal);
+    tuning.setEnabled(microtonal);
+    bendRange.setEnabled(output == 1);
+
     compare.setEnabled(processor.hasComparison());
     clearA.setEnabled(processor.hasComparison());
     compare.setButtonText(processor.isComparing() ? "Hear B" : "Hear A");
@@ -1468,12 +1911,13 @@ void Editor::advanceVisuals() {
     double beat = reported;
     if (running && animate && reported >= 0)
         beat += std::min(0.04, now - beatReceivedAt) * processor.tempo() / 60.0;
-    const bool showingAudible =
-        running && !processor.audibleComparison() && processor.audibleIndex() == processor.selectedIndex();
+    const bool showingAudible = running && !processor.audibleChords() && !processor.audibleComparison() &&
+                                processor.audibleIndex() == processor.selectedIndex();
     if (showingAudible)
         beat = std::fmod(std::max(0.0, beat), processor.displayedClip().length);
     roll.setPlayhead(showingAudible ? beat : -1);
-    roll.setActivity(state, showingAudible, animate, elapsed);
+    roll.setActivity(processor.audibleChords() ? GeneticVSTComposerJUCEAudioProcessor::VisualState{} : state,
+                     showingAudible, animate, elapsed);
     activity.update(state.outputPeak, midiEnergy, state.noteOnSerial, running, searching,
                     processor.generationProgress(), reported, animate);
     for (auto& variant : variants)
@@ -1532,21 +1976,24 @@ void Editor::refreshDisplay() {
     refresh();
     status.setText(processor.statusText(), juce::dontSendNotification);
     const bool busy = processor.isGenerating();
-    generate.setButtonText(busy ? "Cancel search" : "Generate bank");
+    generate.setButtonText(busy ? "Cancel search  " +
+                                      juce::String(int(processor.generationProgress() * 100)) + "%"
+                                : "Generate bank");
     evolve.setEnabled(!busy && !processor.hasDraft());
     generate.setEnabled(busy || !processor.hasDraft());
-    play.setButtonText(processor.previewRequested() ? "Stop" : "Play");
-    play.setEnabled(!follow.getToggleState());
+    play.setPlaying(processor.previewRequested() && !processor.isAuditioningChords());
     tempoInfo.setText(juce::String(processor.tempo(), 1) + " BPM  /  " +
                           (processor.isPlaying() ? "PLAYING" : "READY"),
                       juce::dontSendNotification);
-    const int audible = processor.audibleIndex(), queued = processor.queuedIndex();
+    const bool hearingChords = processor.audibleChords();
+    const int audible = processor.audibleIndex(), queued = hearingChords ? -1 : processor.queuedIndex();
     const bool hearingA = processor.audibleComparison();
-    const bool pendingCompare = processor.isComparing() != hearingA;
+    const bool pendingCompare = !hearingChords && processor.isComparing() != hearingA;
     juce::String audibleText =
         hearingA ? "A reference"
                  : (processor.hasDraft() ? "Preview" : "B / " + juce::String(audible + 1).paddedLeft('0', 2));
-    juce::String playback = processor.isPlaying() ? "Hearing " + audibleText : "Ready";
+    juce::String playback =
+        processor.isPlaying() ? (hearingChords ? "Hearing chords" : "Hearing " + audibleText) : "Ready";
     if (processor.isPlaying() && (queued >= 0 || pendingCompare))
         playback +=
             "  >  " + juce::String(processor.isComparing() ? "A" : "B") +
@@ -1556,12 +2003,13 @@ void Editor::refreshDisplay() {
     playbackInfo.setText(playback, juce::dontSendNotification);
     playbackInfo.setColour(juce::Label::textColourId, queued >= 0 || pendingCompare ? gold : muted);
     for (int i = 0; i < 12; ++i)
-        variants[i]->setPlaybackState(
-            processor.isPlaying() && !hearingA && !processor.hasDraft() && i == audible, i == queued);
+        variants[i]->setPlaybackState(processor.isPlaying() && !hearingChords && !hearingA &&
+                                          !processor.hasDraft() && i == audible,
+                                      i == queued);
     advanceVisuals();
     if (busy || busy != shownBusy) {
         const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
-        repaint(juce::Rectangle<float>(32, 674, 238, 12)
+        repaint(juce::Rectangle<float>(32, 709, 238, 12)
                     .transformedBy(juce::AffineTransform::scale(zoom))
                     .toNearestInt());
     }
@@ -1585,8 +2033,10 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
         return true;
     }
     if (k.getKeyCode() == juce::KeyPress::spaceKey) {
-        if (!follow.getToggleState())
-            processor.setPreview(!processor.previewRequested());
+        if (processor.previewRequested())
+            processor.setPreview(false);
+        else
+            processor.startAudition();
         return true;
     }
     if (k.getModifiers().isCommandDown() &&
@@ -1662,7 +2112,7 @@ void Editor::chooseFile(int action) {
         safe->refresh();
     });
 }
-void Editor::startMidiDrag() {
+void Editor::startMidiDrag(juce::Component* source) {
     auto file = juce::File::getSpecialLocation(juce::File::tempDirectory)
                     .getNonexistentChildFile(
                         "Genetic-Variation-" + juce::String(processor.selectedIndex() + 1), ".mid", false);
@@ -1672,6 +2122,7 @@ void Editor::startMidiDrag() {
         return;
     }
     dragFiles.push_back(file);
-    if (!juce::DragAndDropContainer::performExternalDragDropOfFiles({file.getFullPathName()}, false, &drag))
+    if (!juce::DragAndDropContainer::performExternalDragDropOfFiles({file.getFullPathName()}, false,
+                                                                    source ? source : &drag))
         processor.setStatus("Drag could not start. Use Export to save this MIDI file.");
 }
