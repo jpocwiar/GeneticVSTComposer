@@ -1,8 +1,10 @@
-# Genetic Composer 2.5
+# Genetic Composer 2.6
 
 A JUCE instrument for composing and evolving MIDI phrases. Generate twelve alternatives, keep an idea, develop it and take the melody and chords into your track.
 
-Version **2.5.0** puts **Melody** and **Chords** on two main tabs inside one interface. Both piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
+Version **2.6.0** restores rhythmic insertion, rests, onset shifts and fragment copying inside the GA; exposes **Density**; and separates chord-only, melody-over-chords and combined generation. See the [reference comparison and reproducible measurements](docs/REFERENCE_AUDIT_2.6.md).
+
+The interface puts **Melody** and **Chords** on two main tabs inside one interface. Both piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
 
 Choose **Riff**, **Motif** or **Melody**, shape the search with the original musical control names, and optionally enable **Micro** for genetically chosen microtonal passing notes. **Fit to scale** is an independent live switch, off by default. Chord originality, inversions, A/B comparison, local edits, groove references, arrangements and the actual search budget remain available. Existing parameter IDs and the original meter/progression automation ranges are retained.
 
@@ -15,7 +17,7 @@ The **? Help** button opens the built-in Polish/English guide ([guide preview](i
 ## Make a phrase
 
 1. Load **Genetic Composer** as an instrument. The included sound lets you audition immediately.
-2. On **Melody**, choose Root, Scale, phrase length, meter and **Phrase type: Riff / Motif / Melody**. **Generate bank** searches for twelve alternatives in the background; **Cancel search** keeps your previous bank.
+2. On **Melody**, choose Root, Scale, phrase length, meter and **Phrase type: Riff / Motif / Melody**. **Generate melody bank** searches for twelve alternatives in the background; **Cancel search** keeps your previous bank.
 3. Select a variation and press the triangular **Play** below the piano roll, or double-click its card or piano roll. Play enables the internal sound and turns Follow DAW off; choose **Soft keys**, **Sine** or **Warm organ** in the bottom toolbar. The square **Stop** ends preview. Turn on **Follow DAW** to follow the host's transport and song position instead.
 4. Click **+** on a card to pin it. Pinned variations survive new generations.
 5. **Evolve selected** uses the selected phrase as a parent. **Evolution** controls the amount of mutation; **Keep rhythm** preserves all starts and durations.
@@ -23,19 +25,19 @@ The **? Help** button opens the built-in Polish/English guide ([guide preview](i
 
 ## Compose harmony and export its chords
 
-Select the main **Chords** tab. The existing **Chord composer...** shortcuts in Harmony also switch to this page. Its chord cards, piano roll, playback and MIDI export stay inside the plugin. Switching between Melody and Chords preserves playback.
+Select the main **Chords** tab. The existing **Chord composer...** shortcuts in Chord text also switch to this page. Its chord cards, piano roll, playback and MIDI export stay inside the plugin. Switching between Melody and Chords preserves playback.
 
 ![Chords tab with voiced chords and MIDI export](images/ui-chords.png)
 
-1. Set **Root**, **Scale**, **Length** and **Meter** on **Melody**; **Chords** displays this context. **Melody settings** takes you back to those controls.
+1. Set the shared **Root / Scale** on either page and **Meter** on Melody. Chords has its own **Length**, defaulting to four bars; **Follow melody** explicitly links the lengths.
 2. Set **Originality**: low values use familiar functional progressions; higher values progressively introduce diatonic substitutions, seventh chords, modal borrowing, secondary dominants and chromatic approaches that lead to the next chord. **Harmonic rhythm** selects one change per two bars, per bar or per half-bar. **Resolve to tonic** closes the phrase on its tonic.
-3. Press **Generate chords**. The progression immediately becomes the active custom harmony. **Generate melody** starts the genetic search over it and returns to Melody to show progress and results; **Generate bank** and **Evolve selected** use it too. Generating chords alone preserves the melody bank and the main Root setting.
+3. **New chords only** replaces harmony and keeps melodies. **Melody from these chords** keeps harmony and generates melodies spanning its entire length. **New chords + melody** creates both. The latter two return to Melody and enable With chords; pinned variations stay intact. **Generate melody bank** on Melody uses active harmony with the length set on Melody; **Evolve selected** develops the selected clip.
 4. Choose **Smooth inversions**, **Root position** or **Open voicings**, adjust the preferred register, then press **Revoice**. This changes the chord notes' registers and inversions while keeping the chord sequence, timing and melody notes. A slash name such as `Cm/Eb` shows the actual bass note.
 5. Press **Play** below the chord piano roll to hear the chords alone, or **Play together** to hear the selected melody with them. The same combined preview is available with **With chords + Play** on Melody. Drag the chord roll or **Drag chord MIDI** to a separate instrument track; **Export...** saves those exact voices. Drag the melody from Melody and align the two MIDI parts at the same song position.
 
 The chord MIDI contains the displayed voices and their full chord durations, without the melody's Swing, Gate or Fit to scale transformations. It is conventional **12-TET on MIDI channel 1**, with no tuning bends or MPE configuration, even when the melody uses Micro or MPE. The chord preview uses its own internal 12-TET sound layer, so the melody's pitch bend or MPE cannot detune it. Combined accompaniment is **internal audio only**: outgoing melody MIDI does not gain the chord notes. Export chord MIDI separately to drive another instrument. Typed custom chords and imported harmony can be voiced and exported from this page too.
 
-**Originality**, rhythm and resolution affect the next **Generate chords**; voicing and register apply on **Revoice** or a new chord generation. Chord generation uses a seeded harmonic grammar with weighted choices. It is separate from the melody's genetic optimisation, which still runs the selected populations, generations, crossover and mutation. Inversions are chosen across the entire progression to minimise voice movement.
+**Originality**, rhythm and resolution affect the next **New chords only** or **New chords + melody**; voicing and register apply on **Revoice** or a new chord generation. Chord generation uses a seeded harmonic grammar with weighted choices. It is separate from the melody's genetic optimisation, which still runs the selected populations, generations, crossover and mutation. Inversions are chosen across the entire progression to minimise voice movement.
 
 Harmony is limited to 64 chord events and 128 quarter-note beats. At very dense harmonic rhythms, neighbouring steps are grouped to fit 64 events while retaining the full phrase. Pentatonic scales use their parent major/minor chord vocabulary; the chromatic scale uses major, and Saba uses minor for conventional chord output.
 
@@ -129,7 +131,7 @@ The colour selector supplies quarter-tone inflections, Rast, Bayati, Saba, neutr
 
 The [genetic architecture and interval-cost tables](docs/GA_ARCHITECTURE.md) explain how actual cents, short resolutions, repetition and the loop boundary contribute to fitness, and how the three phrase types draw from the reference project.
 
-Use **Generate bank** or **Evolve selected** to explore these colours. Violet notes sit between piano-roll rows: `E4-50` is E4 lowered by 50 cents. **Play** previews the exact pitches. **Fit to scale** can quantise their base pitches while preserving those offsets. The chords remain in 12-TET on their independent internal sound layer, including during **With chords** or **Play together** preview.
+Use **Generate melody bank** or **Evolve selected** to explore these colours. Violet notes sit between piano-roll rows: `E4-50` is E4 lowered by 50 cents. **Play** previews the exact pitches. **Fit to scale** can quantise their base pitches while preserving those offsets. The chords remain in 12-TET on their independent internal sound layer, including during **With chords** or **Play together** preview.
 
 ![Micro switch, colour and MIDI settings](images/ui-microtonal.png)
 

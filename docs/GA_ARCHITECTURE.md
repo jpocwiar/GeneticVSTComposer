@@ -1,6 +1,6 @@
 # Architektura generowania melodii
 
-Ten dokument opisuje bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
+Ten dokument opisuje wersję 2.6 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
 
 ## Inspiracja i różnice wobec pierwotnego projektu
 
@@ -21,7 +21,7 @@ Rzeczywista wysokość używana do oceny interwałów wynosi `100 × pitch + cen
 
 Preset Quick to 64 osobniki i 40 pokoleń, Balanced 128 i 100, Deep 256 i 300. Własny budżet pozwala ustawić 16–512 osobników oraz 1–2000 pokoleń. W każdym pokoleniu oceniana jest cała populacja. Selekcja jest turniejowa, dwa najlepsze osobniki przechodzą bez zmian, a potomstwo powstaje przez krzyżowanie i mutację. Domyślna szansa krzyżowania wynosi 90%. Zatrzymanie przez Cancel przerywa wyszukiwanie i nie zwraca częściowego banku.
 
-Krzyżowanie wymienia fragmenty całych zdarzeń, więc dziedziczone są także centy. Przy blokadach, Keep rhythm lub Melody on rhythm zachowane są czasy, a wymieniane wysokości, centy i velocity odblokowanych nut. Mutacja może zmieniać klawisz i gen mikrotonowy; przy dozwolonej zmianie rytmu także długość lub podział nuty. Naprawa ograniczeń następuje przed oceną potomka.
+Krzyżowanie wymienia fragmenty całych zdarzeń, więc dziedziczone są także centy. Przy blokadach, Keep rhythm lub Melody on rhythm zachowane są czasy, a wymieniane wysokości, centy i velocity odblokowanych nut. Mutacja może zmieniać klawisz i gen mikrotonowy; przy dozwolonej zmianie rytmu także długość lub podział nuty, wstawienie nowego początku, usunięcie nuty do pauzy, przesunięcie początku o krok siatki, połączenie sąsiednich nut i kopiowanie krótkiego fragmentu razem z przerwami. Naprawa ograniczeń następuje przed oceną potomka.
 
 Końcowy wybór preferuje różne osobniki z ocenionej populacji. Jeśli zabraknie dostatecznie różnych wyników, pozostałe sloty otrzymują ocenione osobniki. Silnik nie tworzy wtedy nieocenionych mutacji i nie losuje nowych centów po zakończeniu GA. `SearchStats::microtonalEvaluations` liczy oceny osobników zawierających faktyczne niezerowe offsety; nie jest liczbą nut ani obietnicą, że każda wynikowa fraza będzie mikrotonowa.
 
@@ -53,6 +53,14 @@ Melodia rozwija całą frazę bez przymusowego powielania jednej komórki. Inicj
 ### Ewolucja rodzica i ograniczenia
 
 Evolve dla Riff/Motif może przebudowywać kopie komórki, jeśli rodzic nie ma zablokowanych nut, Keep rhythm jest wyłączone, operacja nie jest Melody on rhythm, a Evolution jest większe od zera. Rodzic musi też zawierać materiał w pierwszej komórce. W pozostałych przypadkach pierwszeństwo mają blokady i rytm źródła; typ frazy nadal wpływa na ocenę, ale nie przepisuje chronionych czasów.
+
+## Gęstość i swoboda harmoniczna w 2.6
+
+Cel długości nuty to `max(grid, 0.25 × 2^(1.65 − 1.5 × activity))`, gdzie `activity = clamp(Density + 0.65 × (Arousal − 0.5), 0, 1)`. Cel liczby nut wynosi `length × (1 − Pause amount) / targetDuration`. Fitness karze względną odległość od tego celu z wagą 3.5. Gęstość nie jest dopisywaniem nut po optymalizacji: wpływa na inicjalizację i ocenę kolejnych pokoleń.
+
+Przy dodatnim Jazziness słabe części taktu dopuszczają nuty skali poza akordem. Docelowy udział nut akordowych to `(0.8 dla Riff / 0.75 dla Motif / 0.6 dla Melody) − 0.25 × Jazziness`; przy Jazziness = 0 cel wynosi 1. Mocne części taktu dodatkowo premiują stabilne nuty. Poprawne mikrotonowe przejścia nadal otrzymują częściowy kredyt 0.75. Różnorodność wysokości ma cel zależny od Diversity; nadmiar kolejnych identycznych wysokości jest karany. Małe niezerowe kroki nadal są preferowane.
+
+[Audyt pierwowzoru i pomiary przed/po](REFERENCE_AUDIT_2.6.md) wyjaśniają regresje, poprawki i pozostałe różnice względem Pythona.
 
 ## Koszt interwałów w centach
 
@@ -140,7 +148,7 @@ Narzędzia edycji regionu nie dodają losowych offsetów. Zmieniona wysokość s
 
 ## Znaczenie przywróconych kontrolek
 
-Wartości w poniższych wzorach mają zakres 0–1. Historyczne Density i Syncopation nadal istnieją dla zgodności parametrów, ale nie udają nowych kontrolek.
+Wartości w poniższych wzorach mają zakres 0–1. Density jest ponownie widoczną kontrolką aktywności; historyczny Syncopation pozostaje dla zgodności parametrów.
 
 - **Diversity** wspiera więcej różnych wysokości i nieco większy zakres propozycji mutacji. Umiarkowanie zmniejsza wagę kosztu interwałów; nie wyłącza powtarzalnej architektury riffu.
 - **Jazziness** (`tension`) reguluje ścisłość dopasowania do skali i akordu oraz dopuszczanie ruchu chromatycznego. Własne akordy mogą zawierać dźwięki poza główną skalą.

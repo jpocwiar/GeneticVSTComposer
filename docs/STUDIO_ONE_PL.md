@@ -1,15 +1,15 @@
-# Genetic Composer 2.5 w Studio One
+# Genetic Composer 2.6 w Studio One
 
 ## Instalacja na tym Macu
 
-1. Rozpakuj `dist/GeneticComposer-2.5.0-macOS-arm64.zip`.
+1. Rozpakuj `dist/GeneticComposer-2.6.0-macOS-arm64.zip`.
 2. W Finderze wybierz **Idź → Idź do folderu** i wpisz `~/Library/Audio/Plug-Ins/VST3/`. Jeśli folder nie istnieje, utwórz go.
 3. Skopiuj do niego cały pakiet **Genetic Composer.vst3** z folderu VST3 w archiwum.
 4. Uruchom ponownie Studio One lub ponownie przeskanuj wtyczki. Szukaj **Genetic Composer** w instrumentach.
 
 Wtyczka ma odrębny identyfikator względem pierwotnej wersji 1.x i nie zastępuje jej w dawnych projektach. Wersja w paczce jest przeznaczona dla Apple Silicon. Nie jest publicznym, notaryzowanym instalatorem.
 
-Wersja 2.5 zachowuje identyfikator wtyczki oraz istniejące identyfikatory parametrów i odczytuje wcześniejsze banki 2.x. **Melody** i **Chords** są dwiema głównymi kartami wewnątrz jednego interfejsu; przełączenie karty nie otwiera dodatkowego okna i nie zatrzymuje odsłuchu.
+Wersja 2.6 zachowuje identyfikator wtyczki oraz istniejące identyfikatory parametrów i odczytuje wcześniejsze banki 2.x. **Melody** i **Chords** są dwiema głównymi kartami wewnątrz jednego interfejsu; przełączenie karty nie otwiera dodatkowego okna i nie zatrzymuje odsłuchu.
 
 Na Melody dostępne są zakładki **Edit region**, **Harmony**, **Groove**, **Arrange**, **Combine**, **Micro** i **Search**. Chords służy do tworzenia progresji, układania przewrotów i eksportowania akordów. Przycisk **? Help** otwiera instrukcję z rozdziałami po polsku lub angielsku, bez połączenia z internetem.
 
@@ -17,7 +17,7 @@ Na Melody dostępne są zakładki **Edit region**, **Harmony**, **Groove**, **Ar
 
 1. Przeciągnij Genetic Composer na nową ścieżkę instrumentu.
 2. Włącz odsłuch/monitorowanie ścieżki. **Internal sound** daje prosty dźwięk do sprawdzenia melodii.
-3. Na **Melody** wybierz Root, Scale, Length, Meter i **Phrase type: Riff / Motif / Melody**, a potem **Generate bank**. Kliknij wariant i trójkąt **Play pod piano rollem**; dwuklik karty również uruchamia odsłuch. Kwadrat **Stop** go zatrzymuje.
+3. Na **Melody** wybierz Root, Scale, Length, Meter i **Phrase type: Riff / Motif / Melody**, a potem **Generate melody bank**. Kliknij wariant i trójkąt **Play pod piano rollem**; dwuklik karty również uruchamia odsłuch. Kwadrat **Stop** go zatrzymuje.
 4. Znak **+** przypina udany wariant i chroni go przed zastąpieniem.
 5. Zaznacz wybrany motyw i użyj **Evolve selected**. Gałka **Evolution** reguluje stopień zmian, a **Keep rhythm** zachowuje rytm.
 6. Shift-klik na nucie blokuje ją. Możesz zostawić początek melodii i zmieniać pozostałe nuty. Zablokowane nuty mają bursztynowy kolor.
@@ -81,16 +81,16 @@ Własna harmonia ma pierwszeństwo przed gotową progresją. **Fit to scale** po
 
 ## Kreatywne progresje i osobne MIDI akordów
 
-Wybierz główną kartę **Chords**. Skróty **Chord composer...** w Harmony również przełączają na tę kartę. Piano roll akordów, ich nazwy, odsłuch i eksport znajdują się wewnątrz tego samego interfejsu.
+Wybierz główną kartę **Chords**. Skróty **Chord composer...** w Chord text również przełączają na tę kartę. Piano roll akordów, ich nazwy, odsłuch i eksport znajdują się wewnątrz tego samego interfejsu.
 
-1. Na **Melody** ustaw **Root**, **Scale**, **Length** i **Meter**. Generator akordów korzysta z tej samej tonacji, długości i metrum, a Chords pokazuje ich podsumowanie. **Melody settings** wraca do tych ustawień.
+1. **Root / Scale** ustaw na dowolnej karcie; są wspólne. **Meter** ustaw na Melody. Karta Chords ma własne **Length**, domyślnie 4 takty. **Follow melody** jawnie wiąże długość z Melody. Zmiana ustawień nie przepisuje istniejących nut.
 2. Ustaw **Originality**. Niska wartość wybiera typowe progresje funkcyjne. Wyższe wartości stopniowo dodają zamiany diatoniczne, septymy, akordy pożyczone z równoległych skal, dominanty wtrącone i chromatyczne podejścia prowadzące do następnego akordu. To poziom swobody harmonicznej, nie liczba pokoleń algorytmu.
 3. **Harmonic rhythm** określa częstotliwość zmian: **Two bars**, **One bar** lub **Half bar**. **Resolve to tonic** kończy progresję na tonice.
-4. Kliknij **Generate chords**. Nowa sekwencja staje się aktywną własną harmonią. Dotychczasowe melodie oraz ustawienie Root pozostają zachowane. **Generate melody** uruchamia wyszukiwanie genetyczne i wraca na Melody, gdzie widać postęp oraz warianty. **Generate bank / Evolve selected** także uwzględnia aktywną harmonię.
+4. **New chords only** zmienia tylko akordy. **Melody from these chords** zachowuje widoczne akordy i generuje melodie na całą długość sekwencji. **New chords + melody** tworzy oba elementy. Dwie ostatnie akcje wracają na Melody i włączają With chords; przypięte warianty pozostają zachowane. **Generate melody bank** na Melody korzysta z aktywnej harmonii, ale długości ustawionej na Melody. **Evolve selected** rozwija wybrany wariant.
 5. Wybierz układ **Smooth inversions**, **Root position** lub **Open voicings**, ustaw preferowany rejestr i kliknij **Revoice**. Pierwszy tryb ogranicza skoki głosów, drugi utrzymuje prymę w basie, trzeci rozsuwa głosy. Revoice zachowuje akordy i ich długości, zmieniając przewroty oraz oktawy. Oznaczenie `Cm/Eb` oznacza akord c-moll z Es jako najniższym dźwiękiem.
 6. Trójkąt **Play pod akordowym piano rollem** odtwarza same akordy. **Play together** odtwarza je razem z wybraną melodią; ten sam odsłuch uzyskasz przez **With chords + Play** na Melody. Przeciągnij **piano roll akordów** albo **Drag chord MIDI** na osobną ścieżkę instrumentu. **Export...** zapisuje dokładnie te nuty. Melodię przeciągnij z Melody i ustaw obie partie od tego samego miejsca utworu.
 
-Originality, rytm zmian i Resolve działają przy następnym **Generate chords**. Samo przesunięcie suwaka nie przepisuje istniejącej progresji. Zmianę rejestru lub sposobu układania głosów zastosujesz przez **Revoice** albo nową generację. Akordy wpisane ręcznie lub odczytane z pliku harmonii również można tutaj przestawić i wyeksportować.
+Originality, rytm zmian i Resolve działają przy następnym **New chords only** lub **New chords + melody**. Samo przesunięcie suwaka nie przepisuje istniejącej progresji. Zmianę rejestru lub sposobu układania głosów zastosujesz przez **Revoice** albo nową generację. Akordy wpisane ręcznie lub odczytane z pliku harmonii również można tutaj przestawić i wyeksportować.
 
 MIDI akordów zawiera dokładnie pokazane przewroty i pełne długości akordów. Nie stosuje Swing, Gate ani Fit to scale melodii. Zawsze używa zwykłego stroju **12-TET na kanale MIDI 1**, bez pitch bend i konfiguracji MPE — także przy włączonych mikrotonach lub MPE dla melodii. Odsłuch akordów używa osobnej wewnętrznej warstwy 12-TET, więc pitch bend/MPE melodii ich nie odstraja. **With chords / Play together dotyczy dźwięku wewnętrznego**: nuty akordów nie są dodawane do wyjścia MIDI melodii. Do instrumentu na innej ścieżce wyeksportuj je osobno.
 
@@ -125,7 +125,7 @@ Na Melody otwórz zakładkę **Micro**. Osobny przełącznik **Micro** domyślni
 
 Paleta oferuje **Quarter-tone inflections**, **Maqam Rast**, **Maqam Bayati**, **Maqam Saba**, **Neutral blues pentatonic** i **Quarter tones (24-EDO)**. Są to źródła możliwych odcieni dźwięków przejściowych; nie zastępują głównej **Scale** ani nie oznaczają automatycznie pełnego wykonania tradycyjnego maqamu. Wybór Scale pozostaje aktywny. Nazwy nut są angielskie: B to polskie H, a Bb to polskie B.
 
-Nie ma suwaka ilości mikrotonów, zbiorczego Apply/Clear ani ręcznych skrótów zmiany centów. Użyj **Generate bank** lub **Evolve selected**, aby algorytm szukał nowych rozwiązań. Nie jest to automatyczne przestrojenie wszystkich wystąpień danej klasy wysokości już po generowaniu.
+Nie ma suwaka ilości mikrotonów, zbiorczego Apply/Clear ani ręcznych skrótów zmiany centów. Użyj **Generate melody bank** lub **Evolve selected**, aby algorytm szukał nowych rozwiązań. Nie jest to automatyczne przestrojenie wszystkich wystąpień danej klasy wysokości już po generowaniu.
 
 W piano rollu nuty mikrotonowe są fioletowe i leżą między wierszami: `E4-50` to E4 obniżone o 50 centów. **Play** gra dokładne wysokości. **Fit to scale** dopasowuje bazową wysokość do wybranej Scale, zachowując mikrotonowe odchylenie. Przy **With chords / Play together** akordy pozostają w 12-TET na osobnej warstwie wewnętrznego dźwięku.
 
@@ -158,7 +158,7 @@ Bank zawiera 12 wariantów, każdy do 512 nut i 128 ćwierćnut. Import obsługu
 
 ## Nowy wygląd i aktywność
 
-W wersji 2.5 panel **MIDI** w dolnym pasku pokazuje wysyłane zdarzenia nutowe, a **OUT** poziom audio wewnętrznego instrumentu. MIDI pozostaje widoczne po wyłączeniu Internal sound. Klawisze piano rollu reagują na wysyłane wysokości; aktywny wariant ma wskaźnik pozycji. Przy odsłuchu A lub oczekiwaniu na inny wariant playhead w edytowanej frazie B jest ukryty, aby nie sugerować, że to właśnie ją słyszysz.
+W wersji 2.6 panel **MIDI** w dolnym pasku pokazuje wysyłane zdarzenia nutowe, a **OUT** poziom audio wewnętrznego instrumentu. MIDI pozostaje widoczne po wyłączeniu Internal sound. Klawisze piano rollu reagują na wysyłane wysokości; aktywny wariant ma wskaźnik pozycji. Przy odsłuchu A lub oczekiwaniu na inny wariant playhead w edytowanej frazie B jest ukryty, aby nie sugerować, że to właśnie ją słyszysz.
 
 **Motion** w dolnym pasku ogranicza animację logo, przewijanie historii MIDI oraz płynne przejścia kontrolek. Wskazania transportu i poziomu pozostają aktywne. Przełącznik dotyczy otwartego okna edytora. Instrukcja pod **?** nadal zawiera rozdziały po polsku i angielsku.
 
@@ -182,3 +182,7 @@ Chwyć piano roll i przeciągnij go na ścieżkę instrumentu. Eksport zawiera c
 Każde pokolenie jest oceniane funkcją fitness. Algorytm wybiera rodziców turniejowo, zachowuje dwa najlepsze osobniki, krzyżuje fragmenty i mutuje potomstwo. Blokady i Keep rhythm chronią czas nut; wtedy krzyżowane są wysokości i velocity. Panel pokazuje faktyczne pokolenia, liczbę ocen, krzyżowań, fitness i czas. Populacja początkowa też jest oceniana: 128 × 100 oznacza 12 928 ocen.
 
 To nowy silnik z inną funkcją oceny, nie kopia pierwotnego kodu. Stary miał 128 osobników, 100 pokoleń i krzyżowanie 90%; nowy zapisuje oceny na czas pokolenia zamiast wielokrotnie przeliczać je podczas selekcji i sortowania. Dlatego może być szybki mimo pełnego przebiegu. Więcej pokoleń i wyższy fitness nie gwarantują lepszego muzycznie pomysłu. W instrukcji wewnętrznej rozdział 10 wyjaśnia te ustawienia.
+
+## Gęstość i porównanie z pierwowzorem w 2.6
+
+**Density** bezpośrednio reguluje aktywność nutową. **Arousal** dodatkowo wpływa na aktywność i rejestr, a **Pause amount** na udział ciszy. Jeśli riff jest zbyt pusty, zwiększ Density lub zmniejsz Pause amount. Mutacje mogą teraz wstawiać nuty, tworzyć pauzy, przesuwać początki i kopiować krótkie fragmenty. Statystyki Search po zakończeniu nadal pokazują rzeczywiste pokolenia, oceny oraz czas. Pełne porównanie kodu i pomiarów: [REFERENCE_AUDIT_2.6.md](REFERENCE_AUDIT_2.6.md).

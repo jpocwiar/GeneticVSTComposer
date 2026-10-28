@@ -73,7 +73,8 @@ void testDocumentAndHistory() {
     auto p = std::make_unique<Processor>();
     const auto bank = p->bankSnapshot();
     check(p->setTimeSignature("7/8").wasOk(), "chord meter setup failed");
-    parameter(*p, "bars", 1); // Two bars, seven quarter-note beats.
+    parameter(*p, "bars", 1);        // Two bars, seven quarter-note beats.
+    parameter(*p, "chordLength", 0); // Explicitly follow the melody length.
     parameter(*p, "chordRhythm", 1);
     parameter(*p, "chordCentre", 36);
     parameter(*p, "chordOriginality", 0.7f);
@@ -492,6 +493,33 @@ void testChordPlaybackAndReturningToMelody() {
 } // namespace
 
 void runChordPluginTests() {
+    {
+        auto p = std::make_unique<Processor>();
+        parameter(*p, "bars", 0); // A one-bar riff must not force a one-chord progression.
+        parameter(*p, "quality", 0);
+        const auto oldBank = p->bankSnapshot();
+        check(p->generateChords().wasOk() && p->harmonySnapshot().count == 4 &&
+                  p->harmonySnapshot().length == 16 && sameBank(oldBank, p->bankSnapshot()),
+              "default chord duration still silently follows a one-bar melody");
+        const auto harmony = p->customHarmonyText();
+        p->generate(false, true);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+        while (p->isGenerating() && std::chrono::steady_clock::now() < deadline)
+            juce::Thread::sleep(1);
+        check(!p->isGenerating() && p->customHarmonyText() == harmony,
+              "Melody from chords changed or failed to consume the active sequence");
+        for (const auto& clip : p->bankSnapshot())
+            check(clip.length == 16 && clip.count > 0, "melody stopped after the first chord");
+        check(p->searchSummary().contains("40/40") && p->searchSummary().contains("2624"),
+              "finished generation has no persistent actual-work summary");
+        check(p->setCustomHarmony("Cm:1.5 G7:2").wasOk(), "partial bar chord setup");
+        p->generate(false, true);
+        const auto partialDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+        while (p->isGenerating() && std::chrono::steady_clock::now() < partialDeadline)
+            juce::Thread::sleep(1);
+        check(!p->isGenerating() && p->selectedClip().length == 3.5,
+              "Melody from chords rounded a custom sequence to whole bars");
+    }
     testDocumentAndHistory();
     testGeneratedHarmonyConditionsMelodies();
     testInvalidVoicingRestoreIsAtomic();

@@ -103,6 +103,16 @@ double triadMovement(const Clip& clip) {
 
 void runChordGeneratorTests() {
     using namespace composer;
+    for (int scale = 0; scale < 10; ++scale)
+        for (uint32_t seed = 1; seed <= 32; ++seed) {
+            ChordGenerationSettings shortSequence;
+            shortSequence.scale = scale;
+            shortSequence.seed = seed;
+            shortSequence.bars = 2;
+            const auto pair = generateHarmony(shortSequence);
+            check(pair.count == 2 && pair.chords[0].root != pair.chords[1].root && pair.chords[1].root == 0,
+                  "two-position resolving progression collapsed to the same tonic twice");
+        }
     ChordGenerationSettings settings;
     settings.scale = 0;
     settings.bars = 8;

@@ -164,6 +164,10 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
             degree = 4;
         if (i == 0 || (settings.resolve && i == result.count - 1))
             degree = 0;
+        // With only two slots, "tonic at both ends" used to produce I-I.
+        // A compact resolving progression is V-I; one slot remains a deliberate drone.
+        if (result.count == 2 && settings.resolve && i == 0)
+            degree = 4;
         const bool interior = i > 0 && (!settings.resolve || i + 1 < result.count);
         if (interior && random.unit() < amount((originality - 0.10f) / 0.90f) * 0.45f) {
             static constexpr int substitutes[7][2]{{5, 2}, {3, 5}, {0, 5}, {1, 5}, {6, 1}, {0, 3}, {4, 1}};

@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 composer_products="$PWD/build/GeneticComposer_artefacts/Release"
-composer_package="$PWD/build/package/Genetic Composer 2.5"
+composer_package="$PWD/build/package/Genetic Composer 2.6"
 mkdir -p "$composer_package" dist
 for composer_format in VST3 AU Standalone; do
     if [[ ! -d "$composer_products/$composer_format" ]]; then
@@ -12,7 +12,7 @@ for composer_format in VST3 AU Standalone; do
     ditto "$composer_products/$composer_format" "$composer_package/$composer_format"
 done
 cat > "$composer_package/Read Me.txt" <<'TEXT'
-GENETIC COMPOSER 2.5.0 — macOS development build
+GENETIC COMPOSER 2.6.0 — macOS development build
 
 VST3: Copy Genetic Composer.vst3 to ~/Library/Audio/Plug-Ins/VST3/
 AU: Copy Genetic Composer.component to ~/Library/Audio/Plug-Ins/Components/
@@ -24,10 +24,10 @@ have a triangular Play button directly below them; Stop ends preview. Choose
 Soft keys, Sine or Warm organ in the bottom toolbar. Edit notes is optional.
 
 On Melody choose Phrase type: Riff for a repeated core, Motif for a recognisable
-idea with variations, or Melody for a freer developing line. Generate bank makes
+idea with variations, or Melody for a freer developing line. Generate melody bank makes
 12 alternatives. The original musical controls are Diversity, Dynamics (melodic
 motion, not loudness), Jazziness, Valence, Arousal, Weirdness and Pause Amount.
-Evolution controls changes from a parent phrase. Their scoring belongs to the
+Density directly controls note activity. Evolution controls changes from a parent phrase. Their scoring belongs to the
 new engine rather than reproducing the original fitness weights exactly.
 
 Fit to scale is off by default. When enabled it quantises melody pitches to Scale
@@ -36,8 +36,9 @@ It preserves genetic microtonal offsets and remains available with custom harmon
 turn it off to retain borrowed/chromatic pitches exactly as generated.
 
 On Chords, Originality shapes the harmonic sequence. Choose harmonic rhythm and
-resolution, then Generate chords. Generate melody starts the genetic search over
-that harmony and returns to Melody. Revoice applies inversions and register changes.
+resolution and the separate Length (default 4 bars). New chords only keeps melodies.
+Melody from these chords keeps harmony and generates a bank over its entire length.
+New chords + melody creates both. The latter two enable With chords and return to Melody. Revoice applies inversions and register changes.
 Play below the chord roll previews the chords alone. With chords + Play on Melody,
 or Play together on Chords, previews both parts through independent internal voices.
 Both layers use the selected sound preset; the chord voices remain independently tuned.
@@ -55,7 +56,8 @@ Save bank and DAW projects preserve the bank, harmony, exact chord voicings and 
 The Motion switch reduces animation; the bottom MIDI/OUT panel shows actual activity.
 The ? Help button opens the built-in Polish/English guide. The Polish manual and
 GA_ARCHITECTURE.md description of the genetic search are included.
-Use Edit region for local changes, Capture A for comparison, Harmony/Groove for references,
+REFERENCE_AUDIT_2.6.md explains the comparison with the original Python generator.
+Use Edit region for local changes, Capture A for comparison, Chord text/Groove for references,
 and Arrange/Combine for drafts. Keep preview commits a draft; Discard leaves the bank
 unchanged. Unaccepted drafts are not saved with the project. Switch at loop changes
 variations and A/B at the next loop boundary. Meter accepts typed signatures such as 11/8.
@@ -63,10 +65,14 @@ Search shows actual generations, fitness and crossover counts; custom budgets ar
 Disable Internal sound when routing melody MIDI to another instrument.
 
 This is a local development build, not a notarized public installer.
+2.6 validation: CTest and engine ASan/UBSan passed; signatures checked.
+pluginval could not run: automatic approval review rejected its launch due to
+an account usage limit. Studio One drag/drop and routing still need host testing.
 See the source repository README and docs/DEVELOPMENT.md for build and validation details.
 TEXT
 cp docs/STUDIO_ONE_PL.md "$composer_package/Studio One - instrukcja PL.md"
+cp docs/REFERENCE_AUDIT_2.6.md "$composer_package/REFERENCE_AUDIT_2.6.md"
 cp docs/GA_ARCHITECTURE.md "$composer_package/GA_ARCHITECTURE.md"
 composer_arch="$(uname -m)"
-ditto -c -k --sequesterRsrc --keepParent "$composer_package" "dist/GeneticComposer-2.5.0-macOS-$composer_arch.zip"
-printf 'Package: %s/dist/GeneticComposer-2.5.0-macOS-%s.zip\n' "$PWD" "$composer_arch"
+ditto -c -k --sequesterRsrc --keepParent "$composer_package" "dist/GeneticComposer-2.6.0-macOS-$composer_arch.zip"
+printf 'Package: %s/dist/GeneticComposer-2.6.0-macOS-%s.zip\n' "$PWD" "$composer_arch"

@@ -2,6 +2,7 @@
 #include "ChordGenerator.h"
 #include "PluginEditor.h"
 #include <cmath>
+#include <set>
 
 namespace {
 juce::Font chordFont(float size, bool bold = false) {
@@ -42,8 +43,8 @@ class ChordCards : public juce::Component {
     int sequenceCount() const { return harmony.count; }
     void paint(juce::Graphics& g) override {
         if (harmony.count == 0) {
-            caption(g, "Generate chords to find a harmonic starting point.", getLocalBounds(), palette::muted,
-                    14.0f);
+            caption(g, "Use New chords only or New chords + melody to begin.", getLocalBounds(),
+                    palette::muted, 14.0f);
             return;
         }
         const float step = float(getWidth()) / harmony.count;
@@ -87,10 +88,11 @@ struct ChordComposerPanel::Impl : public juce::Component {
     ComposerLookAndFeel look;
     juce::TooltipWindow tooltips{this, 600};
     juce::Slider originality, centre;
-    juce::ComboBox rhythm, voicing;
+    juce::ComboBox rhythm, voicing, length, key, scale;
     juce::ToggleButton resolve{"Resolve to tonic"};
-    juce::TextButton generateChords{"Generate chords"}, generateMelody{"Generate melody"}, revoice{"Revoice"},
-        melodySettings{"Melody settings"}, exportFile{"Export..."}, help{"?"};
+    juce::TextButton generateChords{"New chords only"}, generateMelody{"Melody from these chords"},
+        newPair{"New chords + melody"}, revoice{"Revoice"}, melodySettings{"Melody settings"},
+        exportFile{"Export..."}, help{"?"};
     TransportButton audition, together;
     MidiDragButton drag;
     PianoRoll roll;
@@ -111,9 +113,10 @@ struct ChordComposerPanel::Impl : public juce::Component {
         setLookAndFeel(&look);
         setOpaque(true);
         for (auto* component : std::initializer_list<juce::Component*>{
-                 &originality, &centre, &rhythm, &voicing, &resolve, &generateChords, &generateMelody,
-                 &revoice, &melodySettings, &audition, &together, &exportFile, &help, &drag, &roll,
-                 &cardViewport, &context, &originalityInfo, &status})
+                 &originality,    &centre,       &rhythm,         &voicing,         &length,  &key,
+                 &scale,          &resolve,      &generateChords, &generateMelody,  &newPair, &revoice,
+                 &melodySettings, &audition,     &together,       &exportFile,      &help,    &drag,
+                 &roll,           &cardViewport, &context,        &originalityInfo, &status})
             addAndMakeVisible(component);
         for (auto* label : {&context, &originalityInfo, &status}) {
             label->setFont(chordFont(12));
@@ -150,26 +153,40 @@ struct ChordComposerPanel::Impl : public juce::Component {
         };
         attachChoice(rhythm, "chordRhythm");
         attachChoice(voicing, "chordVoicing");
+        attachChoice(length, "chordLength");
+        attachChoice(key, "root");
+        attachChoice(scale, "scale");
+        length.setTooltip("Length of the next chord sequence, independent of the melody. Melody from these "
+                          "chords uses the full active sequence.");
+        key.setTooltip(
+            "Shared key for new chords and melodies. Existing notes are unchanged until generation.");
+        scale.setTooltip(
+            "Shared scale for new chords and melodies. Existing notes are unchanged until generation.");
         resolveAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "chordResolve", resolve);
         originality.setTooltip("Low: familiar functional progressions. Higher: substitutions, extensions, "
                                "borrowed chords and secondary dominants. Tonal context and voice leading "
-                               "still guide the result. Applies to the next Generate chords.");
+                               "still guide the result. Applies to the next chord generation.");
         rhythm.setTooltip("How often the harmony changes, in bars of the main plugin's meter. Applies "
-                          "to the next Generate chords.");
+                          "to the next chord generation.");
         voicing.setTooltip("Smooth inversions minimise voice movement across the sequence. Root position "
                            "keeps the chord root in the bass. Open voicings spread the voices. Click Revoice "
                            "to update the current chords.");
         centre.setTooltip("The preferred register of the chord voices. Click Revoice to update the "
                           "current sequence without changing its harmony.");
         resolve.setTooltip("Bring the progression home to its tonic at the end. Applies to the next "
-                           "Generate chords.");
+                           "chord generation.");
         generateChords.setColour(juce::TextButton::buttonColourId, palette::teal);
         generateChords.setColour(juce::TextButton::textColourOffId, palette::background);
         generateMelody.setColour(juce::TextButton::textColourOffId, palette::accent);
         generateChords.setTooltip("Create and activate a new chord sequence. The existing melodies stay "
                                   "as they are until you generate or evolve them.");
-        generateMelody.setTooltip("Run the genetic melody search over the active chord sequence, using "
-                                  "the main plugin's musical settings and search budget.");
+        generateMelody.setTooltip(
+            "Run the genetic melody search over the active chord sequence, using "
+            "its full duration and meter. Keeps these exact chords; replaces unpinned melody variations.");
+        newPair.setTooltip("Create a new chord progression, then generate melodies over its full duration. "
+                           "Two steps in one action.");
+        newPair.setColour(juce::TextButton::buttonColourId, palette::accent);
+        newPair.setColour(juce::TextButton::textColourOffId, palette::background);
         revoice.setTooltip("Keep every chord and its timing; find new registers and inversions using "
                            "the current voicing and centre settings.");
         drag.setButtonText("Drag chord MIDI");
@@ -199,7 +216,19 @@ struct ChordComposerPanel::Impl : public juce::Component {
             if (processor.isGenerating())
                 processor.cancelGeneration();
             else {
-                processor.generate(false);
+                processor.parameters.getParameter("auditionChords")->setValueNotifyingHost(1.0f);
+                processor.generate(false, true);
+                if (owner.onShowMelody)
+                    owner.onShowMelody();
+            }
+            refresh();
+        };
+        newPair.onClick = [this] {
+            const auto result = processor.generateChords();
+            report(result);
+            if (result.wasOk()) {
+                processor.parameters.getParameter("auditionChords")->setValueNotifyingHost(1.0f);
+                processor.generate(false, true);
                 if (owner.onShowMelody)
                     owner.onShowMelody();
             }
@@ -242,13 +271,15 @@ struct ChordComposerPanel::Impl : public juce::Component {
             else
                 juce::AlertWindow::showMessageBoxAsync(
                     juce::MessageBoxIconType::InfoIcon, "Chord Composer",
-                    "1. Set the key, scale, phrase length and meter on the Melody tab.\n\n"
-                    "2. Choose Originality and harmonic rhythm, then Generate chords. The new harmony "
+                    "1. Set key, scale and Length here; set Meter on Melody. Chord Length defaults to 4 "
+                    "bars.\n\n"
+                    "2. Choose Originality and harmonic rhythm, then New chords only. The new harmony "
                     "is active immediately. Existing melodies are unchanged.\n\n"
                     "3. Press Play below the chord piano roll. Choose a voicing and centre, then Revoice to "
                     "change their "
                     "inversions and register while keeping the progression.\n\n"
-                    "4. Generate melody runs the genetic search over these chords. On Melody, enable "
+                    "4. Melody from these chords keeps the sequence and generates a full-length bank. New "
+                    "chords + melody creates both. On Melody, enable "
                     "With chords and press Play to hear both layers together.\n\n"
                     "5. Drag the chord piano roll or Drag chord MIDI to a separate instrument track. "
                     "Export saves the same notes to a MIDI file.\n\n"
@@ -288,16 +319,22 @@ struct ChordComposerPanel::Impl : public juce::Component {
             resized();
         }
         const auto meter = processor.timeSignature();
-        const auto roots = GeneticVSTComposerJUCEAudioProcessor::rootNames();
-        const auto scales = GeneticVSTComposerJUCEAudioProcessor::scaleNames();
-        const auto root = roots[juce::jlimit(0, roots.size() - 1, int(parameter("root")))];
-        const auto scale = scales[juce::jlimit(0, scales.size() - 1, int(parameter("scale")))];
-        context.setText(root + " " + scale + "  /  " + juce::String(1 << int(parameter("bars"))) +
-                            " bars  /  " + juce::String(meter.numerator) + "/" +
-                            juce::String(meter.denominator),
+        const auto sequence = processor.harmonySnapshot();
+        const auto activeClip = processor.chordClipSnapshot();
+        std::set<std::pair<int, int>> distinct;
+        for (int i = 0; i < sequence.count; ++i)
+            distinct.emplace(sequence.chords[i].root, sequence.chords[i].quality);
+        context.setText(sequence.count ? juce::String(sequence.count) + " positions / " +
+                                             juce::String(int(distinct.size())) + " distinct chords / " +
+                                             juce::String(activeClip.length / (activeClip.numerator * 4.0 /
+                                                                               activeClip.denominator),
+                                                          1) +
+                                             " bars"
+                                       : "No chord sequence yet",
                         juce::dontSendNotification);
-        context.setTooltip("Key, scale, length and meter come from the main plugin. They apply when "
-                           "you generate a new chord sequence.");
+        context.setTooltip("This describes the active sequence. Controls above the actions configure the "
+                           "next generation. Meter: " +
+                           juce::String(meter.numerator) + "/" + juce::String(meter.denominator));
         const float value = parameter("chordOriginality");
         originalityInfo.setText(value < 0.3f   ? "Familiar movement, clear tonal direction."
                                 : value < 0.7f ? "Fresh substitutions with a recognisable tonal centre."
@@ -305,11 +342,12 @@ struct ChordComposerPanel::Impl : public juce::Component {
                                 juce::dontSendNotification);
         busy = processor.isGenerating();
         generateChords.setEnabled(!busy);
+        newPair.setEnabled(!busy);
         revoice.setEnabled(!busy && chordCount > 0);
         generateMelody.setEnabled(busy || chordCount > 0);
         generateMelody.setButtonText(busy ? "Cancel search " +
                                                 juce::String(int(processor.generationProgress() * 100)) + "%"
-                                          : "Generate melody");
+                                          : "Melody from these chords");
         audition.setEnabled(chordCount > 0);
         together.setEnabled(chordCount > 0 && processor.displayedClip().count > 0);
         drag.setEnabled(chordCount > 0);
@@ -376,6 +414,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
         const int split = int(w * 0.43f), right = split + 36, rightWidth = w - right - 36;
         context.setBounds(w - 400, 20, 376, 25);
         help.setBounds(w - 52, 52, 28, 24);
+        key.setBounds(20, 69, 70, 28);
+        scale.setBounds(100, 69, 210, 28);
+        length.setBounds(322, 69, 140, 28);
         originality.setBounds(34, 117, split - 24, 35);
         originalityInfo.setBounds(34, 172, split - 24, 25);
         const int rhythmWidth = int(rightWidth * 0.4f);
@@ -383,10 +424,11 @@ struct ChordComposerPanel::Impl : public juce::Component {
         voicing.setBounds(right + rhythmWidth, 119, rightWidth - rhythmWidth, 30);
         centre.setBounds(right, 176, rhythmWidth - 10, 29);
         resolve.setBounds(right + rhythmWidth, 176, rightWidth - rhythmWidth, 29);
-        generateChords.setBounds(20, 232, 183, 35);
-        generateMelody.setBounds(213, 232, 183, 35);
-        revoice.setBounds(406, 232, 106, 35);
-        melodySettings.setBounds(w - 188, 232, 168, 35);
+        generateChords.setBounds(20, 232, 160, 35);
+        generateMelody.setBounds(190, 232, 216, 35);
+        newPair.setBounds(416, 232, 196, 35);
+        revoice.setBounds(w - 124, 232, 104, 35);
+        melodySettings.setBounds(w - 188, 52, 126, 25);
         cardViewport.setBounds(20, 302, w - 40, 82);
         const int cardWidth = std::max(w - 40, cards.sequenceCount() * 137);
         cards.setSize(cardWidth, 72);
@@ -404,9 +446,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
                                                palette::background, float(w), float(h), false));
         g.fillAll();
         caption(g, "CHORDS", {20, 17, 370, 30}, palette::text, 24, true);
-        caption(g, "Find the harmony. Let the melody grow from it.", {20, 49, w - 100, 25}, palette::muted,
-                13);
-        const juce::Rectangle<float> controls(20, 88, float(w - 40), 128);
+        caption(g, "KEY / SCALE", {20, 48, 290, 19}, palette::muted, 11);
+        caption(g, "SEQUENCE LENGTH", {322, 48, 160, 19}, palette::muted, 11);
+        const juce::Rectangle<float> controls(20, 107, float(w - 40), 109);
         g.setGradientFill(juce::ColourGradient(palette::panel.brighter(0.045f), controls.getTopLeft(),
                                                palette::panel, controls.getBottomRight(), false));
         g.fillRoundedRectangle(controls, 12);
@@ -424,7 +466,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
         caption(g, "VOICING", {right + rhythmWidth, 97, rightWidth - rhythmWidth, 18}, palette::muted, 11,
                 true);
         caption(g, "VOICE CENTRE", {right, 156, rhythmWidth - 10, 18}, palette::muted, 11, true);
-        caption(g, "New harmony is active immediately. Generate melody to write over it.",
+        caption(g,
+                "New chords only keeps your melodies. Melody from these chords rewrites the unpinned "
+                "melodies to this full sequence.",
                 {20, 274, w - 40, 20}, palette::muted, 12);
         caption(g, "VOICED CHORDS", {20, 396, 270, 25}, palette::teal, 12, true);
         caption(

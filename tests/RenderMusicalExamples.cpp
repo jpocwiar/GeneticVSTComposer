@@ -7,7 +7,9 @@ void renderMusicalExamples(const juce::File& directory) {
     if (directory.createDirectory().failed())
         throw std::runtime_error("cannot create musical example directory");
     const char* names[]{"riff", "motif", "melody"};
-    for (int type = 0; type < 3; ++type) {
+    for (int example = 0; example < 6; ++example) {
+        const int type = example % 3;
+        const bool micro = example >= 3;
         auto processor = std::make_unique<GeneticVSTComposerJUCEAudioProcessor>();
         auto parameter = [&](const char* id, float value) {
             auto* p = processor->parameters.getParameter(id);
@@ -20,7 +22,7 @@ void renderMusicalExamples(const juce::File& directory) {
         settings.scale = 6;
         settings.low = 60;
         settings.high = 81;
-        settings.microEnabled = true;
+        settings.microEnabled = micro;
         settings.tuning = 6;
         settings.diversity = 0.4f;
         settings.arousal = 0.6f;
@@ -31,7 +33,7 @@ void renderMusicalExamples(const juce::File& directory) {
             throw std::runtime_error("musical example generation failed");
         processor->setClip(0, clips.front());
         processor->selectClip(0);
-        parameter("microEnabled", 1);
+        parameter("microEnabled", micro ? 1 : 0);
         parameter("tuning", 6);
         parameter("microOutput", 1);
         parameter("snap", 0);
@@ -56,7 +58,8 @@ void renderMusicalExamples(const juce::File& directory) {
             position += count;
         }
         const auto stem = juce::String(names[type]);
-        const auto file = directory.getChildFile(stem + "-micro-with-chords.wav");
+        const auto file =
+            directory.getChildFile(stem + (micro ? "-micro-with-chords.wav" : "-12tet-with-chords.wav"));
         file.deleteFile();
         std::unique_ptr<juce::OutputStream> output = file.createOutputStream();
         juce::WavAudioFormat format;
@@ -67,7 +70,8 @@ void renderMusicalExamples(const juce::File& directory) {
             throw std::runtime_error("cannot create example WAV writer");
         if (!writer->writeFromAudioSampleBuffer(rendered, 0, rendered.getNumSamples()))
             throw std::runtime_error("cannot write example WAV");
-        if (processor->exportMidi(directory.getChildFile(stem + "-melody-MPE.mid")).failed() ||
+        if (processor->exportMidi(directory.getChildFile(stem + (micro ? "-melody-MPE.mid" : "-melody.mid")))
+                .failed() ||
             processor->exportChordMidi(directory.getChildFile(stem + "-chords.mid")).failed())
             throw std::runtime_error("cannot export example MIDI");
         const auto diagnostic = composer::analysePhrase(clips.front(), settings);

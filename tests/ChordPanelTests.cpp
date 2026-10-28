@@ -110,8 +110,8 @@ void checkLayout(ChordComposerPanel& panel) {
               "chord panel scaled control falls outside its window");
     };
     visibleInside(*roll);
-    for (const char* name : {"Generate chords", "Generate melody", "Revoice", "Play", "Play together",
-                             "Drag chord MIDI", "Export..."}) {
+    for (const char* name : {"New chords only", "Melody from these chords", "New chords + melody", "Revoice",
+                             "Play", "Play together", "Drag chord MIDI", "Export..."}) {
         auto* button = findButton(panel, name);
         check(button != nullptr, "chord panel primary action missing");
         visibleInside(*button);
@@ -142,7 +142,7 @@ void runChordPanelTests() {
     panel.refreshDisplay();
     checkLayout(panel);
 
-    auto* generate = findButton(panel, "Generate chords");
+    auto* generate = findButton(panel, "New chords only");
     check(generate->isEnabled() && bool(generate->onClick), "chord generation action is unavailable");
     generate->onClick();
     panel.refreshDisplay();
@@ -274,4 +274,34 @@ void runChordPanelTests() {
     processor->setPreview(false);
     midi.clear();
     processor->processBlock(audio, midi);
+    editor->keyPressed(juce::KeyPress(juce::KeyPress::spaceKey));
+    midi.clear();
+    processor->processBlock(audio, midi);
+    check(processor->audibleChords(), "Space on Chords started melody instead of chords");
+    editor->keyPressed(juce::KeyPress(juce::KeyPress::spaceKey));
+    midi.clear();
+    processor->processBlock(audio, midi);
+    check(!processor->previewRequested(), "Space did not stop chord preview");
+    parameter(*processor, "bars", 0);
+    parameter(*processor, "quality", 0);
+    const auto retainedHarmony = processor->customHarmonyText();
+    auto* melodyFromChords = findButton(panel, "Melody from these chords");
+    check(melodyFromChords && bool(melodyFromChords->onClick), "melody dependency action missing");
+    melodyFromChords->onClick();
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 15000;
+    while (processor->isGenerating() && juce::Time::getMillisecondCounterHiRes() < deadline)
+        juce::Thread::sleep(1);
+    check(!processor->isGenerating() && processor->customHarmonyText() == retainedHarmony &&
+              processor->selectedClip().length == processor->harmonySnapshot().length,
+          "Melody from these chords did not preserve/use the full progression");
+    auto* pair = findButton(panel, "New chords + melody");
+    check(pair && bool(pair->onClick), "one-action chords and melody workflow missing");
+    const auto beforePair = processor->documentRevision();
+    pair->onClick();
+    const auto pairDeadline = juce::Time::getMillisecondCounterHiRes() + 15000;
+    while (processor->isGenerating() && juce::Time::getMillisecondCounterHiRes() < pairDeadline)
+        juce::Thread::sleep(1);
+    check(!processor->isGenerating() && processor->documentRevision() > beforePair &&
+              processor->harmonySnapshot().count == 4 && processor->selectedClip().length == 16,
+          "New chords + melody did not create a complete pair");
 }

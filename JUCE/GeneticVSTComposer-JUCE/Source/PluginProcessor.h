@@ -46,7 +46,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     void redo();
     bool canUndo() const;
     bool canRedo() const;
-    void generate(bool evolve);
+    void generate(bool evolve, bool overHarmony = false);
+    juce::String searchSummary() const;
     void cancelGeneration() { cancelled.store(true); }
     void setPreview(bool enabled);
     void startAudition();

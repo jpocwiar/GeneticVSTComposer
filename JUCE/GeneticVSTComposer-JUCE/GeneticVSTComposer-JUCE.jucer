@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<JUCERPROJECT id="cAmDdb" name="GeneticComposer" projectType="audioplug" useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn" pluginFormats="buildAU,buildStandalone,buildVST3" pluginVST3Category="Instrument,Tools" version="2.5.0" companyName="Genetic Composer" bundleIdentifier="com.geneticcomposer.plugin" pluginName="Genetic Composer" pluginManufacturerCode="Gnco" pluginCode="Gnc2" cppLanguageStandard="17">
+<JUCERPROJECT id="cAmDdb" name="GeneticComposer" projectType="audioplug" useAppConfig="0" addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn" pluginFormats="buildAU,buildStandalone,buildVST3" pluginVST3Category="Instrument,Tools" version="2.6.0" companyName="Genetic Composer" bundleIdentifier="com.geneticcomposer.plugin" pluginName="Genetic Composer" pluginManufacturerCode="Gnco" pluginCode="Gnc2" cppLanguageStandard="17">
   <MAINGROUP id="R6yz7R" name="GeneticVSTComposer-JUCE">
     <GROUP id="{C990335F-8FF4-29F1-1A20-77FBC2FC51B7}" name="Source">
       <FILE id="cth" name="ComposerTheme.h" compile="0" resource="0" file="Source/ComposerTheme.h" />

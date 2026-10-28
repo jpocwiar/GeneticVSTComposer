@@ -76,6 +76,48 @@ void runMusicalArchitectureTests() {
           "last-to-first melodic interval was omitted");
 
     std::atomic<bool> cancelled{false};
+    // Regressions for the sparse 2.5 search: healthy defaults must make active
+    // phrases across seeds, while a deliberately low Density remains useful.
+    for (int type = 0; type < 3; ++type) {
+        double defaultNotes = 0, sparseNotes = 0;
+        for (uint32_t seed = 1; seed <= 6; ++seed) {
+            Settings active;
+            active.seed = seed;
+            active.phraseType = type;
+            active.quality = 0;
+            SearchStats stats;
+            const auto bank = generate(active, nullptr, cancelled, {}, [&](const auto& value) { stats = value; });
+            defaultNotes += bank.front().count;
+            check(stats.generation == 40 && stats.evaluations == 64 * 41 && stats.crossovers > 0,
+                  "denser search skipped its actual generations or crossover");
+            active.density = 0;
+            sparseNotes += generate(active, nullptr, cancelled).front().count;
+        }
+        check(defaultNotes / 24 >= 6 && defaultNotes / 24 <= 11,
+              "default search collapsed to sparse phrases or indiscriminate grid filling");
+        check(defaultNotes > sparseNotes * 1.35, "Density does not meaningfully change onset activity");
+    }
+    {
+        auto rhythmParent = line({60, 62, 64, 65, 67, 65, 64, 62}, .5);
+        Settings evolve;
+        evolve.phraseType = 2;
+        evolve.mutation = .85f;
+        evolve.population = 48;
+        evolve.generations = 32;
+        bool newOnset = false;
+        for (const auto& clip : generate(evolve, &rhythmParent, cancelled))
+            for (int i = 0; i < clip.count; ++i)
+                newOnset |= std::abs(clip.notes[i].start * 2 - std::round(clip.notes[i].start * 2)) > .01;
+        check(newOnset, "evolution cannot introduce onsets between the parent's fixed starts");
+        evolve.lockRhythm = true;
+        for (const auto& clip : generate(evolve, &rhythmParent, cancelled)) {
+            check(clip.count == rhythmParent.count, "rhythm operator bypassed Keep rhythm");
+            for (int i = 0; i < clip.count; ++i)
+                check(clip.notes[i].start == rhythmParent.notes[i].start &&
+                          clip.notes[i].duration == rhythmParent.notes[i].duration,
+                      "rhythm operator moved protected timing");
+        }
+    }
     settings.population = 32;
     settings.generations = 16;
     settings.density = 0.8f;

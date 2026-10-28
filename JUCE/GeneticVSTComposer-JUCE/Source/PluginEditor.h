@@ -139,12 +139,12 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::Slider searchPopulation, searchGenerations, crossover;
     juce::TextButton searchDetails{"Search settings..."};
     juce::Label searchInfo;
-    std::array<juce::Slider, 8> knobs;
+    std::array<juce::Slider, 9> knobs;
     juce::Slider low, high, swing, gate, tempo, volume;
     juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
         monitor{"Internal sound"}, withChords{"With chords"}, microEnabled{"Micro"};
     juce::ToggleButton quantiseSwitch{"Switch at loop"};
-    juce::TextButton generate{"Generate bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
+    juce::TextButton generate{"Generate melody bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
     TransportButton play;
     juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save bank"}, load{"Open bank"};
     juce::TextButton import{"Import MIDI"}, exportFile{"Export..."}, help{"?"};

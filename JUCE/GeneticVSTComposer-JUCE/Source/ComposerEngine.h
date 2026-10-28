@@ -48,6 +48,8 @@ struct Settings {
     bool lockRhythm = false;
     uint32_t seed = 1;
     Harmony harmony;
+    // Explicit duration for the "Melody from chords" workflow, including partial bars.
+    double lengthOverride = 0;
     // Harmonic position of a local section during region edits; generation ignores this.
     double timeOffset = 0.0;
     // Microtones are optional short passing-note genes, evaluated inside the search.

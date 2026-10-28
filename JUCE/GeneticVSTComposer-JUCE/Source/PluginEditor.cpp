@@ -212,7 +212,7 @@ void PianoRoll::paint(juce::Graphics& g) {
         }
     } else {
         g.setColour(muted.withAlpha(0.6f));
-        g.drawText("HARMONY  /  add chords in the Harmony tab", int(r.getX()) + 4, 25, int(r.getWidth()) - 8,
+        g.drawText("HARMONY  /  create a sequence on Chords", int(r.getX()) + 4, 25, int(r.getWidth()) - 8,
                    17, juce::Justification::centredLeft);
     }
     g.saveState();
@@ -667,13 +667,13 @@ class ComposerGuide final : public juce::Component {
 
 1. Wybierz Root (tonikę), Scale (skalę), Length (długość) i Meter (metrum). Starting points ustawia punkt wyjścia dla charakteru melodii.
 
-2. Kliknij Generate bank. Powstanie 12 propozycji. Kliknij kartę wariantu, a potem Play. Przycisk włącza Internal sound i wyłącza Follow DAW. Dwuklik karty lub piano rollu też uruchamia odsłuch. Obok wybierz Soft keys, Sine albo Warm organ; Stop kończy odsłuch.
+2. Kliknij Generate melody bank. Powstanie 12 propozycji. Kliknij kartę wariantu, a potem Play. Przycisk włącza Internal sound i wyłącza Follow DAW. Dwuklik karty lub piano rollu też uruchamia odsłuch. Obok wybierz Soft keys, Sine albo Warm organ; Stop kończy odsłuch.
 
 3. Znalazłeś ciekawy motyw? Capture A zachowa go do porównania. Plus na karcie przypina wariant, aby przetrwał następne generowanie. Evolve selected tworzy rozwinięcia wybranej frazy; Evolution określa preferowaną wielkość zmiany.
 
 4. Chwyć piano roll i przeciągnij na ścieżkę instrumentu. Zwykły klik nie tworzy nut. Możesz też użyć Drag MIDI albo Export. Plik zawiera aktualnie wyświetlaną frazę lub podgląd, wraz z przetwarzaniem Swing i Gate.
 
-Diversity: różnorodność wysokości i interwałów. Dynamics: ruch melodii, nie głośność. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
+Diversity: różnorodność wysokości i interwałów. Dynamics: ruch melodii, nie głośność. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. Density: liczba nut, dodatkowo modulowana przez Arousal. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
 
 Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk wewnętrznego instrumentu. Podświetlenia klawiatury reagują na nuty wysyłane przez wtyczkę. Motion w dolnym pasku ogranicza animacje, zachowując wskazania transportu i poziomu.
 
@@ -779,7 +779,7 @@ Micro to osobny włącznik w zakładce Micro. Wyłączony daje zwykłą melodię
 
 Wybór koloru określa dostępne odcienie: neutralne interwały, Rast, Bayati, Saba, blues albo 24-EDO. Główna Scale nadal prowadzi melodię. Nie ma ręcznego procentu mikrotonów ani przycisku przestrojenia wszystkich nut: ich miejsca, czas trwania i rozwiązania są częścią optymalizacji genetycznej.
 
-Po zmianie ustawień użyj Generate bank lub Evolve selected. W piano rollu fioletowe nuty leżą między wierszami; E4-50 to E4 obniżone o 50 centów. Play odtwarza ich dokładną wysokość. Fit to scale dopasowuje bazową wysokość do Scale, zachowując mikrotonowe odchylenie; wyłącz go, aby usłyszeć niezmienione wysokości generatora.
+Po zmianie ustawień użyj Generate melody bank lub Evolve selected. W piano rollu fioletowe nuty leżą między wierszami; E4-50 to E4 obniżone o 50 centów. Play odtwarza ich dokładną wysokość. Fit to scale dopasowuje bazową wysokość do Scale, zachowując mikrotonowe odchylenie; wyłącz go, aby usłyszeć niezmienione wysokości generatora.
 
 Wyjście MIDI:
 Pitch bend (mono): kanał 1, dla jednogłosowej melodii. Ustaw w syntezatorze odbierającym zakres pitch bend taki sam jak Bend. Gdy nuty zachodzą na siebie, nowy pitch bend może zmienić wybrzmiewanie poprzedniej nuty.
@@ -801,11 +801,11 @@ Meter: wybierz z 27 propozycji albo wpisz np. 11/8. Licznik 1-32; mianownik 1, 2
 Harmony: 25 progresji oraz Scale only. Stopnie są względne do wybranej skali, jeden akord na takt. Custom chords otwiera wpisywanie akordów i długości, np. Cm:4 Ab:4 Eb:4 Bb:4. Wybór gotowej progresji usuwa aktywną własną harmonię.)",
             R"(KARTA CHORDS — AKORDY I PRZEWROTY
 
-Melody i Chords to dwie główne karty tego samego interfejsu. Na Melody ustaw Root, Scale, Length i Meter; na Chords twórz progresje, odsłuchuj ich przewroty i przeciągaj akordowe MIDI na osobną ścieżkę.
+Melody i Chords to dwie główne karty tego samego interfejsu. Root i Scale są wspólne dla obu kart; Meter ustaw na Melody. Chords ma osobne Length, domyślnie 4 takty. Follow melody jawnie wiąże je z długością melodii. Ustawienia dotyczą następnego generowania, nie przepisują istniejących nut.
 
 Originality określa charakter następnej progresji. Nisko: znane funkcjonalne układy. Wyżej: substytucje, rozszerzenia, zapożyczenia modalne i dominanty wtrącone. Generator harmonii używa reguł muzycznych i losowego ziarna; wartość nie jest oceną artystycznej oryginalności. Melodia nadal powstaje w pełnym algorytmie genetycznym z budżetem Search.
 
-Harmonic rhythm wybiera zmianę co dwa takty, takt albo pół taktu. Resolve to tonic zamyka progresję na tonice. Generate chords ustawia ją jako harmonię następnego generowania lub ewolucji. Istniejące melodie nie są automatycznie przepisywane. Generate melody uruchamia wyszukiwanie i wraca na Melody, gdzie widać postęp oraz warianty.
+Harmonic rhythm wybiera zmianę co dwa takty, takt albo pół taktu. Resolve to tonic zamyka progresję na tonice. New chords only zmienia tylko harmonię. Melody from these chords zachowuje widoczne akordy i tworzy bank melodii na całą długość tej sekwencji. New chords + melody wykonuje obie operacje. Oba przyciski melodii wracają na Melody i włączają With chords; przypięte warianty pozostają zachowane. Generate melody bank na Melody korzysta z aktywnej harmonii, ale z długości wybranej na Melody; Evolve selected rozwija wybrany wariant.
 
 Smooth inversions ogranicza ruch głosów przez całą sekwencję. Root position utrzymuje prymę w basie. Open voicings rozsuwa głosy. Voice centre określa rejestr; po zmianie kliknij Revoice, aby przeliczyć ułożenie głosów bez zmiany progresji. Slash pokazuje faktyczny bas: C/E to C-dur z E na dole.
 
@@ -815,13 +815,13 @@ Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciąg
         static const char* english[]{
             R"(YOUR FIRST PHRASE
 
-Choose Root, Scale, Length and Meter, then Generate bank. Select one of the 12 variations and press Play: it enables Internal sound and disables Follow DAW. Double-clicking a card or the piano roll also starts audition. Choose Soft keys, Sine or Warm organ beside the button; Stop ends preview.
+Choose Root, Scale, Length and Meter, then Generate melody bank. Select one of the 12 variations and press Play: it enables Internal sound and disables Follow DAW. Double-clicking a card or the piano roll also starts audition. Choose Soft keys, Sine or Warm organ beside the button; Stop ends preview.
 
 Capture A keeps a reference for comparison. The plus on a card pins that variation so it survives another bank generation. Evolve selected develops the current phrase; Evolution controls the preferred amount of change.
 
 Drag the piano roll onto an instrument track, or use Drag MIDI / Export. Clicking the roll does not create notes by default. Export writes the displayed phrase or draft, including Swing and Gate processing.
 
-Diversity shapes pitch and interval variety. Dynamics shapes melodic movement, not loudness. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
+Diversity shapes pitch and interval variety. Dynamics shapes melodic movement, not loudness. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. Density sets note activity, also influenced by Arousal. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
 
 The header MIDI trace shows actual emitted note events; OUT meters the internal audio output. Piano keys respond to emitted notes. Turn Motion off in the bottom bar for reduced animation while transport and level indicators remain active.
 
@@ -924,7 +924,7 @@ Micro is an explicit switch on the Micro tab. Off gives a normal 12-tone melody.
 
 The colour selector supplies neutral intervals, Rast, Bayati, Saba, blues or 24-EDO. The main Scale still guides the melody. There is no manual percentage or blanket retuning action: the placement, duration and resolution of microtonal passing notes are part of the optimisation.
 
-Use Generate bank or Evolve selected after changing the settings. Violet piano-roll notes sit between rows; E4-50 is E4 lowered by 50 cents. Play previews their exact pitches. Fit to scale moves base pitches into Scale while retaining their microtonal offsets; turn it off to hear the generator's original pitches.
+Use Generate melody bank or Evolve selected after changing the settings. Violet piano-roll notes sit between rows; E4-50 is E4 lowered by 50 cents. Play previews their exact pitches. Fit to scale moves base pitches into Scale while retaining their microtonal offsets; turn it off to hear the generator's original pitches.
 
 MIDI output:
 Pitch bend (mono): channel 1, for a single melody voice. Set the receiving synth's bend range to the Bend value. Overlapping notes may share the new bend during the preceding note's release.
@@ -946,11 +946,11 @@ Meter offers 27 presets or typed input such as 11/8: numerator 1-32, denominator
 Harmony offers 25 progressions plus Scale only. Degrees follow the chosen scale, one chord per bar. Custom chords opens chord/duration entry such as Cm:4 Ab:4 Eb:4 Bb:4. Selecting a preset clears active custom harmony.)",
             R"(CHORDS TAB — HARMONY AND VOICINGS
 
-Melody and Chords are the two main pages of one interface. Set Root, Scale, Length and Meter on Melody; use Chords to create progressions, audition inversions and drag chord MIDI to another instrument track.
+Melody and Chords are the two main pages of one interface. Root and Scale are shared; set Meter on Melody. Chords has its own Length, defaulting to 4 bars. Follow melody explicitly links the two lengths. Settings affect the next generation, not existing notes.
 
 Originality shapes the next progression. Lower values use familiar functional movement. Higher values favour substitutions, extensions, modal borrowing and secondary dominants. Harmony uses musical rules and a random seed; the value is not an artistic originality score. Melody still uses the full genetic search with your Search budget.
 
-Harmonic rhythm changes chords every two bars, one bar or half a bar. Resolve to tonic ends on the tonic. Generate chords activates the progression for the next melody generation or evolution. Existing melodies are not rewritten. Generate melody starts the search and returns to Melody so you can see its progress and variations.
+Harmonic rhythm changes chords every two bars, one bar or half a bar. Resolve to tonic ends on the tonic. New chords only changes harmony. Melody from these chords keeps the displayed chords and creates a melody bank spanning the entire sequence. New chords + melody performs both steps. Both melody actions return to Melody and enable With chords; pinned variations remain intact. Generate melody bank on Melody uses active harmony with the length selected on Melody; Evolve selected develops the selected variation.
 
 Smooth inversions limits voice movement across the sequence. Root position keeps the root in the bass. Open voicings spreads the voices. Voice centre sets the register; click Revoice after changing it to update the voices without changing the progression. Slash names show the actual bass: C/E is C major over E.
 
@@ -1088,8 +1088,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     addAndMakeVisible(searchInfo);
     searchInfo.setFont(font(10.5f));
     searchInfo.setColour(juce::Label::textColourId, muted);
-    const char* ids[]{"diversity", "dynamics",  "tension", "valence",
-                      "arousal",   "weirdness", "space",   "mutation"};
+    const char* ids[]{"diversity", "dynamics", "tension",  "valence", "arousal",
+                      "weirdness", "space",    "mutation", "density"};
     const char* tips[]{
         "Diversity: variety of pitches and intervals while keeping the phrase recognisable.",
         "Dynamics: melodic motion and changes of register. This shapes the notes, not output volume.",
@@ -1100,8 +1100,10 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         "Arousal: rhythmic energy, faster movement and a wider, higher register.",
         "Weirdness: unexpected rhythmic placement and larger melodic jumps.",
         "Pause Amount: room for silence between notes. Higher settings favour more space.",
-        "Evolution: how far Evolve moves from the selected phrase. Locked notes always stay intact."};
-    for (int i = 0; i < 8; ++i) {
+        "Evolution: how far Evolve moves from the selected phrase. Locked notes always stay intact.",
+        "Density: how many notes the search aims for. Turn up for busier riffs; Pause Amount independently "
+        "controls silence."};
+    for (int i = 0; i < int(knobs.size()); ++i) {
         attach(knobs[i], ids[i], true);
         knobs[i].setTooltip(tips[i]);
     }
@@ -1245,7 +1247,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         "Compare saved A with the selected phrase B. Export always writes the displayed phrase.");
     quantiseSwitch.setTooltip(
         "Switch variations or A/B at the end of the audible loop. Immediate while stopped.");
-    const char* tabs[]{"Edit region", "Harmony", "Groove", "Arrange", "Combine", "Micro", "Search"};
+    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Micro", "Search"};
     const char* tabTips[]{
         "Change only the selected time range. Locked notes stay intact.",
         "Enter chord names or import a harmony timeline. The Chords page also generates voiced progressions.",
@@ -1407,7 +1409,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     motion.setToggleState(true, juce::dontSendNotification);
     motion.setTooltip(
         "Animate playback highlights, hover transitions and MIDI activity. Turn off for reduced motion.");
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < int(knobs.size()); ++i) {
         knobs[i].getProperties().set("accentColour", int((i == 7   ? violet
                                                           : i == 2 ? gold
                                                           : i == 5 ? teal
@@ -1495,12 +1497,12 @@ void Editor::paint(juce::Graphics& g) {
     label(g, "Meter", {192, 188, 74, 16});
     label(g, "Phrase type", {36, 244, 100, 16});
     label(g, "Source mode", {146, 244, 120, 16});
-    label(g, shownHarmony.isNotEmpty() ? "Harmony / custom timeline active" : "Harmony / one chord per bar",
+    label(g, shownHarmony.isNotEmpty() ? "Using sequence from Chords" : "Harmony preset / or open Chords",
           {36, 300, 230, 16});
     label(g, "CHARACTER", {36, 378, 230, 16}, true);
-    const juce::String names[]{"Diversity", "Dynamics",  "Jazziness",    "Valence",
-                               "Arousal",   "Weirdness", "Pause Amount", "Evolution"};
-    for (int i = 0; i < 8; ++i) {
+    const juce::String names[]{"Diversity", "Dynamics",     "Jazziness", "Valence", "Arousal",
+                               "Weirdness", "Pause Amount", "Evolution", "Density"};
+    for (int i = 0; i < int(knobs.size()); ++i) {
         g.setFont(font(10));
         g.setColour(muted);
         g.drawText(names[i], 36 + (i % 3) * 79, 456 + (i / 3) * 76, 72, 16, juce::Justification::centred);
@@ -1578,7 +1580,7 @@ void Editor::resized() {
     phraseType.setBounds(36, 264, 100, 30);
     mode.setBounds(146, 264, 120, 30);
     harmony.setBounds(36, 320, 230, 30);
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < int(knobs.size()); ++i)
         knobs[i].setBounds(36 + (i % 3) * 79, 396 + (i / 3) * 76, 72, 60);
     low.setBounds(32, 649, 116, 24);
     high.setBounds(154, 649, 116, 24);
@@ -1790,8 +1792,13 @@ void Editor::refresh() {
     searchPopulation.setEnabled(custom);
     searchGenerations.setEnabled(custom);
     const auto budget = processor.configuredSearchBudget();
-    searchDetails.setButtonText(juce::String(budget.population) + " individuals / " +
-                                juce::String(budget.generations) + " generations...");
+    const auto completedSearch = processor.searchSummary();
+    searchDetails.setButtonText(completedSearch.isNotEmpty()
+                                    ? completedSearch
+                                    : juce::String(budget.population) + " individuals / " +
+                                          juce::String(budget.generations) + " generations...");
+    searchDetails.setTooltip(processor.searchDescription() +
+                             "\nClick for budget and full search statistics.");
     if (workflowPage == 6)
         searchInfo.setText(processor.searchDescription(), juce::dontSendNotification);
     harmony.setSelectedId(processor.customHarmonyText().isNotEmpty() ? 1000
@@ -1978,7 +1985,7 @@ void Editor::refreshDisplay() {
     const bool busy = processor.isGenerating();
     generate.setButtonText(busy ? "Cancel search  " +
                                       juce::String(int(processor.generationProgress() * 100)) + "%"
-                                : "Generate bank");
+                                : "Generate melody bank");
     evolve.setEnabled(!busy && !processor.hasDraft());
     generate.setEnabled(busy || !processor.hasDraft());
     play.setPlaying(processor.previewRequested() && !processor.isAuditioningChords());
@@ -2035,6 +2042,8 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
     if (k.getKeyCode() == juce::KeyPress::spaceKey) {
         if (processor.previewRequested())
             processor.setPreview(false);
+        else if (chordPage)
+            processor.startChordAudition();
         else
             processor.startAudition();
         return true;

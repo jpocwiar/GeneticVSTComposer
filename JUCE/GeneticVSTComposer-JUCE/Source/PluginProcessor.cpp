@@ -131,6 +131,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     number("valence", "Valence", 0, 1, 0.5f);
     number("arousal", "Arousal", 0, 1, 0.5f);
     number("weirdness", "Weirdness", 0, 1, 0.1f);
+    choice("chordLength", "Chord sequence length", {"Follow melody", "1 bar", "2 bars", "4 bars", "8 bars"},
+           3);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -388,7 +390,8 @@ juce::Result Processor::generateChords() {
     composer::ChordGenerationSettings s;
     s.root = int(param("root"));
     s.scale = int(param("scale"));
-    s.bars = 1 << int(param("bars"));
+    const int length = int(param("chordLength"));
+    s.bars = 1 << (length == 0 ? int(param("bars")) : length - 1);
     const auto meter = timeSignature();
     s.numerator = meter.numerator;
     s.denominator = meter.denominator;
@@ -519,7 +522,14 @@ composer::Settings Processor::settings() const {
     s.crossover = param("crossover");
     return s;
 }
-void Processor::generate(bool evolve) {
+juce::String Processor::searchSummary() const {
+    std::lock_guard<std::mutex> lock(searchMutex);
+    if (!lastSearch.population)
+        return {};
+    return juce::String(lastSearch.generation) + "/" + juce::String(lastSearch.generations) + " gen  |  " +
+           juce::String(lastSearch.evaluations) + " eval  |  " + juce::String(searchSeconds, 2) + " s";
+}
+void Processor::generate(bool evolve, bool overHarmony) {
     if (hasDraft()) {
         setStatus("Apply or discard the preview before generating.");
         return;
@@ -531,11 +541,30 @@ void Processor::generate(bool evolve) {
     cancelled.store(false);
     progress.store(0);
     auto s = settings();
+    if (overHarmony) {
+        const auto chords = chordClipSnapshot();
+        if (s.harmony.count == 0) {
+            setStatus("Create or enter a chord sequence first.");
+            busy.store(false);
+            return;
+        }
+        s.lengthOverride = s.harmony.length;
+        s.numerator = chords.numerator;
+        s.denominator = chords.denominator;
+        s.mode = 0;
+        setParameter("mode", 0);
+        setTimeSignature(juce::String(s.numerator) + "/" + juce::String(s.denominator));
+        const double bars = s.harmony.length / (s.numerator * 4.0 / s.denominator);
+        for (int i = 0; i < 4; ++i)
+            if (std::abs(bars - (1 << i)) < 1e-8)
+                setParameter("bars", float(i));
+    }
     s.seed = uint32_t(seedGenerator.nextInt());
     const auto parent = selectedClip();
     const auto startRevision = revision.load();
     const bool useParent = evolve || s.mode == 2;
-    if ((!useParent || parent.count == 0) && s.bars * s.numerator * 4.0 / s.denominator > 128.0) {
+    if ((!useParent || parent.count == 0) &&
+        (s.lengthOverride > 0 ? s.lengthOverride : s.bars * s.numerator * 4.0 / s.denominator) > 128.0) {
         setStatus("This meter and bar count exceed 128 quarter-note beats. Choose fewer bars.");
         busy.store(false);
         return;
