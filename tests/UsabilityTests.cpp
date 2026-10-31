@@ -43,10 +43,10 @@ void runUsabilityTests() {
         Processor scoped;
         scoped.setInterfaceLanguage(1);
         auto editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(scoped);
-        auto findLoop = [&]() -> juce::Button* {
+        auto findButton = [&](const juce::String& name) -> juce::Button* {
             for (auto* child : editor->getChildren())
                 if (auto* button = dynamic_cast<juce::Button*>(child);
-                    button && button->getButtonText() == juce::String::fromUTF8("Zapętl fragment"))
+                    button && button->getButtonText() == name)
                     return button;
             return nullptr;
         };
@@ -56,23 +56,93 @@ void runUsabilityTests() {
                     return value;
             return nullptr;
         };
-        check(findLoop() != nullptr && findRoll() != nullptr, "translated range controls missing");
+        auto* micro = findButton(juce::String::fromUTF8("Mikrotony"));
+        check(micro != nullptr && micro->isVisible() && findRoll() != nullptr,
+              "microtones are not visible on the main composition panel");
+        check(micro->getBounds().getRight() < findRoll()->getBounds().getX(),
+              "microtones are still buried inside the advanced workflow");
+        check(findButton("Loop range") == nullptr && findButton(juce::String::fromUTF8("Zapętl fragment")) == nullptr,
+              "a separate loop toggle is still required");
+        auto* allTime = findButton(juce::String::fromUTF8("Cała fraza"));
+        check(allTime && !allTime->isVisible(), "clear selection is shown without a selection");
         const auto revision = scoped.documentRevision();
         findRoll()->setRegion(2, 4);
-        findLoop()->setToggleState(true, juce::dontSendNotification);
-        findLoop()->onClick();
         auto range = scoped.playbackRegion();
         check(range.enabled && range.start == 2 && range.end == 4 && range.slot == scoped.selectedIndex(),
-              "Loop range UI did not publish the ruler selection");
+              "ruler selection did not automatically enable its playback loop");
+        check(findButton(juce::String::fromUTF8("Optymalizuj fragment")) != nullptr && allTime->isVisible(),
+              "the main action and selection reset did not follow the ruler scope");
+        editor->showWorkflowPage(5);
+        check(micro->isVisible() && allTime->isVisible(), "changing workflow tabs hid the main controls");
         check(scoped.documentRevision() == revision, "a preview range invalidated the document revision");
         scoped.setPlaybackRegion(3, 5, true);
         editor->refreshDisplay();
-        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findLoop()->getToggleState(),
+        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findRoll()->hasTimeSelection(),
               "the editor did not refresh a processor-owned range");
         editor.reset();
         editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(scoped);
-        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findLoop()->getToggleState(),
+        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findRoll()->hasTimeSelection(),
               "closing the editor lost the active loop selection");
+        parameter(scoped, "customSearch", 1);
+        parameter(scoped, "searchPopulation", 16);
+        parameter(scoped, "searchGenerations", 2);
+        const auto before = scoped.bankSnapshot();
+        auto* optimise = findButton(juce::String::fromUTF8("Optymalizuj fragment"));
+        check(optimise && optimise->getBounds().getX() < findRoll()->getBounds().getX(),
+              "range optimisation is not the main evolution action");
+        optimise->onClick();
+        awaitSearch(scoped);
+        const auto after = scoped.bankSnapshot();
+        for (int i = 1; i < composer::slotCount; ++i)
+            check(before[i].seed == after[i].seed && before[i].count == after[i].count,
+                  "the contextual evolution action changed another variation");
+        allTime = findButton(juce::String::fromUTF8("Cała fraza"));
+        allTime->onClick();
+        check(!scoped.playbackRegion().enabled && !findRoll()->hasTimeSelection() && !allTime->isVisible(),
+              "Whole phrase did not clear the loop and restore the default scope");
+        check(findButton(juce::String::fromUTF8("Rozwiń wybrany")) != nullptr,
+              "clearing the range did not restore phrase evolution");
+        findRoll()->setRegion(2, 4);
+        findRoll()->mouseDoubleClick(mouse(*findRoll(), {100, 10}, {100, 10}));
+        check(!findRoll()->hasTimeSelection() && !scoped.playbackRegion().enabled && !scoped.previewRequested(),
+              "double-clicking the ruler auditioned notes instead of clearing the selection");
+        scoped.prepareToPlay(48000, 128);
+        findRoll()->setRegion(0, 0.5);
+        parameter(scoped, "evolveEachLoop", 1);
+        scoped.setPreview(true);
+        const auto loopSerial = scoped.searchSerial();
+        const auto loopBank = scoped.bankSnapshot();
+        juce::AudioBuffer<float> loopAudio(2, 128);
+        juce::MidiBuffer loopMidi;
+        for (int block = 0; block < 200 && scoped.searchSerial() == loopSerial; ++block) {
+            loopMidi.clear();
+            scoped.processBlock(loopAudio, loopMidi);
+            scoped.serviceMessageThread();
+        }
+        check(scoped.searchSerial() != loopSerial, "Each loop did not evolve the time selection");
+        awaitSearch(scoped);
+        parameter(scoped, "evolveEachLoop", 0);
+        scoped.setPreview(false);
+        const auto loopResult = scoped.bankSnapshot();
+        check(scoped.selectedIndex() == 0, "Each loop switched away from the selected section");
+        for (int i = 1; i < composer::slotCount; ++i)
+            check(loopResult[i].seed == loopBank[i].seed && loopResult[i].count == loopBank[i].count,
+                  "Each loop regenerated other variations while a time selection was active");
+        findRoll()->selectAllTime();
+        for (const auto& text : {"Słuchaj A", "Wyczyść A", "Zakończ nagranie"}) {
+            auto* button = findButton(juce::String::fromUTF8(text));
+            check(button && !button->isVisible(), "an unavailable secondary action is still visible");
+        }
+        scoped.captureComparison();
+        parameter(scoped, "capturePhrase", 1);
+        editor->refreshDisplay();
+        check(findButton(juce::String::fromUTF8("Słuchaj A"))->isVisible() &&
+                  findButton(juce::String::fromUTF8("Zakończ nagranie"))->isVisible(),
+              "secondary actions were not revealed when needed");
+        parameter(scoped, "capturePhrase", 0);
+        findButton("PL")->onClick();
+        editor->refreshDisplay();
+        check(findButton("Play") && findButton("Microtones"), "returning to English left primary actions in Polish");
     }
     auto p = std::make_unique<Processor>();
     // Original normalized automation ranges are unchanged; extensions have separate IDs.

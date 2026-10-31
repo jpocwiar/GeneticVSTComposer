@@ -17,7 +17,8 @@ void PianoRoll::setNoteEditing(bool enabled) {
             ? "Edit notes: click to add, drag to move or resize; right-click to delete. Shift-click locks. "
               "Microtonal passing notes are chosen by the generator."
             : "Drag the piano roll to an instrument track to export MIDI. Double-click to audition. "
-              "Shift-click a note to lock it. Drag the bar ruler to select a range. Enable Edit notes for "
+              "Shift-click a note to lock it. Drag the bar ruler to loop a section; double-click the ruler "
+              "to clear the selection. Enable Edit notes for "
               "manual editing.");
     repaint();
 }
@@ -172,10 +173,12 @@ void PianoRoll::paint(juce::Graphics& g) {
     }
     const float selX = r.getX() + float(selectionStart / clip.length) * r.getWidth();
     const float selW = float((selectionEnd - selectionStart) / clip.length) * r.getWidth();
-    g.setColour(teal.withAlpha(0.2f));
-    g.fillRect(selX, 0.0f, selW, 22.0f);
-    g.setColour(teal);
-    g.fillRect(selX, 21.0f, selW, 2.0f);
+    if (hasTimeSelection()) {
+        g.setColour(teal.withAlpha(0.2f));
+        g.fillRect(selX, 0.0f, selW, 22.0f);
+        g.setColour(teal);
+        g.fillRect(selX, 21.0f, selW, 2.0f);
+    }
     g.setFont(font(9));
     g.setColour(muted);
     g.drawText(interfaceText("BARS", interfaceLanguage), 3, 1, 40, 20, juce::Justification::centredRight);
@@ -256,6 +259,14 @@ void PianoRoll::paint(juce::Graphics& g) {
             g.drawText(noteName(n, microtonal), bounds.toNearestInt().reduced(3, 0),
                        juce::Justification::centredLeft);
         }
+    }
+    if (hasTimeSelection()) {
+        g.setColour(background.withAlpha(0.48f));
+        g.fillRect(r.getX(), r.getY(), selX - r.getX(), r.getHeight());
+        g.fillRect(selX + selW, r.getY(), std::max(0.0f, r.getRight() - selX - selW), r.getHeight());
+        g.setColour(teal.withAlpha(0.7f));
+        g.drawVerticalLine(int(selX), r.getY(), r.getBottom());
+        g.drawVerticalLine(int(selX + selW), r.getY(), r.getBottom());
     }
     if (playhead >= 0) {
         const float x = r.getX() + float(playhead / clip.length) * r.getWidth();
@@ -415,7 +426,11 @@ void PianoRoll::mouseUp(const juce::MouseEvent&) {
     selectingTime = changingVelocity = false;
     dragArmed = false;
 }
-void PianoRoll::mouseDoubleClick(const juce::MouseEvent&) {
+void PianoRoll::mouseDoubleClick(const juce::MouseEvent& e) {
+    if (e.position.y < 24 && e.position.x >= gridArea().getX()) {
+        selectAllTime();
+        return;
+    }
     if (!noteEditing && onAudition)
         onAudition();
 }
@@ -428,6 +443,10 @@ void PianoRoll::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDe
     }
 }
 bool PianoRoll::keyPressed(const juce::KeyPress& k) {
+    if (k.getModifiers().isCommandDown() && k.getKeyCode() == 'A') {
+        selectAllTime();
+        return true;
+    }
     if (!editable || chosen < 0)
         return false;
     auto& n = clip.notes[chosen];

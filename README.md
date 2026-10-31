@@ -25,7 +25,7 @@ The **? Help** button opens the built-in Polish/English guide ([guide preview](i
 3. Select a variation and press the triangular **Play** below the piano roll, or double-click its card or piano roll. Play enables the internal sound and turns Follow DAW off; choose **Soft keys**, **Sine** or **Warm organ** in the bottom toolbar. The square **Stop** ends preview. Turn on **Follow DAW** to follow the host's transport and song position instead.
 4. Click **+** on a card to pin it. Pinned variations survive new generations.
 5. **Evolve selected** uses the selected phrase as a parent. **Evolution** controls the amount of mutation; **Keep rhythm** preserves all starts and durations.
-   To work on a section, drag the bar-number ruler above the piano roll and open **Edit region**. **Loop range** previews only that section, stopping notes at its end; **Optimise range** evolves only its unlocked note onsets in the current variation. Notes outside the selection, locked notes and other variations stay unchanged. Undo restores the result. The two options work independently; disabling Loop range returns to full-phrase playback.
+   Drag the bar-number ruler above the piano roll to focus on a section. Playback automatically loops that section and the main evolution action becomes **Optimise range**, changing only unlocked note onsets in the current variation. **Each loop** respects the same scope. Notes outside it, locked notes and other variations stay unchanged; Undo restores the result. Double-click the ruler or click **Whole phrase** below the piano roll to clear the selection. **Edit region** provides extra local transformations.
 6. Drag the **piano roll** (or **Drag MIDI**) onto an instrument track, or use **Export...**. Export applies Swing, Gate and **Fit to scale** if enabled, and preserves phrase length, meter and velocity. Fit to scale also works with custom harmony: it can change borrowed chromatic chord tones, so leave it off to hear the generator's original pitches.
 
 ## Compose harmony and export its chords
@@ -50,7 +50,7 @@ Generated harmony and exact voiced notes are included in **Undo/Redo**, saved ba
 
 ## Develop a phrase in context
 
-The workflow tabs sit next to the piano roll. **Edit region** operates on the selected part of a phrase; **Harmony** and **Groove** keep references separately from your melody. **Arrange** and **Combine** produce an auditionable draft before changing the bank. **Micro** holds the optional [microtonal tunings](#microtonal-riffs-optional).
+The workflow tabs sit next to the piano roll. **Edit region** operates on the selected part of a phrase; **Harmony** and **Groove** keep references separately from your melody. **Arrange** and **Combine** produce an auditionable draft before changing the bank. **Microtones** is always visible in the Composition panel; **Tuning / MIDI** holds its [palette and MIDI settings](#microtonal-riffs-optional). Comparison controls appear after capturing A; Finish capture appears while recording.
 
 - **Edit region:** drag across the bar-number ruler to choose a range, or choose **Whole phrase**. **Simplify**, **More movement**, **Answer** and **Resolve** transform unlocked notes whose starts are inside the range. Notes outside it and locked notes are preserved. Use Undo to compare with the previous edit.
 - **A/B:** press **Capture A** before editing. **Hear A / Hear B** compares that snapshot with the current variation or draft; **Clear A** removes the reference and its outlines. With **Switch at loop** enabled, selecting another card or changing A/B waits for the next loop boundary. The editing target changes immediately; the playing/queued indicators show what is currently audible. Incoming MIDI keys still trigger immediately at their MIDI timestamps.
@@ -130,7 +130,7 @@ Shortcuts: **Space** play/stop, **Cmd/Ctrl+Z** undo, **Cmd/Ctrl+Shift+Z** redo, 
 
 ## Microtonal riffs (optional)
 
-The **Micro** workflow tab has an explicit **Micro** switch, off by default. With it off, the melody uses ordinary 12-tone pitches. With it on, microtonal offsets are genes in the search: the algorithm places short passing notes, evaluates their duration and resolution, and can change them through crossover and mutation. It does not simply retune every occurrence of a pitch class after generation.
+The **Microtones** switch in the Composition panel is always visible and off by default. **Tuning / MIDI** contains the palette, encoding and bend range. With Microtones off, the melody uses ordinary 12-tone pitches. With it on, microtonal offsets are genes in the search: the algorithm places short passing notes, evaluates their duration and resolution, and can change them through crossover and mutation. It does not simply retune every occurrence of a pitch class after generation.
 
 The colour selector supplies quarter-tone inflections, Rast, Bayati, Saba, neutral blues or 24-EDO colours. These provide possible inflections for passing notes; they do not replace the main **Scale** or promise a complete traditional maqam performance. The Scale selector remains available. There is no microtone amount slider, blanket Apply/Clear operation or manual cents shortcut in the interface.
 

@@ -117,9 +117,9 @@ Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk we
 
 Przeciągnij po górnej linijce z numerami taktów, aby wybrać zakres czasu. Zielony pasek pokazuje zaznaczenie. Zakładka Region wyświetla jego początek i koniec w ćwierćnutach. Whole phrase zaznacza całość.
 
-Zapętl fragment (Loop range): włącz tę opcję w Edycji fragmentu i naciśnij Play. Odtwarzane będą tylko nuty zaczynające się w zaznaczeniu; wybrzmiewanie jest ucinane na jego końcu. Zmiana zaznaczenia aktualizuje pętlę. Wyłączenie opcji przywraca odsłuch całości.
+Zaznaczenie automatycznie wyznacza pętlę odsłuchu. Naciśnij Play: odtwarzane będą tylko nuty zaczynające się w zaznaczeniu; wybrzmiewanie jest ucinane na jego końcu. Zmiana zaznaczenia aktualizuje pętlę. Kliknij dwukrotnie linijkę albo wybierz Cała fraza pod piano rollem, aby wrócić do całości.
 
-Optymalizuj fragment (Optimise range): uruchamia wyszukiwanie genetyczne tylko dla zaznaczonego fragmentu bieżącego wariantu, z aktualnymi ustawieniami ewolucji i harmonii. Reszta melodii, zablokowane nuty i inne warianty pozostają bez zmian. Wynik można cofnąć przez Undo. Opcja działa niezależnie od zapętlenia.
+Główny przycisk Rozwiń wybrany zmienia się po zaznaczeniu w Optymalizuj fragment. Uruchamia wyszukiwanie genetyczne tylko dla zaznaczonego fragmentu bieżącego wariantu, z aktualnymi ustawieniami ewolucji i harmonii. Co pętlę respektuje ten sam zakres. Reszta melodii, zablokowane nuty i inne warianty pozostają bez zmian. Wynik można cofnąć przez Undo.
 
 Simplify: przerzedź wybrany fragment.
 More movement: zwiększ ruch melodii w zaznaczeniu.
@@ -214,7 +214,7 @@ Kółko myszy nad piano rollem: przewijaj wysokości.
 Skróty odtwarzania nie działają podczas wpisywania tekstu. Save bank zachowuje bank i ustawienia; stan jest również zapisywany z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.)",
             R"(MIKROTONY (OPCJONALNIE)
 
-Micro to osobny włącznik w zakładce Micro. Wyłączony daje zwykłą melodię 12-tonową. Włączony pozwala algorytmowi szukać krótkich dźwięków przejściowych między półtonami i rozwiązywać je na stabilnych nutach.
+Mikrotony włączysz bezpośrednio w panelu Kompozycja. Paleta i szczegóły wyjścia są w zakładce Strój / MIDI. Wyłączone dają zwykłą melodię 12-tonową. Włączone pozwalają algorytmowi szukać krótkich dźwięków przejściowych między półtonami i rozwiązywać je na stabilnych nutach.
 
 Wybór koloru określa dostępne odcienie: neutralne interwały, Rast, Bayati, Saba, blues albo 24-EDO. Główna Scale nadal prowadzi melodię. Nie ma ręcznego procentu mikrotonów ani przycisku przestrojenia wszystkich nut: ich miejsca, czas trwania i rozwiązania są częścią optymalizacji genetycznej.
 
@@ -271,9 +271,9 @@ Use the chapter selector above for detailed workflows. Escape closes this guide.
 
 Drag across the top bar-number ruler to select a time range. The green strip marks the selection. Region shows the endpoints in quarter-note beats; Whole phrase selects everything.
 
-Loop range: enable this in Edit region, then press Play. Only notes starting inside the selection play, with note-offs at the range end. Moving the selection updates the loop. Disable it to hear the whole phrase again.
+Selecting time automatically focuses playback on that section. Press Play: only notes starting inside the selection play, with note-offs at the range end. Moving the selection updates the loop. Double-click the ruler or click Whole phrase below the piano roll to clear the selection.
 
-Optimise range runs the genetic search on the selected section of the current variation using the current evolution and harmony settings. The rest of the melody, locked notes and other variations remain unchanged. Undo restores the previous phrase. This works independently of Loop range.
+The main Evolve selected action becomes Optimise range when time is selected. It runs the genetic search on that section of the current variation using the current evolution and harmony settings. Each loop respects the same scope. The rest of the melody, locked notes and other variations remain unchanged. Undo restores the previous phrase.
 
 Simplify thins the selection. More movement increases melodic movement. Answer creates a contrasting response. Resolve steers the ending towards a stable scale or chord tone.
 
@@ -365,7 +365,7 @@ Mouse wheel over the roll: scroll pitches.
 Playback shortcuts are suspended while typing text. Save bank stores the bank and settings; the DAW project also stores plugin state. Keep preview commits a temporary draft before saving.)",
             R"(MICROTONES (OPTIONAL)
 
-Micro is an explicit switch on the Micro tab. Off gives a normal 12-tone melody. On allows the genetic search to place short passing notes between semitones and resolve them into stable notes.
+Microtones is always visible in the Composition panel. The palette and output details are under Tuning / MIDI. Off gives a normal 12-tone melody. On allows the genetic search to place short passing notes between semitones and resolve them into stable notes.
 
 The colour selector supplies neutral intervals, Rast, Bayati, Saba, blues or 24-EDO. The main Scale still guides the melody. There is no manual percentage or blanket retuning action: the placement, duration and resolution of microtonal passing notes are part of the optimisation.
 

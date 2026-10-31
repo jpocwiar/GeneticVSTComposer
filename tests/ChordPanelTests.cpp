@@ -254,7 +254,7 @@ void runChordPanelTests() {
               "Melody navigation did not restore the page");
     }
     editor->showWorkflowPage(5);
-    auto* micro = findToggle(*editor, "Micro");
+    auto* micro = findToggle(*editor, "Microtones");
     check(micro && micro->isVisible(), "explicit Micro switch missing");
     check(!findButton(*editor, "Apply to range") && !findButton(*editor, "Clear microtones"),
           "manual blanket microtone controls are still exposed");

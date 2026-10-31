@@ -103,7 +103,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::array<juce::Slider, 9> knobs;
     juce::Slider low, high, swing, gate, humanize, tempo, volume;
     juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
-        monitor{"Internal sound"}, withChords{"With chords"}, chordMidi{"Chord MIDI"}, microEnabled{"Micro"};
+        monitor{"Internal sound"}, withChords{"With chords"}, chordMidi{"Chord MIDI"}, microEnabled{"Microtones"};
     juce::ToggleButton quantiseSwitch{"Switch at loop"};
     juce::ToggleButton hostMeter{"Host"}, capturePhrase{"Capture phrase"}, evolveEachLoop{"Each loop"};
     juce::TextButton finishCapture{"Finish capture"};
@@ -121,8 +121,6 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     int workflowPage = 0;
     juce::TextButton allTime{"Whole phrase"}, exportRange{"Export range..."}, simplify{"Simplify"},
         movement{"More movement"}, answer{"Answer"}, resolve{"Resolve"};
-    juce::ToggleButton loopRegion{"Loop range"};
-    juce::TextButton evolveRange{"Optimise range"};
     juce::TextEditor chordText;
     juce::TextButton applyHarmony{"Apply chords"}, clearHarmony{"Clear"},
         importHarmony{"Import harmony MIDI"}, chordComposer{"Chord composer..."};
@@ -170,6 +168,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     void refresh();
     void updateWorkflow();
     void updateMainPage();
+    void updateSelectionControls();
     juce::String microDescription() const;
     void report(const juce::Result&);
     void applyGroupingText(const juce::String&);

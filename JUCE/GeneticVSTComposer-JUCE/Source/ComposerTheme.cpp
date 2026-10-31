@@ -129,8 +129,17 @@ void ComposerLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton
     const float hover = interaction(b, "hoverAmount", over);
     const float enabled = b.isEnabled() ? 1.0f : 0.44f;
     const auto tint = controlAccent(b, accent);
+    const bool prominent = static_cast<bool>(b.getProperties().getWithDefault("prominent", false));
+    if (prominent) {
+        const auto bounds = b.getLocalBounds().toFloat().reduced(0.5f);
+        g.setColour((on ? tint.withAlpha(0.18f) : surface).withMultipliedAlpha(enabled));
+        g.fillRoundedRectangle(bounds, 6);
+        g.setColour((on ? tint.withAlpha(0.75f) : line.interpolatedWith(tint, 0.3f + hover * 0.4f))
+                        .withMultipliedAlpha(enabled));
+        g.drawRoundedRectangle(bounds, 6, 1);
+    }
     const float trackHeight = std::min(14.0f, b.getHeight() - 6.0f);
-    const juce::Rectangle<float> track{1.0f, (b.getHeight() - trackHeight) * 0.5f, 25.0f, trackHeight};
+    const juce::Rectangle<float> track{prominent ? 8.0f : 1.0f, (b.getHeight() - trackHeight) * 0.5f, 25.0f, trackHeight};
     const auto trackColour = on ? tint.withAlpha(0.2f + hover * 0.1f) : surface.brighter(hover * 0.08f);
     g.setColour(trackColour.withMultipliedAlpha(enabled));
     g.fillRoundedRectangle(track, trackHeight * 0.5f);
@@ -145,8 +154,8 @@ void ComposerLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton
     if (on || over)
         textColour = textColour.interpolatedWith(text, on ? 0.8f : 0.4f);
     g.setColour(textColour.withMultipliedAlpha(enabled));
-    g.setFont(controlFont(11.5f));
-    g.drawFittedText(b.getButtonText(), b.getLocalBounds().withTrimmedLeft(33).reduced(0, 1),
+    g.setFont(controlFont(11.5f, prominent));
+    g.drawFittedText(b.getButtonText(), b.getLocalBounds().withTrimmedLeft(prominent ? 40 : 33).reduced(0, 1),
                      juce::Justification::centredLeft, 1, 0.8f);
     if (b.hasKeyboardFocus(true)) {
         g.setColour(tint.withAlpha(0.8f));

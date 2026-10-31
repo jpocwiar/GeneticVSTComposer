@@ -15,6 +15,7 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     void setRegion(double start, double end);
     double regionStart() const { return selectionStart; }
     double regionEnd() const { return selectionEnd; }
+    bool hasTimeSelection() const { return selectionStart > 1.0e-8 || selectionEnd < clip.length - 1.0e-8; }
     void setPlayhead(double beat);
     void setActivity(const GeneticVSTComposerJUCEAudioProcessor::VisualState&, bool showingAudible,
                      bool animate, float elapsed);

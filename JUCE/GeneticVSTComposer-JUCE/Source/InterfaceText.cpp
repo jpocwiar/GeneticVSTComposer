@@ -7,6 +7,7 @@ struct Entry {
 };
 // Longer fragments first so a short token does not rewrite part of a longer one.
 const Entry fragments[]{
+    {"Loop: beats ", "Pętla: uderzenia "},
     {" individuals. Audition a phrase; drag its piano roll to your DAW.",
      " osobników. Odsłuchaj frazę i przeciągnij jej piano roll do DAW."},
     {" generations x ", " pokoleń × "},
@@ -49,21 +50,38 @@ const Entry fragments[]{
     {" bars", " taktów"},
 };
 const Entry exact[]{
-    {"Loop range", "Zapętl fragment"},
+    {"Microtones", "Mikrotony"},
+    {"Palette", "Paleta"},
+    {"Tuning / MIDI", "Strój / MIDI"},
+    {"Scope: whole phrase", "Zakres: cała fraza"},
+    {"Internal preview needs no MIDI setup. For an external instrument, match Pitch bend or MPE and the bend range.",
+     "Odsłuch wewnętrzny nie wymaga ustawiania MIDI. Dla instrumentu zewnętrznego dopasuj Pitch bend lub MPE i zakres strojenia."},
+    {"Microtones ON: the next search may add passing notes. Set their palette and MIDI output below.",
+     "Mikrotony włączone: kolejne szukanie może dodać nuty przejściowe. Poniżej ustawisz paletę i wyjście MIDI."},
+    {"Microtones OFF: plain 12-tone playback. Enable Microtones in Composition.",
+     "Mikrotony wyłączone: zwykły odsłuch 12-tonowy. Włącz Mikrotony w panelu Kompozycja."},
+    {"Drag the bar ruler to loop and edit a section. Double-click the ruler to return to the whole phrase.",
+     "Zaznacz fragment na linijce: odsłuch i optymalizacja obejmą ten zakres. Podwójne kliknięcie przywraca całość."},
+    {"Clear the time selection and return to the whole phrase. You can also double-click the bar ruler.",
+     "Usuń zaznaczenie i wróć do całej frazy. Możesz też kliknąć dwukrotnie linijkę taktów."},
+    {"Evolve the selected phrase into new variations. Select time on the ruler to optimise only that section.",
+     "Rozwiń wybraną frazę w nowe warianty. Zaznacz czas na linijce, aby optymalizować tylko ten fragment."},
+    {"Evolve at each loop with the current Evolution amount. A time selection limits "
+     "changes to that range; otherwise select the best new variation.",
+     "Optymalizuj przy każdym obiegu z aktualną siłą ewolucji. Zaznaczenie ogranicza zmiany do fragmentu; "
+     "bez zaznaczenia wybierany jest najlepszy nowy wariant."},
+    {"Configure the microtonal palette and MIDI output. Enable Microtones in the Composition panel.",
+     "Ustaw paletę mikrotonów i wyjście MIDI. Mikrotony włączysz w panelu Kompozycja."},
     {"Optimise range", "Optymalizuj fragment"},
     {"Select a valid time range on the bar ruler first.", "Najpierw zaznacz poprawny fragment na linijce taktów."},
     {"The selected range has no unlocked notes to evolve.", "Zaznaczony fragment nie zawiera odblokowanych nut do optymalizacji."},
     {"Optimising the selected range...", "Optymalizowanie zaznaczonego fragmentu..."},
     {"Range optimised. The remaining notes and other variations are unchanged.",
      "Fragment zoptymalizowany. Pozostałe nuty i inne warianty pozostają bez zmian."},
-    {"Play only the range selected on the bar ruler. Notes stop at the range end.",
-     "Odtwarzaj tylko fragment zaznaczony na linijce taktów. Nuty kończą się na granicy fragmentu."},
     {"Optimise unlocked notes in the selected range of this variation. Other notes and "
      "variations stay unchanged. Undo restores the previous phrase.",
      "Optymalizuj odblokowane nuty w zaznaczonym fragmencie tego wariantu. Pozostałe nuty i warianty "
      "pozostają bez zmian. Cofnij przywraca poprzednią frazę."},
-    {"Select time on the bar ruler, then Loop range or Optimise range. Locked notes and other regions stay intact.",
-     "Zaznacz czas na linijce taktów i wybierz Zapętl fragment lub Optymalizuj fragment. Blokady i reszta nut zostają."},
     {"Real genetic search: islands, one elite per island, crossover and adaptive mutation. No artificial "
      "delay.",
      "Prawdziwe wyszukiwanie genetyczne: wyspy, jedna elita na wyspę, krzyżowanie i mutacja adaptacyjna. "

@@ -357,15 +357,18 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     generate.setColour(juce::TextButton::textColourOffId, background);
     play.setColour(juce::TextButton::buttonColourId, accent);
     play.setColour(juce::TextButton::textColourOffId, background);
-    drag.setColour(juce::TextButton::buttonColourId, accent);
-    drag.setColour(juce::TextButton::textColourOffId, background);
     generate.onClick = [this] {
         if (processor.isGenerating())
             processor.cancelGeneration();
         else
             processor.generate(false);
     };
-    evolve.onClick = [this] { processor.generate(true); };
+    evolve.onClick = [this] {
+        if (roll.hasTimeSelection())
+            processor.evolveRegion(roll.regionStart(), roll.regionEnd());
+        else
+            processor.generate(true);
+    };
     play.onClick = [this] {
         if (processor.previewRequested() && !processor.isAuditioningChords())
             processor.setPreview(false);
@@ -411,8 +414,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
                              "armed.");
     finishCapture.setTooltip("Turn the captured notes into the selected variation. An empty capture leaves the "
                              "bank unchanged.");
-    evolveEachLoop.setTooltip("When the phrase loops, evolve it with the current Evolution amount and select "
-                              "the best new variation.");
+    evolveEachLoop.setTooltip("Evolve at each loop with the current Evolution amount. A time selection limits "
+                              "changes to that range; otherwise select the best new variation.");
     finishCapture.onClick = [this] {
         if (processor.parameters.getRawParameterValue("capturePhrase")->load() > 0.5f) {
             if (auto* parameter = processor.parameters.getParameter("capturePhrase"))
@@ -426,20 +429,11 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     editNotes.setTooltip("Optional note drawing and editing. Off: drag the piano roll to export MIDI; "
                          "double-click to audition.");
     roll.onRegionChange = [this](double start, double end) {
-        regionInfo.setText("Beats " + juce::String(start, 2) + " - " + juce::String(end, 2),
-                           juce::dontSendNotification);
-        processor.setPlaybackRegion(start, end, loopRegion.getToggleState());
+        processor.setPlaybackRegion(start, end, roll.hasTimeSelection());
+        updateSelectionControls();
     };
-    addAndMakeVisible(loopRegion);
-    loopRegion.onClick = [this] {
-        processor.setPlaybackRegion(roll.regionStart(), roll.regionEnd(), loopRegion.getToggleState());
-    };
-    loopRegion.setTooltip("Play only the range selected on the bar ruler. Notes stop at the range end.");
-    evolveRange.onClick = [this] { processor.evolveRegion(roll.regionStart(), roll.regionEnd()); };
-    evolveRange.setTooltip("Optimise unlocked notes in the selected range of this variation. Other notes and "
-                           "variations stay unchanged. Undo restores the previous phrase.");
     for (auto* button : {&captureA,     &compare,       &clearA,        &allTime,      &exportRange,
-                         &simplify,     &movement,      &answer,        &resolve,      &evolveRange, &applyHarmony,
+                         &simplify,     &movement,      &answer,        &resolve,      &applyHarmony,
                          &clearHarmony, &importHarmony, &chordComposer, &importGroove, &captureGroove,
                          &applyGroove,  &arrange,       &combine,       &applyDraft,   &discardDraft})
         addAndMakeVisible(*button);
@@ -467,14 +461,14 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         "Compare saved A with the selected phrase B. Export always writes the displayed phrase.");
     quantiseSwitch.setTooltip(
         "Switch variations or A/B at the end of the audible loop. Immediate while stopped.");
-    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Micro", "Search"};
+    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Tuning / MIDI", "Search"};
     const char* tabTips[]{
         "Change only the selected time range. Locked notes stay intact.",
         "Enter chord names or import a harmony timeline. The Chords page also generates voiced progressions.",
         "Transfer timing and velocity from a MIDI reference or a selected variation.",
         "Develop the selected idea into a four-part arrangement before keeping it.",
         "Combine rhythm, pitches and accents from different variations.",
-        "Enable genetically chosen microtonal passing notes and configure their MIDI output.",
+        "Configure the microtonal palette and MIDI output. Enable Microtones in the Composition panel.",
         "Set the genetic search budget and inspect actual generations, evaluations, crossovers and fitness."};
     for (int i = 0; i < 7; ++i) {
         auto& tab = workflowTabs[i];
@@ -484,6 +478,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         tab.onClick = [this, i] { showWorkflowPage(i); };
     }
     allTime.onClick = [this] { roll.selectAllTime(); };
+    allTime.setTooltip("Clear the time selection and return to the whole phrase. You can also double-click the bar ruler.");
     exportRange.onClick = [this] { chooseFile(6); };
     exportRange.setTooltip("Export just the selected ruler range, including a section of an arrangement.");
     auto regionAction = [this](composer::RegionAction action) {
@@ -576,6 +571,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     applyDraft.setTooltip("Replace the selected variation with this preview. Undo can restore it.");
     discardDraft.setTooltip("Discard the temporary preview and return to the committed phrase.");
     attach(microEnabled, "microEnabled");
+    microEnabled.getProperties().set("prominent", true);
+    microEnabled.getProperties().set("accentColour", int(violet.getARGB()));
     addAndMakeVisible(tuning);
     const auto tuningOptions = GeneticVSTComposerJUCEAudioProcessor::tuningNames();
     for (int i = 1; i < tuningOptions.size(); ++i)
@@ -612,9 +609,6 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     addAndMakeVisible(microInfo);
     microInfo.setFont(font(11));
     microInfo.setColour(juce::Label::textColourId, muted);
-    microInfo.setText("The search places short microtonal passing notes and resolves them. "
-                      "Play previews exact pitches; chord accompaniment stays in 12-TET.",
-                      juce::dontSendNotification);
     for (int i = 0; i < 12; ++i) {
         variants[i] = std::make_unique<VariationButton>(i);
         addAndMakeVisible(*variants[i]);
@@ -707,7 +701,7 @@ void Editor::applyInterfaceLanguage() {
     text(lockRhythm, "Keep rhythm");
     text(follow, "Follow DAW");
     text(monitor, "Internal sound");
-    text(microEnabled, "Micro");
+    text(microEnabled, "Microtones");
     text(quantiseSwitch, "Switch at loop");
     text(editNotes, "Edit notes");
     text(motion, "Motion");
@@ -739,9 +733,9 @@ void Editor::applyInterfaceLanguage() {
     text(discardDraft, "Discard");
     text(captureA, "Capture A");
     text(clearA, "Clear A");
-    text(loopRegion, "Loop range");
-    text(evolveRange, "Optimise range");
-    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Micro", "Search"};
+    microInfo.setText(tr("Internal preview needs no MIDI setup. For an external instrument, match Pitch bend or MPE and the bend range."),
+                      juce::dontSendNotification);
+    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Tuning / MIDI", "Search"};
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setButtonText(tr(tabs[i]));
     interfaceLanguageButton.setButtonText(processor.interfaceLanguageIndex() == 1 ? "PL" : "EN");
@@ -817,7 +811,7 @@ void Editor::paint(juce::Graphics& g) {
         label(g, "Level", {844, h - 53, 34, 22});
         return;
     }
-    label(g, "COMPOSITION", {36, 105, 220, 18}, true);
+    label(g, "COMPOSITION", {36, 105, 95, 18}, true);
     label(g, "Root", {36, 131, 62, 16});
     label(g, "Scale", {108, 131, 168, 16});
     label(g, "Length", {36, 188, 74, 16});
@@ -869,6 +863,7 @@ void Editor::paint(juce::Graphics& g) {
         label(g, "Accents", {mainX + 36 + width * 2, 595, width, 16});
     }
     if (workflowPage == 5) {
+        label(g, "Palette", {mainX + 12, 602, 72, 28});
         label(g, "Bend", {mainX + 622, 602, 40, 28});
     }
     if (workflowPage == 6) {
@@ -929,14 +924,18 @@ void Editor::resized() {
     phraseInfo.setBounds(x + 330, 100, mw - 330, 26);
     applyDraft.setBounds(w - 240, 98, 132, 28);
     discardDraft.setBounds(w - 100, 98, 80, 28);
-    captureA.setBounds(x, 135, 94, 28);
-    compare.setBounds(x + 102, 135, 76, 28);
-    clearA.setBounds(x + 186, 135, 72, 28);
-    quantiseSwitch.setBounds(x + 268, 134, 118, 30);
-    evolveEachLoop.setBounds(x + 392, 134, 108, 30);
-    capturePhrase.setBounds(x + 506, 134, 128, 30);
-    finishCapture.setBounds(x + 640, 134, 118, 30);
-    playbackInfo.setBounds(x + 764, 135, mw - 764, 28);
+    int toolsX = x;
+    for (auto* button : std::initializer_list<juce::Component*>{&captureA, &compare, &clearA, &quantiseSwitch,
+                                                              &evolveEachLoop, &capturePhrase, &finishCapture}) {
+        if (!button->isVisible())
+            continue;
+        const int width = button == &captureA ? 94 : button == &compare ? 76 : button == &clearA ? 72 :
+                          button == &quantiseSwitch || button == &finishCapture ? 118 :
+                          button == &evolveEachLoop ? 108 : 128;
+        button->setBounds(toolsX, 134, width, 30);
+        toolsX += width + 8;
+    }
+    playbackInfo.setBounds(toolsX, 135, std::max(0, x + mw - toolsX), 28);
     roll.setBounds(x, 174, mw, 270);
     play.setBounds(x, 456, 72, 30);
     withChords.setBounds(x + 76, 456, 108, 30);
@@ -950,14 +949,12 @@ void Editor::resized() {
     gate.setBounds(x + 424, 498, 100, 24);
     humanize.setBounds(x + 596, 498, 110, 24);
     tempoInfo.setBounds(x + 716, 498, mw - 716, 24);
+    allTime.setBounds(x + 716, 496, mw - 716, 28);
     const int tabWidth = (mw - 6 * 6) / 7;
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setBounds(x + i * (tabWidth + 6), 538, tabWidth, 28);
     workflowInfo.setBounds(x + 12, 573, mw - 24, 24);
-    regionInfo.setBounds(x + 12, 602, mw - 700, 28);
-    loopRegion.setBounds(w - 680, 602, 156, 28);
-    evolveRange.setBounds(w - 516, 602, 204, 28);
-    allTime.setBounds(w - 304, 602, 132, 28);
+    regionInfo.setBounds(x + 12, 602, mw - 176, 28);
     exportRange.setBounds(w - 164, 602, 132, 28);
     const int regionWidth = (mw - 48) / 4;
     std::array<juce::TextButton*, 4> actions{&simplify, &movement, &answer, &resolve};
@@ -980,8 +977,8 @@ void Editor::resized() {
     pitchSource.setBounds(x + 24 + sourceWidth, 612, sourceWidth, 26);
     accentSource.setBounds(x + 36 + 2 * sourceWidth, 612, sourceWidth, 26);
     combine.setBounds(x + 12, 642, 186, 26);
-    microEnabled.setBounds(x + 12, 602, 92, 28);
-    tuning.setBounds(x + 114, 602, 286, 28);
+    microEnabled.setBounds(138, 99, 128, 30);
+    tuning.setBounds(x + 88, 602, 312, 28);
     microOutput.setBounds(x + 410, 602, 202, 28);
     bendRange.setBounds(x + 666, 603, mw - 678, 26);
     microInfo.setBounds(x + 12, 636, mw - 24, 31);
@@ -1101,9 +1098,7 @@ void Editor::updateWorkflow() {
         workflowTabs[i].setColour(juce::TextButton::buttonColourId, i == workflowPage ? teal : surface);
         workflowTabs[i].setColour(juce::TextButton::textColourOffId, i == workflowPage ? background : muted);
     }
-    for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &allTime, &exportRange,
-                                                                   &simplify, &movement, &answer, &resolve,
-                                                                   &loopRegion, &evolveRange})
+    for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &simplify, &movement, &answer, &resolve})
         component->setVisible(!chordPage && workflowPage == 0);
     for (auto* component : std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony,
                                                                    &importHarmony, &chordComposer})
@@ -1116,14 +1111,15 @@ void Editor::updateWorkflow() {
     for (auto* component :
          std::initializer_list<juce::Component*>{&rhythmSource, &pitchSource, &accentSource, &combine})
         component->setVisible(!chordPage && workflowPage == 4);
-    for (auto* component : std::initializer_list<juce::Component*>{&microEnabled, &tuning, &microOutput,
+    microEnabled.setVisible(!chordPage);
+    for (auto* component : std::initializer_list<juce::Component*>{&tuning, &microOutput,
                                                                    &bendRange, &microInfo})
         component->setVisible(!chordPage && workflowPage == 5);
     for (auto* component : std::initializer_list<juce::Component*>{
              &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo})
         component->setVisible(!chordPage && workflowPage == 6);
     const char* descriptions[]{
-        "Select time on the bar ruler, then Loop range or Optimise range. Locked notes and other regions stay intact.",
+        "Drag the bar ruler to loop and edit a section. Double-click the ruler to return to the whole phrase.",
         "Enter chord:beats, e.g. Cm:4 Fm:2 G7:2, or open Chord composer to generate and export voiced "
         "chords.",
         "Import a reference or capture a variation, then apply its timing and accents.",
@@ -1134,13 +1130,28 @@ void Editor::updateWorkflow() {
         "delay."};
     workflowInfo.setText(workflowPage == 5 ? microDescription() : tr(descriptions[workflowPage]),
                          juce::dontSendNotification);
+    updateSelectionControls();
+}
+void Editor::updateSelectionControls() {
+    const bool scoped = roll.hasTimeSelection();
+    evolve.setButtonText(tr(scoped ? "Optimise range" : "Evolve selected"));
+    evolve.setTooltip(tr(scoped
+                            ? "Optimise unlocked notes in the selected range of this variation. Other notes and "
+                              "variations stay unchanged. Undo restores the previous phrase."
+                            : "Evolve the selected phrase into new variations. Select time on the ruler to optimise only that section."));
+    allTime.setVisible(!chordPage && scoped);
+    tempoInfo.setVisible(!chordPage && !scoped);
+    exportRange.setVisible(!chordPage && workflowPage == 0 && scoped);
+    regionInfo.setColour(juce::Label::textColourId, scoped ? teal : muted);
+    regionInfo.setText(scoped ? tr("Loop: beats ") + juce::String(roll.regionStart(), 2) + " - " +
+                                   juce::String(roll.regionEnd(), 2)
+                             : tr("Scope: whole phrase"),
+                       juce::dontSendNotification);
 }
 juce::String Editor::microDescription() const {
     const bool enabled = processor.parameters.getRawParameterValue("microEnabled")->load() > 0.5f;
-    return enabled ? "Micro is on: the search chooses and resolves short passing notes. Select their colour "
-                     "and MIDI output."
-                   : "Micro is off: plain 12-tone melody. Enable it to let the search explore short "
-                     "microtonal passing notes.";
+    return tr(enabled ? "Microtones ON: the next search may add passing notes. Set their palette and MIDI output below."
+                      : "Microtones OFF: plain 12-tone playback. Enable Microtones in Composition.");
 }
 void Editor::refresh() {
     const auto meterNow = processor.timeSignature();
@@ -1228,7 +1239,7 @@ void Editor::refresh() {
     }
     const auto region = processor.playbackRegion();
     const bool regionChanged = region.slot == slot &&
-                               (region.enabled != loopRegion.getToggleState() || region.start != roll.regionStart() ||
+                               (region.enabled != roll.hasTimeSelection() || region.start != roll.regionStart() ||
                                 region.end != roll.regionEnd());
     if (version != shownRevision || slot != shownSlot || tuningChanged || regionChanged) {
         auto bank = processor.bankSnapshot();
@@ -1236,11 +1247,9 @@ void Editor::refresh() {
             variants[i]->setClip(bank[i], i == slot, microtonal);
         const auto c = processor.displayedClip();
         roll.setClip(c, slot != shownSlot);
-        if (region.slot == slot) {
-            loopRegion.setToggleState(region.enabled, juce::dontSendNotification);
+        if (region.slot == slot && region.enabled) {
             roll.setRegion(region.start, region.end);
         } else {
-            loopRegion.setToggleState(false, juce::dontSendNotification);
             roll.selectAllTime();
         }
         roll.setReference(processor.comparisonClip(), processor.hasComparison());
@@ -1262,9 +1271,6 @@ void Editor::refresh() {
                                juce::String(c.length / (c.numerator * 4.0 / c.denominator), 1) +
                                " bars   /   " + juce::String(locked) + " locked" +
                                (microtonal ? "   /   " + juce::String(microtonalNotes) + " microtonal" : "")),
-                           juce::dontSendNotification);
-        regionInfo.setText("Beats " + juce::String(roll.regionStart(), 2) + " - " +
-                               juce::String(roll.regionEnd(), 2),
                            juce::dontSendNotification);
         const auto currentHarmony = processor.customHarmonyText();
         if (currentHarmony != shownHarmony) {
@@ -1307,6 +1313,16 @@ void Editor::refresh() {
 
     compare.setEnabled(processor.hasComparison());
     clearA.setEnabled(processor.hasComparison());
+    bool toolsChanged = false;
+    auto showTool = [&](juce::Component& tool, bool visible) {
+        toolsChanged |= tool.isVisible() != visible;
+        tool.setVisible(visible);
+    };
+    showTool(compare, !chordPage && processor.hasComparison());
+    showTool(clearA, !chordPage && processor.hasComparison());
+    showTool(finishCapture, !chordPage && capturePhrase.getToggleState());
+    if (toolsChanged)
+        resized();
     compare.setButtonText(processor.isComparing() ? tr("Hear B") : tr("Hear A"));
     compare.setColour(juce::TextButton::textColourOffId, processor.isComparing() ? gold : text);
     captureGroove.setTooltip(processor.hasGrooveReference()
@@ -1413,10 +1429,11 @@ void Editor::refreshDisplay() {
                                       juce::String(int(processor.generationProgress() * 100)) + "%"
                                 : tr("Generate melody bank"));
     evolve.setEnabled(!busy && !processor.hasDraft());
-    evolveRange.setEnabled(!busy && !processor.hasDraft());
+    updateSelectionControls();
     generate.setEnabled(busy || !processor.hasDraft());
-    play.setPlaying(processor.previewRequested() && !processor.isAuditioningChords());
-    play.setButtonText(tr(play.getButtonText()));
+    const bool melodyPreview = processor.previewRequested() && !processor.isAuditioningChords();
+    play.setPlaying(melodyPreview);
+    play.setButtonText(tr(melodyPreview ? "Stop" : "Play"));
     roll.setInterfaceLanguage(processor.interfaceLanguageIndex());
     tempoInfo.setText(juce::String(processor.tempo(), 1) + " BPM  /  " +
                           tr(processor.isPlaying() ? "PLAYING" : "READY"),

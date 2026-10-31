@@ -679,8 +679,13 @@ void Processor::serviceMessageThread() {
     if (evolveLoopRequested.load(std::memory_order_acquire) && cached.evolveEachLoop->load() > 0.5f &&
         !busy.load()) {
         evolveLoopRequested.store(false, std::memory_order_release);
-        selectBestOnFinish = true;
-        generate(true);
+        const auto region = playbackRegion();
+        if (region.enabled && region.slot == selected.load())
+            evolveRegion(region.start, region.end);
+        else {
+            selectBestOnFinish = true;
+            generate(true);
+        }
     }
     applyHostMeter();
 }
