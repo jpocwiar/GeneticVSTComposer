@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include <cmath>
+#include <chrono>
 #include <stdexcept>
 #include <vector>
 
@@ -19,7 +20,7 @@ void setParameter(WorkflowProcessor& processor, const char* id, float value) {
 
 bool sameNote(const composer::Note& a, const composer::Note& b) {
     return a.start == b.start && a.duration == b.duration && a.pitch == b.pitch && a.velocity == b.velocity &&
-           a.locked == b.locked;
+           a.locked == b.locked && a.cents == b.cents;
 }
 
 bool sameClip(const composer::Clip& a, const composer::Clip& b) {
@@ -461,6 +462,42 @@ void testMidiTriggerLeavesComparison() {
 } // namespace
 
 void runWorkflowTests() {
+    {
+        WorkflowProcessor processor;
+        auto clip = phrase();
+        clip.notes[0].cents = 25;
+        clip.notes[6].locked = true;
+        clip.favourite = true; // Explicit section editing also works on a pinned variation.
+        processor.setClip(3, clip);
+        processor.selectClip(3);
+        setParameter(processor, "customSearch", 1);
+        setParameter(processor, "searchPopulation", 16);
+        setParameter(processor, "searchGenerations", 3);
+        setParameter(processor, "mutation", 1);
+        const auto before = processor.bankSnapshot();
+        processor.evolveRegion(2.25, 5.5);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (processor.isGenerating() && std::chrono::steady_clock::now() < deadline)
+            juce::Thread::sleep(1);
+        check(!processor.isGenerating(), "region evolution timeout");
+        const auto after = processor.bankSnapshot();
+        check(!sameClip(before[3], after[3]), "region evolution did not replace the selected variation");
+        for (int i = 0; i < composer::slotCount; ++i)
+            if (i != 3)
+                check(sameClip(before[i], after[i]), "region evolution replaced another variation");
+        for (int i = 0; i < clip.count; ++i) {
+            const auto& n = clip.notes[i];
+            if (n.locked || n.start < 2.25 || n.start >= 5.5)
+                check(contains(after[3], n), "region evolution changed a protected event");
+        }
+        processor.undo();
+        check(sameBank(before, processor.bankSnapshot()), "region evolution undo did not restore the full bank");
+        processor.redo();
+        check(sameBank(after, processor.bankSnapshot()), "region evolution redo did not restore the result");
+        processor.evolveRegion(7.75, 8);
+        check(!processor.isGenerating() && sameBank(after, processor.bankSnapshot()),
+              "empty selection changed the bank");
+    }
     testHarmonyAndReferences();
     testPartialEdits();
     testDraftsAndArrangement();

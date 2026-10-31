@@ -70,6 +70,9 @@ struct Settings {
     // Zero uses the selected preset. Explicit budgets are bounded by searchBudget().
     int population = 0, generations = 0;
     float crossover = 0.9f;
+    // Optional evolution scope. Protected onsets and locked notes retain every stored field.
+    bool regionOnly = false;
+    double regionStart = 0, regionEnd = 0;
 };
 struct TimeSignature {
     int numerator, denominator;

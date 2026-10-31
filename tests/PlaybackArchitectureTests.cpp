@@ -455,7 +455,100 @@ void testChordMidiOutputAndCombinedExport() {
     file.deleteFile();
 }
 
+void testRegionLoop(int output) {
+    auto processor = std::make_unique<Processor>();
+    composer::Clip clip;
+    clip.length = 4;
+    clip.count = 5;
+    clip.notes[0] = {0, 2, 59, 100, false, 0}; // Sustains across the left boundary; must not start.
+    clip.notes[1] = {1, 0.25, 60, 100, false, 25};
+    clip.notes[2] = {1.5, 1.5, 64, 100, false, -25}; // Must stop at the right boundary.
+    clip.notes[3] = {2, 0.25, 67, 100, false, 0}; // Right boundary is excluded.
+    clip.notes[4] = {3, 0.25, 72, 100, false, 0};
+    processor->setClip(0, clip);
+    parameter(*processor, "microEnabled", output > 0 ? 1 : 0);
+    parameter(*processor, "microOutput", float(std::max(0, output - 1)));
+    parameter(*processor, "tuning", 1);
+    parameter(*processor, "gate", 1.5f);
+    parameter(*processor, "quantiseSwitch", 0);
+    processor->prepareToPlay(48000, blockSize);
+    processor->setPlaybackRegion(1, 2, true);
+    processor->setPreview(true);
+    Frame frame;
+    int first = 0, second = 0;
+    std::array<int, 128> held{};
+    for (int block = 0; block < 600; ++block) {
+        process(*processor, frame);
+        check(processor->playPosition() >= 1 && processor->playPosition() < 2,
+              "region loop playhead escaped the selection");
+        for (const auto metadata : frame.midi) {
+            const auto m = metadata.getMessage();
+            if (m.isNoteOn()) {
+                check(m.getNoteNumber() == 60 || m.getNoteNumber() == 64,
+                      "region loop emitted an onset outside the selection");
+                if (m.getNoteNumber() == 60) {
+                    check(held[64] == 0, "region loop did not release the preceding loop's last note");
+                    ++first;
+                } else
+                    ++second;
+                ++held[size_t(m.getNoteNumber())];
+            } else if (m.isNoteOff())
+                --held[size_t(m.getNoteNumber())];
+        }
+    }
+    check(first >= 3 && second >= 3, "region loop did not repeat the selected section");
+    processor->setPlaybackRegion(3, 4, true);
+    process(*processor, frame);
+    check(processor->playPosition() >= 3 && processor->playPosition() < 4,
+          "moving the selection did not update the active loop");
+    bool heardNewRange = false;
+    for (const auto metadata : frame.midi)
+        if (metadata.getMessage().isNoteOn()) {
+            check(metadata.getMessage().getNoteNumber() == 72, "old range started notes after a range edit");
+            heardNewRange = true;
+        }
+    check(heardNewRange, "range edit did not start the newly selected note");
+    processor->setPlaybackRegion(3, 4, false);
+    process(*processor, frame);
+    check(processor->playPosition() < 1, "disabling Loop range did not restore full-phrase playback");
+    processor->setPlaybackRegion(1, 2, true);
+    processor->selectClip(1);
+    process(*processor, frame);
+    check(processor->playPosition() < 1, "a different variation inherited the previous range loop");
+
+    // The editor publishes a new selection range while a variation switch is queued.
+    processor->selectClip(0);
+    processor->setPlaybackRegion(1, 2, true);
+    process(*processor, frame);
+    parameter(*processor, "quantiseSwitch", 1);
+    processor->selectClip(1);
+    processor->setPlaybackRegion(0, processor->selectedClip().length, false);
+    process(*processor, frame);
+    check(processor->audibleIndex() == 0 && processor->playPosition() >= 1 && processor->playPosition() < 2,
+          "publishing a new selection bypassed the queued range-loop switch");
+    for (int block = 0; block < 200 && processor->audibleIndex() == 0; ++block)
+        process(*processor, frame);
+    check(processor->audibleIndex() == 1, "queued variation did not activate at the range boundary");
+    parameter(*processor, "quantiseSwitch", 0);
+
+    processor->selectClip(0);
+    processor->setPlaybackRegion(1, 2, true);
+    PlayHead head;
+    head.beat = 7.25;
+    processor->setPlayHead(&head);
+    parameter(*processor, "follow", 1);
+    process(*processor, frame);
+    check(processor->playPosition() >= 1.25 && processor->playPosition() < 1.27,
+          "Follow DAW seek did not map into the selected loop");
+    processor->setPlayHead(nullptr);
+    processor->panic();
+    process(*processor, frame);
+    check(!processor->isPlaying() && noNotes(processor->visualState()), "panic left range notes held");
+}
+
 void runPlaybackArchitectureTests() {
+    for (int output = 0; output < 3; ++output)
+        testRegionLoop(output);
     Processor defaults;
     check(defaults.parameters.getRawParameterValue("snap")->load() == 0,
           "Fit to scale must default to the original performance switch's OFF state");

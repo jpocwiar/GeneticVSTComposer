@@ -117,6 +117,10 @@ Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk we
 
 Przeciągnij po górnej linijce z numerami taktów, aby wybrać zakres czasu. Zielony pasek pokazuje zaznaczenie. Zakładka Region wyświetla jego początek i koniec w ćwierćnutach. Whole phrase zaznacza całość.
 
+Zapętl fragment (Loop range): włącz tę opcję w Edycji fragmentu i naciśnij Play. Odtwarzane będą tylko nuty zaczynające się w zaznaczeniu; wybrzmiewanie jest ucinane na jego końcu. Zmiana zaznaczenia aktualizuje pętlę. Wyłączenie opcji przywraca odsłuch całości.
+
+Optymalizuj fragment (Optimise range): uruchamia wyszukiwanie genetyczne tylko dla zaznaczonego fragmentu bieżącego wariantu, z aktualnymi ustawieniami ewolucji i harmonii. Reszta melodii, zablokowane nuty i inne warianty pozostają bez zmian. Wynik można cofnąć przez Undo. Opcja działa niezależnie od zapętlenia.
+
 Simplify: przerzedź wybrany fragment.
 More movement: zwiększ ruch melodii w zaznaczeniu.
 Answer: utwórz wariant odpowiedzi.
@@ -266,6 +270,10 @@ Use the chapter selector above for detailed workflows. Escape closes this guide.
             R"(EDIT A REGION
 
 Drag across the top bar-number ruler to select a time range. The green strip marks the selection. Region shows the endpoints in quarter-note beats; Whole phrase selects everything.
+
+Loop range: enable this in Edit region, then press Play. Only notes starting inside the selection play, with note-offs at the range end. Moving the selection updates the loop. Disable it to hear the whole phrase again.
+
+Optimise range runs the genetic search on the selected section of the current variation using the current evolution and harmony settings. The rest of the melody, locked notes and other variations remain unchanged. Undo restores the previous phrase. This works independently of Loop range.
 
 Simplify thins the selection. More movement increases melodic movement. Answer creates a contrasting response. Resolve steers the ending towards a stable scale or chord tone.
 

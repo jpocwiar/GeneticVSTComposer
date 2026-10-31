@@ -12,6 +12,7 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     void setMicrotonal(bool enabled);
     void setInterfaceLanguage(int language) { interfaceLanguage = language; }
     void selectAllTime();
+    void setRegion(double start, double end);
     double regionStart() const { return selectionStart; }
     double regionEnd() const { return selectionEnd; }
     void setPlayhead(double beat);

@@ -9,8 +9,98 @@ void check(bool ok, const char* message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+bool sameNote(const composer::Note& a, const composer::Note& b) {
+    return a.start == b.start && a.duration == b.duration && a.pitch == b.pitch && a.velocity == b.velocity &&
+           a.locked == b.locked && a.cents == b.cents;
+}
+void testRegionSearch() {
+    using namespace composer;
+    Clip parent;
+    parent.length = 8;
+    parent.count = 16;
+    parent.seed = 42;
+    parent.favourite = true;
+    for (int i = 0; i < parent.count; ++i)
+        parent.notes[i] = {i * 0.5, 0.5, 60 + i % 7, 80 + i, i == 6, i % 2 ? 25 : 0};
+    parent.notes[4].duration = 1; // Outside onset sustaining into the selected region.
+    parent.notes[6].duration = 1.5; // A protected note inside the region.
+    Settings s;
+    s.population = 16;
+    s.generations = 4;
+    s.mutation = 1;
+    s.regionOnly = true;
+    s.regionStart = 2.25;
+    s.regionEnd = 5.5;
+    std::atomic<bool> cancelled{false};
+    for (int mode = 0; mode < 3; ++mode) {
+        s.mode = mode;
+        s.microEnabled = mode == 0;
+        const auto results = generate(s, &parent, cancelled);
+        check(results.size() == slotCount, "scoped search did not complete");
+        bool changed = false;
+        for (const auto& result : results) {
+            check(result.length == parent.length && result.grid == parent.grid && result.seed == parent.seed &&
+                      result.favourite == parent.favourite, "scoped search changed phrase metadata");
+            if (mode == 2) {
+                check(result.count == parent.count, "Melody on rhythm changed the scoped note count");
+                for (int i = 0; i < parent.count; ++i)
+                    check(result.notes[i].start == parent.notes[i].start &&
+                              result.notes[i].duration == parent.notes[i].duration,
+                          "Melody on rhythm changed scoped timing");
+            }
+            for (int i = 0; i < parent.count; ++i) {
+                const auto& n = parent.notes[i];
+                const bool retained = std::any_of(result.notes.begin(), result.notes.begin() + result.count,
+                                                  [&](const Note& m) { return sameNote(n, m); });
+                if (n.locked || n.start < s.regionStart || n.start >= s.regionEnd)
+                    check(retained, "scoped search changed a protected note field");
+                else
+                    changed |= !retained;
+            }
+            for (int i = 0; i < result.count; ++i) {
+                const auto& n = result.notes[i];
+                if (n.start < s.regionStart || n.start >= s.regionEnd || n.locked)
+                    check(std::any_of(parent.notes.begin(), parent.notes.begin() + parent.count,
+                                      [&](const Note& m) { return sameNote(n, m); }),
+                          "scoped search inserted an event outside the selection");
+            }
+        }
+        check(changed, "scoped search did not optimise any editable notes");
+    }
+    s.mode = 0;
+    s.lockRhythm = true;
+    for (const auto& result : generate(s, &parent, cancelled)) {
+        check(result.count == parent.count, "Keep rhythm changed the scoped note count");
+        for (int i = 0; i < parent.count; ++i)
+            check(result.notes[i].start == parent.notes[i].start && result.notes[i].duration == parent.notes[i].duration,
+                  "Keep rhythm changed scoped timing");
+    }
+    s.lockRhythm = false;
+    Clip full = parent;
+    full.length = 128;
+    full.count = maxNotes;
+    for (int i = 0; i < full.count; ++i)
+        full.notes[i] = {i * 0.25, 0.25, 60 + i % 7, 90, false, i % 2 ? 25 : 0};
+    s.regionStart = 32;
+    s.regionEnd = 33;
+    for (const auto& result : generate(s, &full, cancelled)) {
+        check(result.count <= maxNotes, "scoped rhythm mutation overflowed capacity");
+        for (int i = 0; i < full.count; ++i)
+            if (full.notes[i].start < 32 || full.notes[i].start >= 33)
+                check(std::any_of(result.notes.begin(), result.notes.begin() + result.count,
+                                  [&](const Note& n) { return sameNote(n, full.notes[i]); }),
+                      "capacity pressure dropped a protected event");
+    }
+    s.regionStart = 2.25;
+    s.regionEnd = s.regionStart;
+    check(generate(s, &parent, cancelled).empty(), "empty evolution scope accepted");
+    s.regionEnd = 5.5;
+    cancelled.store(true);
+    check(generate(s, &parent, cancelled).empty(), "cancelled scoped search returned a result");
+}
 } // namespace
 void runSearchTests() {
+    testRegionSearch();
     using namespace composer;
     std::atomic<bool> cancelled{false};
     Settings s;

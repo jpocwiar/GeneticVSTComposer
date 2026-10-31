@@ -221,9 +221,21 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const int samples = audio.getNumSamples();
     if (samples <= 0)
         return;
-    bool bankChanged = false, chordsChanged = false;
+    bool bankChanged = false, chordsChanged = false, regionChanged = false;
     {
         juce::SpinLock::ScopedTryLockType lock(exchangeLock);
+        if (lock.isLocked() && pendingRegionSerial != audioRegionSerial) {
+            audioRequestedRegion = pendingRegion;
+            const bool switchingLater = !audioChordPreview && wasPlaying &&
+                                        cached.quantiseSwitch->load() > 0.5f &&
+                                        selected.load() != audioSelection;
+            if (!switchingLater) {
+                regionChanged = (audioRegion.enabled && audioRegion.slot == audioSelection) ||
+                                (audioRequestedRegion.enabled && audioRequestedRegion.slot == selected.load());
+                audioRegion = audioRequestedRegion;
+            }
+            audioRegionSerial = pendingRegionSerial;
+        }
         if (lock.isLocked() && pendingRevision != audioRevision) {
             const int slot = juce::jlimit(0, 11, audioSelection);
             const bool nextHasDraft = pendingHasDraft && pendingDraftSlot == slot;
@@ -292,7 +304,15 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         trigger = -1;
         transpose = 0;
     }
-    bool restart = bankChanged || hostJump || follow != lastFollow;
+    bool restart = bankChanged || hostJump || follow != lastFollow || (regionChanged && !audioChordPreview);
+    auto loopBounds = [this] {
+        if (!audioChordPreview && audioRegion.enabled && audioRegion.slot == audioSelection) {
+            const double end = std::min(activeClip.length, audioRegion.end);
+            if (audioRegion.start < end)
+                return std::make_pair(audioRegion.start, end);
+        }
+        return std::make_pair(0.0, activeClip.length);
+    };
     auto incoming = midi.cbegin();
     const auto end = midi.cend();
     const bool monitor = cached.monitor->load() > 0.5f;
@@ -309,7 +329,9 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     } else if (!captureArmed)
         captureAudioArmed = false;
     for (int sample = 0; sample < samples; ++sample) {
-        bool restartLayer = sample == 0 && chordsChanged;
+        bool restartLayer = (sample == 0 && chordsChanged) ||
+                            (loopBoundary && !audioChordPreview && audioRegion.enabled &&
+                             audioRegion.slot == audioSelection);
         while (incoming != end && (*incoming).samplePosition <= sample) {
             const auto message = (*incoming).getMessage();
             ++incoming;
@@ -396,6 +418,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
             allOff(sample, outputMidi);
             restartLayer = true;
             audioSelection = slot;
+            audioRegion = audioRequestedRegion;
             audioChordPreview = requestedChords;
             audioCompare = requestedA;
             audioDraftActive = requestedDraft;
@@ -405,21 +428,31 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                          : audioCompare    ? audioComparison
                          : requestedDraft  ? audioDraft
                                            : audioBank[slot];
-            phase = boundarySwitch          ? 0.0
-                    : follow && hasPosition ? std::fmod(std::max(0.0, ppq + sample * step), activeClip.length)
-                                            : 0.0;
-            accompanimentBeat = follow && hasPosition ? std::max(0.0, ppq + sample * step) : 0.0;
+            const auto bounds = loopBounds();
+            phase = bounds.first + (!boundarySwitch && follow && hasPosition
+                                        ? std::fmod(std::max(0.0, ppq + sample * step),
+                                                    bounds.second - bounds.first)
+                                        : 0.0);
+            const bool scoped = !audioChordPreview && audioRegion.enabled && audioRegion.slot == audioSelection &&
+                                audioRegion.start < bounds.second;
+            accompanimentBeat = scoped ? phase
+                                : follow && hasPosition ? std::max(0.0, ppq + sample * step) : 0.0;
             nextNote = 0;
             while (nextNote < activeClip.count &&
                    (audioChordPreview
                         ? activeClip.notes[nextNote].start
-                        : renderedNote(activeClip.notes[nextNote], activeClip, 0, nextNote).start) <
+                        : std::max(bounds.first,
+                                   renderedNote(activeClip.notes[nextNote], activeClip, 0, nextNote).start)) <
                           phase - step * 0.5)
                 ++nextNote;
             restart = false;
         }
         loopBoundary = false;
         const auto& clip = activeClip;
+        const auto bounds = loopBounds();
+        const double loopStart = bounds.first, loopEnd = bounds.second;
+        const bool regionLoop = !audioChordPreview && audioRegion.enabled && audioRegion.slot == audioSelection &&
+                                audioRegion.start < loopEnd;
         wasPlaying = run;
         heardChordPreview.store(run && audioChordPreview);
         for (int p = 0; p < 128; ++p)
@@ -436,13 +469,21 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         if (run) {
             while (nextNote < clip.count) {
                 const auto& raw = clip.notes[nextNote];
+                if (regionLoop && (raw.start < loopStart || raw.start >= loopEnd)) {
+                    ++nextNote;
+                    continue;
+                }
+                auto n = audioChordPreview ? raw : renderedNote(raw, clip, transpose, nextNote);
+                if (regionLoop) {
+                    n.start = juce::jlimit(loopStart, loopEnd - 1.0e-9, n.start);
+                    n.duration = std::min(n.duration, loopEnd - n.start);
+                }
                 const double start =
-                    audioChordPreview
+                    regionLoop ? n.start : audioChordPreview
                         ? raw.start
                         : std::min(clip.length - 0.001, swingTime(raw.start, clip.grid, swingAmount));
                 if (start > phase + step * 0.5)
                     break;
-                auto n = audioChordPreview ? raw : renderedNote(raw, clip, transpose, nextNote);
                 if (n.start >= phase - step * 1.5)
                     noteOn(n, nextNote, sample, outputMidi);
                 ++nextNote;
@@ -481,8 +522,12 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         if (run) {
             accompanimentBeat += step;
             phase += step;
-            if (phase >= clip.length - step * 0.0001) {
-                phase = std::max(0.0, phase - clip.length);
+            if (phase >= loopEnd - step * 0.0001) {
+                phase = loopStart + std::fmod(std::max(0.0, phase - loopEnd), loopEnd - loopStart);
+                if (regionLoop) {
+                    allOff(sample, outputMidi);
+                    accompanimentBeat = phase;
+                }
                 nextNote = 0;
                 loopBoundary = true;
                 if (cached.evolveEachLoop->load() > 0.5f)

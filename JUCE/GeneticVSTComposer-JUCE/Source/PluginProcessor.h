@@ -48,6 +48,14 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     bool canUndo() const;
     bool canRedo() const;
     void generate(bool evolve, bool overHarmony = false);
+    void evolveRegion(double start, double end);
+    struct PlaybackRegion {
+        double start = 0, end = 0;
+        int slot = -1;
+        bool enabled = false;
+    };
+    void setPlaybackRegion(double start, double end, bool enabled);
+    PlaybackRegion playbackRegion() const;
     juce::String searchSummary() const;
     uint64_t searchSerial() const { return searchSerialValue.load(std::memory_order_relaxed); }
     uint64_t statusSerial() const { return statusSerialValue.load(std::memory_order_relaxed); }
@@ -192,7 +200,9 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         bool useParent = false;
         bool evolve = false;
         bool selectBest = false;
+        int regionSlot = -1;
     };
+    void beginSearch(bool evolve, bool overHarmony, bool regionOnly, double start = 0, double end = 0);
     void performSearch(SearchJob);
     void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
@@ -273,6 +283,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     juce::Random seedGenerator;
     // The audio thread only tries this lock, retaining the last bank if busy.
     juce::SpinLock exchangeLock;
+    PlaybackRegion pendingRegion, audioRequestedRegion, audioRegion;
+    uint64_t pendingRegionSerial = 0, audioRegionSerial = 0;
     composer::Bank pendingBank, audioBank;
     composer::Clip pendingComparison, pendingDraft, audioComparison, audioDraft, activeClip;
     composer::Clip pendingChords, audioChords;

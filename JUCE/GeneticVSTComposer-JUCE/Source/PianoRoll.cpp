@@ -71,8 +71,11 @@ void PianoRoll::setHarmony(const composer::Harmony& h) {
     repaint();
 }
 void PianoRoll::selectAllTime() {
-    selectionStart = 0;
-    selectionEnd = clip.length;
+    setRegion(0, clip.length);
+}
+void PianoRoll::setRegion(double start, double end) {
+    selectionStart = juce::jlimit(0.0, clip.length - clip.grid, start);
+    selectionEnd = juce::jlimit(selectionStart + clip.grid, clip.length, end);
     if (onRegionChange)
         onRegionChange(selectionStart, selectionEnd);
     repaint();
@@ -290,7 +293,7 @@ void PianoRoll::mouseDown(const juce::MouseEvent& e) {
     dragArmed = midiDragged = false;
     selectingTime = e.mods.isLeftButtonDown() && e.position.y < 24 && e.position.x >= gridArea().getX();
     if (selectingTime) {
-        selectionAnchor = beatAt(e.position.x);
+        selectionAnchor = std::min(beatAt(e.position.x), clip.length - clip.grid);
         selectionStart = selectionAnchor;
         selectionEnd = std::min(clip.length, selectionAnchor + clip.grid);
         if (onRegionChange)

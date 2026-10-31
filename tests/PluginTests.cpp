@@ -453,6 +453,21 @@ int main(int argc, char** argv) {
                 workflowEditor->showWorkflowPage(page);
                 snapshot("ui-workflow-" + juce::String(page) + ".png");
             }
+            juce::Button* languageButton = nullptr;
+            for (auto* child : editor->getChildren())
+                if (auto* button = dynamic_cast<juce::Button*>(child); button && button->getButtonText() == "EN")
+                    languageButton = button;
+            require(languageButton != nullptr, "region snapshot language button missing");
+            languageButton->onClick();
+            demo->setPlaybackRegion(4, 8, true);
+            workflowEditor->showWorkflowPage(0);
+            workflowEditor->refreshDisplay();
+            snapshot("ui-region-pl.png");
+            editor->setSize(870, 630);
+            snapshot("ui-region-pl-compact.png");
+            editor->setSize(1180, 900);
+            demo->setPlaybackRegion(4, 8, false);
+            languageButton->onClick();
             demo->generate(false);
             const auto searchDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
             while (demo->isGenerating() && std::chrono::steady_clock::now() < searchDeadline)

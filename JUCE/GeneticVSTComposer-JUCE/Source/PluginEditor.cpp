@@ -428,9 +428,18 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     roll.onRegionChange = [this](double start, double end) {
         regionInfo.setText("Beats " + juce::String(start, 2) + " - " + juce::String(end, 2),
                            juce::dontSendNotification);
+        processor.setPlaybackRegion(start, end, loopRegion.getToggleState());
     };
+    addAndMakeVisible(loopRegion);
+    loopRegion.onClick = [this] {
+        processor.setPlaybackRegion(roll.regionStart(), roll.regionEnd(), loopRegion.getToggleState());
+    };
+    loopRegion.setTooltip("Play only the range selected on the bar ruler. Notes stop at the range end.");
+    evolveRange.onClick = [this] { processor.evolveRegion(roll.regionStart(), roll.regionEnd()); };
+    evolveRange.setTooltip("Optimise unlocked notes in the selected range of this variation. Other notes and "
+                           "variations stay unchanged. Undo restores the previous phrase.");
     for (auto* button : {&captureA,     &compare,       &clearA,        &allTime,      &exportRange,
-                         &simplify,     &movement,      &answer,        &resolve,      &applyHarmony,
+                         &simplify,     &movement,      &answer,        &resolve,      &evolveRange, &applyHarmony,
                          &clearHarmony, &importHarmony, &chordComposer, &importGroove, &captureGroove,
                          &applyGroove,  &arrange,       &combine,       &applyDraft,   &discardDraft})
         addAndMakeVisible(*button);
@@ -730,6 +739,8 @@ void Editor::applyInterfaceLanguage() {
     text(discardDraft, "Discard");
     text(captureA, "Capture A");
     text(clearA, "Clear A");
+    text(loopRegion, "Loop range");
+    text(evolveRange, "Optimise range");
     const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Micro", "Search"};
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setButtonText(tr(tabs[i]));
@@ -943,7 +954,9 @@ void Editor::resized() {
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setBounds(x + i * (tabWidth + 6), 538, tabWidth, 28);
     workflowInfo.setBounds(x + 12, 573, mw - 24, 24);
-    regionInfo.setBounds(x + 12, 602, mw - 320, 28);
+    regionInfo.setBounds(x + 12, 602, mw - 700, 28);
+    loopRegion.setBounds(w - 680, 602, 156, 28);
+    evolveRange.setBounds(w - 516, 602, 204, 28);
     allTime.setBounds(w - 304, 602, 132, 28);
     exportRange.setBounds(w - 164, 602, 132, 28);
     const int regionWidth = (mw - 48) / 4;
@@ -1089,7 +1102,8 @@ void Editor::updateWorkflow() {
         workflowTabs[i].setColour(juce::TextButton::textColourOffId, i == workflowPage ? background : muted);
     }
     for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &allTime, &exportRange,
-                                                                   &simplify, &movement, &answer, &resolve})
+                                                                   &simplify, &movement, &answer, &resolve,
+                                                                   &loopRegion, &evolveRange})
         component->setVisible(!chordPage && workflowPage == 0);
     for (auto* component : std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony,
                                                                    &importHarmony, &chordComposer})
@@ -1109,7 +1123,7 @@ void Editor::updateWorkflow() {
              &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo})
         component->setVisible(!chordPage && workflowPage == 6);
     const char* descriptions[]{
-        "Drag the bar ruler to select a region. Locked notes and other regions stay intact.",
+        "Select time on the bar ruler, then Loop range or Optimise range. Locked notes and other regions stay intact.",
         "Enter chord:beats, e.g. Cm:4 Fm:2 G7:2, or open Chord composer to generate and export voiced "
         "chords.",
         "Import a reference or capture a variation, then apply its timing and accents.",
@@ -1212,12 +1226,23 @@ void Editor::refresh() {
         shownOutput = output;
         shownBend = bend;
     }
-    if (version != shownRevision || slot != shownSlot || tuningChanged) {
+    const auto region = processor.playbackRegion();
+    const bool regionChanged = region.slot == slot &&
+                               (region.enabled != loopRegion.getToggleState() || region.start != roll.regionStart() ||
+                                region.end != roll.regionEnd());
+    if (version != shownRevision || slot != shownSlot || tuningChanged || regionChanged) {
         auto bank = processor.bankSnapshot();
         for (int i = 0; i < 12; ++i)
             variants[i]->setClip(bank[i], i == slot, microtonal);
         const auto c = processor.displayedClip();
         roll.setClip(c, slot != shownSlot);
+        if (region.slot == slot) {
+            loopRegion.setToggleState(region.enabled, juce::dontSendNotification);
+            roll.setRegion(region.start, region.end);
+        } else {
+            loopRegion.setToggleState(false, juce::dontSendNotification);
+            roll.selectAllTime();
+        }
         roll.setReference(processor.comparisonClip(), processor.hasComparison());
         roll.setHarmony(processor.harmonySnapshot());
         phraseTitle.setText(draft ? (processor.draftDescription().startsWith("Arrangement")
@@ -1388,6 +1413,7 @@ void Editor::refreshDisplay() {
                                       juce::String(int(processor.generationProgress() * 100)) + "%"
                                 : tr("Generate melody bank"));
     evolve.setEnabled(!busy && !processor.hasDraft());
+    evolveRange.setEnabled(!busy && !processor.hasDraft());
     generate.setEnabled(busy || !processor.hasDraft());
     play.setPlaying(processor.previewRequested() && !processor.isAuditioningChords());
     play.setButtonText(tr(play.getButtonText()));

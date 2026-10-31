@@ -1235,18 +1235,57 @@ struct Evolution {
                                  : std::max(std::min(grid, length), std::min(bar * 0.5, length / 4.0));
     }
     bool structured() const {
-        if (s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
+        if (s.regionOnly || s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
             return false;
         return !parent || (s.mutation > 0 && parent->count && parent->notes[0].start < cellLength() &&
                            std::none_of(parent->notes.begin(), parent->notes.begin() + parent->count,
                                         [](const Note& note) { return note.locked; }));
+    }
+    bool editable(const Note& n) const {
+        return !n.locked && (!s.regionOnly || (n.start >= s.regionStart && n.start < s.regionEnd));
+    }
+    void constrainRegion(Clip& c) const {
+        if (!s.regionOnly || !parent)
+            return;
+        Clip merged = *parent;
+        merged.count = 0;
+        std::array<int, maxNotes> locks;
+        int lockCount = 0;
+        // Reserve capacity for every protected event before admitting candidate notes.
+        for (int i = 0; i < parent->count; ++i) {
+            if (!editable(parent->notes[i]))
+                merged.notes[merged.count++] = parent->notes[i];
+            if (parent->notes[i].locked)
+                locks[lockCount++] = i;
+        }
+        for (int i = 0; i < c.count && merged.count < maxNotes; ++i) {
+            auto n = c.notes[i];
+            if (!editable(n))
+                continue;
+            bool overlapsLock = false;
+            for (int j = 0; j < lockCount; ++j) {
+                const auto& fixed = parent->notes[locks[j]];
+                if (fixed.pitch == n.pitch && n.start < fixed.start + fixed.duration &&
+                    fixed.start < n.start + n.duration)
+                    overlapsLock = true;
+            }
+            if (overlapsLock && !s.lockRhythm && s.mode != 2)
+                continue;
+            if (!s.lockRhythm && s.mode != 2)
+                n.duration = std::min(n.duration, s.regionEnd - n.start);
+            merged.notes[merged.count++] = n;
+        }
+        // Avoid sanitise here: protected events must remain byte-for-field identical.
+        std::stable_sort(merged.notes.begin(), merged.notes.begin() + merged.count,
+                         [](const Note& a, const Note& b) { return a.start < b.start; });
+        c = merged;
     }
     void constrainMicro(Clip& c) const {
         // This repair only removes invalid genes. It never adds random cents
         // after scoring or changes locked events/rhythmic templates.
         for (int i = c.count - 1; i >= 0; --i) {
             auto& n = c.notes[size_t(i)];
-            if (n.locked)
+            if (!editable(n))
                 continue;
             if (!s.microEnabled || s.mode == 1 || !validPassing(c, i, s)) {
                 const bool wasPassing = n.cents != 0;
@@ -1259,7 +1298,7 @@ struct Evolution {
     }
     void mutateMicro(Clip& c, int index) {
         auto& note = c.notes[size_t(index)];
-        if (note.locked || !s.microEnabled || s.mode == 1 || index == 0 || index + 1 >= c.count)
+        if (!editable(note) || !s.microEnabled || s.mode == 1 || index == 0 || index + 1 >= c.count)
             return;
         if (random() < 0.30f) {
             note.cents = 0;
@@ -1493,7 +1532,8 @@ struct Evolution {
     }
     void mutateRhythm(Clip& c, float amount) {
         if (s.lockRhythm || s.mode == 2 || c.count < 2 ||
-            std::any_of(c.notes.begin(), c.notes.begin() + c.count, [](const Note& n) { return n.locked; }))
+            (!s.regionOnly && std::any_of(c.notes.begin(), c.notes.begin() + c.count,
+                                         [](const Note& n) { return n.locked; })))
             return;
         const double end = structured() ? cellLength() : c.length;
         int editable = 0;
@@ -1590,7 +1630,7 @@ struct Evolution {
             auto& n = c.notes[i];
             if (structured() && n.start >= cellLength() - 1e-8)
                 break;
-            if (n.locked || random() >= amount)
+            if (!editable(n) || random() >= amount)
                 continue;
             if (s.mode != 1)
                 setPitch(n, pitch(n.pitch, n.start), true);
@@ -1838,6 +1878,10 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             s.groupUnit = parent.groupUnit > 0 ? parent.groupUnit : parent.denominator;
         }
     }
+    if (s.regionOnly && (!source || !std::isfinite(s.regionStart) || !std::isfinite(s.regionEnd) ||
+                         s.regionStart < 0 || s.regionEnd > source->length ||
+                         s.regionEnd <= s.regionStart))
+        return {};
     if (!source &&
         (!std::isfinite(s.lengthOverride) || s.lengthOverride < 0 ||
          (s.lengthOverride > 0 ? s.lengthOverride : s.bars * s.numerator * 4.0 / s.denominator) > 128.0))
@@ -1921,6 +1965,11 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             if (s.tension == 0.0f && s.harmony.count)
                 for (auto& clip : current.population)
                     articulateCustomHarmony(clip, s);
+            for (auto& clip : current.population) {
+                current.evolution.constrainRegion(clip);
+                if (s.regionOnly)
+                    current.evolution.constrainMicro(clip);
+            }
             scoreIsland(current);
             if (cancelled.load())
                 return {};
@@ -2029,6 +2078,8 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         return false;
     };
     std::vector<Clip> results;
+    if (s.regionOnly)
+        results.push_back(ranked[size_t(rank.front())]);
     for (const auto& current : island) {
         const auto& leader = current.population[size_t(current.order.front())];
         if (!tooClose(results, leader))

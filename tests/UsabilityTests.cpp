@@ -39,6 +39,41 @@ juce::MouseEvent mouse(PianoRoll& roll, juce::Point<float> point, juce::Point<fl
 }
 } // namespace
 void runUsabilityTests() {
+    {
+        Processor scoped;
+        scoped.setInterfaceLanguage(1);
+        auto editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(scoped);
+        auto findLoop = [&]() -> juce::Button* {
+            for (auto* child : editor->getChildren())
+                if (auto* button = dynamic_cast<juce::Button*>(child);
+                    button && button->getButtonText() == juce::String::fromUTF8("Zapętl fragment"))
+                    return button;
+            return nullptr;
+        };
+        auto findRoll = [&]() -> PianoRoll* {
+            for (auto* child : editor->getChildren())
+                if (auto* value = dynamic_cast<PianoRoll*>(child))
+                    return value;
+            return nullptr;
+        };
+        check(findLoop() != nullptr && findRoll() != nullptr, "translated range controls missing");
+        const auto revision = scoped.documentRevision();
+        findRoll()->setRegion(2, 4);
+        findLoop()->setToggleState(true, juce::dontSendNotification);
+        findLoop()->onClick();
+        auto range = scoped.playbackRegion();
+        check(range.enabled && range.start == 2 && range.end == 4 && range.slot == scoped.selectedIndex(),
+              "Loop range UI did not publish the ruler selection");
+        check(scoped.documentRevision() == revision, "a preview range invalidated the document revision");
+        scoped.setPlaybackRegion(3, 5, true);
+        editor->refreshDisplay();
+        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findLoop()->getToggleState(),
+              "the editor did not refresh a processor-owned range");
+        editor.reset();
+        editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(scoped);
+        check(findRoll()->regionStart() == 3 && findRoll()->regionEnd() == 5 && findLoop()->getToggleState(),
+              "closing the editor lost the active loop selection");
+    }
     auto p = std::make_unique<Processor>();
     // Original normalized automation ranges are unchanged; extensions have separate IDs.
     check(dynamic_cast<juce::AudioParameterChoice*>(p->parameters.getParameter("meter"))->choices.size() == 5,
@@ -195,6 +230,9 @@ void runUsabilityTests() {
     roll.mouseDrag(mouse(roll, {200, 10}, {100, 10}, true));
     roll.mouseUp(mouse(roll, {200, 10}, {100, 10}, true));
     check(regions >= 2 && drags == 1, "range selection triggered a file drag");
+    roll.mouseDown(mouse(roll, {849, 10}, {849, 10}));
+    roll.mouseUp(mouse(roll, {849, 10}, {849, 10}));
+    check(roll.regionStart() < roll.regionEnd(), "ruler click at the right edge selected an empty range");
     roll.setEditable(false);
     roll.mouseDown(mouse(roll, start, start));
     roll.mouseDrag(mouse(roll, {430, 160}, start, true));

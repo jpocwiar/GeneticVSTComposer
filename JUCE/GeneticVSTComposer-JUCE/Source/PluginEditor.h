@@ -121,6 +121,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     int workflowPage = 0;
     juce::TextButton allTime{"Whole phrase"}, exportRange{"Export range..."}, simplify{"Simplify"},
         movement{"More movement"}, answer{"Answer"}, resolve{"Resolve"};
+    juce::ToggleButton loopRegion{"Loop range"};
+    juce::TextButton evolveRange{"Optimise range"};
     juce::TextEditor chordText;
     juce::TextButton applyHarmony{"Apply chords"}, clearHarmony{"Clear"},
         importHarmony{"Import harmony MIDI"}, chordComposer{"Chord composer..."};

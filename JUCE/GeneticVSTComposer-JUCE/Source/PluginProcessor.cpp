@@ -425,6 +425,26 @@ void Processor::setPreview(bool enabled) {
     if (!enabled)
         chordPreview.store(false);
 }
+Processor::PlaybackRegion Processor::playbackRegion() const {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    return pendingRegion;
+}
+void Processor::setPlaybackRegion(double start, double end, bool enabled) {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    const int slot = selected.load();
+    const double length = draftActive && draftSlot == slot ? draft.length : bank[slot].length;
+    if (!std::isfinite(start) || !std::isfinite(end))
+        return;
+    start = juce::jlimit(0.0, length, start);
+    end = juce::jlimit(start, length, end);
+    enabled = enabled && end > start;
+    if (pendingRegion.start == start && pendingRegion.end == end && pendingRegion.slot == slot &&
+        pendingRegion.enabled == enabled)
+        return;
+    juce::SpinLock::ScopedLockType exchange(exchangeLock);
+    pendingRegion = {start, end, slot, enabled};
+    ++pendingRegionSerial;
+}
 void Processor::startAudition() {
     chordPreview.store(false);
     setParameter("follow", 0);
@@ -829,6 +849,12 @@ juce::String Processor::searchSummary() const {
            juce::String(lastSearch.evaluations) + " eval  |  " + juce::String(searchSeconds, 2) + " s";
 }
 void Processor::generate(bool evolve, bool overHarmony) {
+    beginSearch(evolve, overHarmony, false);
+}
+void Processor::evolveRegion(double start, double end) {
+    beginSearch(true, false, true, start, end);
+}
+void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, double start, double end) {
     if (hasDraft()) {
         setStatus("Apply or discard the preview before generating.");
         return;
@@ -857,8 +883,31 @@ void Processor::generate(bool evolve, bool overHarmony) {
                 setPhraseBarCount(count);
     }
     s.seed = uint32_t(seedGenerator.nextInt());
-    const auto parent = selectedClip();
-    const auto startRevision = revision.load();
+    composer::Clip parent;
+    uint64_t startRevision;
+    int parentSlot;
+    {
+        std::lock_guard<std::mutex> lock(documentMutex);
+        parentSlot = selected.load();
+        parent = bank[parentSlot];
+        startRevision = revision.load();
+    }
+    if (regionOnly) {
+        if (!std::isfinite(start) || !std::isfinite(end) || start < 0 || end > parent.length || end <= start) {
+            setStatus("Select a valid time range on the bar ruler first.");
+            busy.store(false);
+            return;
+        }
+        if (std::none_of(parent.notes.begin(), parent.notes.begin() + parent.count,
+                         [=](const composer::Note& n) { return !n.locked && n.start >= start && n.start < end; })) {
+            setStatus("The selected range has no unlocked notes to evolve.");
+            busy.store(false);
+            return;
+        }
+        s.regionOnly = true;
+        s.regionStart = start;
+        s.regionEnd = end;
+    }
     const bool useParent = evolve || s.mode == 2;
     if ((!useParent || parent.count == 0) &&
         (s.lengthOverride > 0 ? s.lengthOverride : s.bars * s.numerator * 4.0 / s.denominator) > 128.0) {
@@ -874,13 +923,15 @@ void Processor::generate(bool evolve, bool overHarmony) {
         searchSeconds = 0;
         searchSerialValue.fetch_add(1, std::memory_order_relaxed);
     }
-    setStatus(evolve ? "Evolving the selected phrase..." : "Searching for new phrases...");
+    setStatus(regionOnly ? "Optimising the selected range..."
+                        : evolve ? "Evolving the selected phrase..." : "Searching for new phrases...");
     SearchJob job;
     job.settings = s;
     job.parent = parent;
     job.startRevision = startRevision;
     job.useParent = useParent;
     job.evolve = evolve;
+    job.regionSlot = regionOnly ? parentSlot : -1;
     job.selectBest = selectBestOnFinish;
     selectBestOnFinish = false;
     if (evolve)
@@ -905,6 +956,14 @@ void Processor::performSearch(SearchJob job) {
         std::lock_guard<std::mutex> lock(documentMutex);
         if (!results.empty() && !cancelled.load() && revision.load() == job.startRevision) {
             pushHistoryLocked();
+            if (job.regionSlot >= 0) {
+                bank[size_t(job.regionSlot)] = results.front();
+                publishLocked();
+                assignStatusLocked("Range optimised. The remaining notes and other variations are unchanged.");
+                busy.store(false);
+                searchSerialValue.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
             int next = 0, bestSlot = -1;
             for (int index = 0; index < composer::slotCount; ++index) {
                 if (size_t(next) >= results.size())

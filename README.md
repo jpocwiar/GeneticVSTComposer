@@ -25,6 +25,7 @@ The **? Help** button opens the built-in Polish/English guide ([guide preview](i
 3. Select a variation and press the triangular **Play** below the piano roll, or double-click its card or piano roll. Play enables the internal sound and turns Follow DAW off; choose **Soft keys**, **Sine** or **Warm organ** in the bottom toolbar. The square **Stop** ends preview. Turn on **Follow DAW** to follow the host's transport and song position instead.
 4. Click **+** on a card to pin it. Pinned variations survive new generations.
 5. **Evolve selected** uses the selected phrase as a parent. **Evolution** controls the amount of mutation; **Keep rhythm** preserves all starts and durations.
+   To work on a section, drag the bar-number ruler above the piano roll and open **Edit region**. **Loop range** previews only that section, stopping notes at its end; **Optimise range** evolves only its unlocked note onsets in the current variation. Notes outside the selection, locked notes and other variations stay unchanged. Undo restores the result. The two options work independently; disabling Loop range returns to full-phrase playback.
 6. Drag the **piano roll** (or **Drag MIDI**) onto an instrument track, or use **Export...**. Export applies Swing, Gate and **Fit to scale** if enabled, and preserves phrase length, meter and velocity. Fit to scale also works with custom harmony: it can change borrowed chromatic chord tones, so leave it off to hear the generator's original pitches.
 
 ## Compose harmony and export its chords

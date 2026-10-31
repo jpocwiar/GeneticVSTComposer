@@ -43,6 +43,10 @@ void runRealtimeTests()
 
     for (int block = 0; block < 800; ++block) {
         midi.clear();
+        if (block == 12 || block == 250)
+            processor.setPlaybackRegion(1, 1.5, true);
+        if (block == 300)
+            processor.setPlaybackRegion(1, 1.5, false);
         // Notes 48-59 hold-trigger variations; 60-127 transpose. Channel 1 is the
         // melody. A second note on a member channel exercises the MPE allocator.
         if (block == 8)

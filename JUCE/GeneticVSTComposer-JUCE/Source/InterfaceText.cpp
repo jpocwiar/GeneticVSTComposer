@@ -49,6 +49,21 @@ const Entry fragments[]{
     {" bars", " taktów"},
 };
 const Entry exact[]{
+    {"Loop range", "Zapętl fragment"},
+    {"Optimise range", "Optymalizuj fragment"},
+    {"Select a valid time range on the bar ruler first.", "Najpierw zaznacz poprawny fragment na linijce taktów."},
+    {"The selected range has no unlocked notes to evolve.", "Zaznaczony fragment nie zawiera odblokowanych nut do optymalizacji."},
+    {"Optimising the selected range...", "Optymalizowanie zaznaczonego fragmentu..."},
+    {"Range optimised. The remaining notes and other variations are unchanged.",
+     "Fragment zoptymalizowany. Pozostałe nuty i inne warianty pozostają bez zmian."},
+    {"Play only the range selected on the bar ruler. Notes stop at the range end.",
+     "Odtwarzaj tylko fragment zaznaczony na linijce taktów. Nuty kończą się na granicy fragmentu."},
+    {"Optimise unlocked notes in the selected range of this variation. Other notes and "
+     "variations stay unchanged. Undo restores the previous phrase.",
+     "Optymalizuj odblokowane nuty w zaznaczonym fragmencie tego wariantu. Pozostałe nuty i warianty "
+     "pozostają bez zmian. Cofnij przywraca poprzednią frazę."},
+    {"Select time on the bar ruler, then Loop range or Optimise range. Locked notes and other regions stay intact.",
+     "Zaznacz czas na linijce taktów i wybierz Zapętl fragment lub Optymalizuj fragment. Blokady i reszta nut zostają."},
     {"Real genetic search: islands, one elite per island, crossover and adaptive mutation. No artificial "
      "delay.",
      "Prawdziwe wyszukiwanie genetyczne: wyspy, jedna elita na wyspę, krzyżowanie i mutacja adaptacyjna. "
