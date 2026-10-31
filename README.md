@@ -1,6 +1,8 @@
-# Genetic Composer 2.7
+# Genetic Composer 2.8.0
 
 A JUCE instrument for composing and evolving MIDI phrases. Generate twelve alternatives, keep an idea, develop it and take the melody and chords into your track.
+
+Version **2.8.0** groups beats inside the meter (quarters in 4/4, a 2-and-3 pattern in x/8, or a typed pattern such as `2+2+3`). **Host** follows the DAW time signature when one is available. **Capture phrase** records incoming MIDI into the selected variation. Arrangement can preview A A' B A'', AAAB, ABAC or Call / Response. **Each loop** evolves the phrase when playback wraps, using the Evolution amount, and leaves pinned variations in place. The internal audition adds a little reverb (dry when the mix is zero, and dry for older sessions that have no reverb setting). MIDI export writes a `RHYTHMS_GROUPS` text event and chord-name markers, including slash bass such as `C/E`.
 
 Version **2.7.0** searches in islands, with one unchanged elite on each island. Populations of 64 or more use four islands; smaller populations stay on one. Scoring runs in parallel. Mutation rises when an island stops improving, and pinned variations can join Evolve as extra parents. New scales are Phrygian, Locrian, melodic minor, whole tone, blues and Phrygian dominant. New four-voice chords are m7b5, dim7, 6, m6, add9, 9 and maj9. Phrase and chord lengths add 3, 6, 12 and 16 bars. Humanize, off by default, shifts melody timing and velocity only in preview and export. **Melody + chords** writes a type 1 MIDI file. **Chord MIDI output**, off by default, sends chord voices on channel 16 and stays off while MPE uses channels 2–16. **EN/PL** changes the editor language and is stored locally, not as automation. Existing parameter IDs and automation ranges are unchanged.
 

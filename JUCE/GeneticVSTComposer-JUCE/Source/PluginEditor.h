@@ -4,52 +4,7 @@
 #include "ActivityDisplay.h"
 #include "ComposerTheme.h"
 
-class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
-  public:
-    PianoRoll();
-    void setClip(const composer::Clip&, bool resetView = true);
-    void setReference(const composer::Clip&, bool visible);
-    void setHarmony(const composer::Harmony&);
-    void setEditable(bool enabled) { editable = enabled; }
-    void setNoteEditing(bool enabled);
-    void setMicrotonal(bool enabled);
-    void setInterfaceLanguage(int language) { interfaceLanguage = language; }
-    void selectAllTime();
-    double regionStart() const { return selectionStart; }
-    double regionEnd() const { return selectionEnd; }
-    void setPlayhead(double beat);
-    void setActivity(const GeneticVSTComposerJUCEAudioProcessor::VisualState&, bool showingAudible,
-                     bool animate, float elapsed);
-    void paint(juce::Graphics&) override;
-    void mouseDown(const juce::MouseEvent&) override;
-    void mouseDrag(const juce::MouseEvent&) override;
-    void mouseUp(const juce::MouseEvent&) override;
-    void mouseDoubleClick(const juce::MouseEvent&) override;
-    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
-    bool keyPressed(const juce::KeyPress&) override;
-    std::function<void(composer::Clip)> onEdit;
-    std::function<void()> onMidiDrag, onAudition;
-    std::function<void(double, double)> onRegionChange;
-
-  private:
-    composer::Clip clip;
-    composer::Clip reference;
-    composer::Harmony harmony;
-    int low = 48, high = 79, chosen = -1;
-    double playhead = -1;
-    std::array<float, 128> noteActivity{};
-    std::array<float, composer::maxNotes> sourceActivity{};
-    bool changed = false, resizingNote = false, changingVelocity = false, selectingTime = false;
-    bool editable = true, showReference = false, microtonal = false;
-    int interfaceLanguage = 0;
-    bool noteEditing = false, dragArmed = false, midiDragged = false;
-    double selectionStart = 0, selectionEnd = 16, selectionAnchor = 0;
-    composer::Note original;
-    juce::Rectangle<float> gridArea() const;
-    juce::Rectangle<float> noteRect(const composer::Note&) const;
-    double beatAt(float x) const;
-    int pitchAt(float y) const;
-};
+#include "PianoRoll.h"
 class VariationButton : public juce::Button {
   public:
     explicit VariationButton(int index);
@@ -137,7 +92,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::unique_ptr<juce::PropertiesFile> preferences;
     int shownLanguage = -1;
     std::array<std::unique_ptr<VariationButton>, 12> variants;
-    juce::ComboBox preset, root, scale, bars, grid, meter, mode, phraseType, harmony, quality, auditionSound;
+    juce::ComboBox preset, root, scale, bars, grid, meter, grouping, mode, phraseType, harmony, quality,
+        auditionSound, arrangementForm;
     juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"};
     bool chordPage = false;
     juce::ToggleButton editNotes{"Edit notes"}, customSearch{"Custom budget"};
@@ -149,6 +105,10 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
         monitor{"Internal sound"}, withChords{"With chords"}, chordMidi{"Chord MIDI"}, microEnabled{"Micro"};
     juce::ToggleButton quantiseSwitch{"Switch at loop"};
+    juce::ToggleButton hostMeter{"Host"}, capturePhrase{"Capture phrase"}, evolveEachLoop{"Each loop"};
+    juce::TextButton finishCapture{"Finish capture"};
+    juce::TextEditor groupingEntry;
+    juce::Slider auditionReverb;
     juce::TextButton generate{"Generate melody bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
     TransportButton play;
     juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save bank"}, load{"Open bank"};
@@ -184,6 +144,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     int shownSlot = -1, shownTuning = -1, shownOutput = -1, shownBend = -1;
     bool shownBusy = false;
     int shownMeterNumerator = -1, shownMeterDenominator = -1;
+    int shownGroupNumerator = -1, shownGroupDenominator = -1;
     int shownProgression = -2;
     bool shownCustomHarmony = false;
     uint64_t shownSearchSerial = ~uint64_t{0};
@@ -209,6 +170,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     void updateMainPage();
     juce::String microDescription() const;
     void report(const juce::Result&);
+    void applyGroupingText(const juce::String&);
     void label(juce::Graphics&, const juce::String&, juce::Rectangle<int>, bool heading = false);
     void attach(juce::ComboBox&, const char*);
     void attach(juce::Slider&, const char*, bool rotary = false);

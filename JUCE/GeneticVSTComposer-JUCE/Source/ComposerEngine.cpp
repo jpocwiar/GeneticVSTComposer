@@ -73,6 +73,224 @@ SearchBudget searchBudget(const Settings& s) {
     return {s.population > 0 ? std::clamp(s.population, 16, 512) : preset.population,
             s.generations > 0 ? std::clamp(s.generations, 1, 2000) : preset.generations};
 }
+bool unitDenominator(int d) {
+    return d >= 1 && d <= 32 && (d & (d - 1)) == 0;
+}
+void fillDefaultGroups(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount,
+                       int& groupUnit) {
+    numerator = std::clamp(numerator, 1, 32);
+    if (!unitDenominator(denominator))
+        denominator = 4;
+    groups.fill(0);
+    if (denominator == 8) {
+        groupUnit = 8;
+        int remaining = numerator;
+        groupCount = 0;
+        // 6/8 is 3+3. Odd counts end on a 3: 5/8 = 2+3, 7/8 = 2+2+3, 9/8 = 2+2+2+3.
+        const bool compound = remaining >= 6 && remaining % 3 == 0 && remaining % 2 == 0;
+        while (remaining > 0 && groupCount < 16) {
+            int group = remaining == 1 ? 1 : (compound || remaining == 3 ? 3 : 2);
+            if (groupCount == 15 || group > remaining)
+                group = remaining;
+            groups[size_t(groupCount++)] = group;
+            remaining -= group;
+        }
+        return;
+    }
+    groupUnit = denominator;
+    const int count = std::min(16, numerator);
+    groupCount = count;
+    const int base = numerator / count;
+    const int extra = numerator % count;
+    for (int i = 0; i < count; ++i)
+        groups[size_t(i)] = base + (i < extra ? 1 : 0);
+}
+struct ResolvedGroups {
+    std::array<int, 16> groups{};
+    int count = 0, unit = 4;
+};
+ResolvedGroups resolveGroups(const Settings& s) {
+    ResolvedGroups g;
+    const int numerator = std::clamp(s.numerator, 1, 32);
+    const int denominator = unitDenominator(s.denominator) ? s.denominator : 4;
+    if (s.groupCount > 0) {
+        g.count = std::clamp(s.groupCount, 1, 16);
+        g.unit = unitDenominator(s.groupUnit) ? s.groupUnit : denominator;
+        for (int i = 0; i < g.count; ++i)
+            g.groups[size_t(i)] = std::clamp(s.groups[size_t(i)] > 0 ? s.groups[size_t(i)] : 1, 1, 32);
+        return g;
+    }
+    fillDefaultGroups(numerator, denominator, g.groups, g.count, g.unit);
+    return g;
+}
+void defaultGrouping(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount, int& groupUnit) {
+    fillDefaultGroups(numerator, denominator, groups, groupCount, groupUnit);
+}
+std::string groupingText(const std::array<int, 16>& groups, int count) {
+    std::string text;
+    count = std::clamp(count, 0, 16);
+    for (int i = 0; i < count; ++i) {
+        if (i)
+            text += '+';
+        text += std::to_string(std::max(1, groups[size_t(i)]));
+    }
+    return text;
+}
+bool parseGrouping(const std::string& text, std::array<int, 16>& groups, int& count, std::string& error) {
+    error.clear();
+    groups.fill(0);
+    count = 0;
+    std::string token;
+    auto flush = [&](const std::string& number) {
+        if (count >= 16) {
+            error = "Use at most 16 groups.";
+            return false;
+        }
+        if (number.empty()) {
+            error = "Enter a grouping such as 2+2+3.";
+            return false;
+        }
+        int value = 0;
+        for (char c : number) {
+            if (c < '0' || c > '9') {
+                error = "Groups must be whole numbers separated by +.";
+                return false;
+            }
+            value = value * 10 + (c - '0');
+            if (value > 32) {
+                error = "Each group must be from 1 to 32.";
+                return false;
+            }
+        }
+        if (value < 1) {
+            error = "Each group must be from 1 to 32.";
+            return false;
+        }
+        groups[size_t(count++)] = value;
+        return true;
+    };
+    for (char c : text) {
+        if (c == ' ' || c == '\t')
+            continue;
+        if (c == '+') {
+            if (!flush(token))
+                return false;
+            token.clear();
+            continue;
+        }
+        token.push_back(c);
+    }
+    if (!flush(token) || count == 0) {
+        if (error.empty())
+            error = "Enter a grouping such as 2+2+3.";
+        return false;
+    }
+    return true;
+}
+std::vector<std::string> groupingChoices(int numerator, int denominator) {
+    std::array<int, 16> groups{};
+    int count = 0, unit = 4;
+    defaultGrouping(numerator, denominator, groups, count, unit);
+    const int total = std::max(1, count == 0 ? numerator : [&] {
+        int sum = 0;
+        for (int i = 0; i < count; ++i)
+            sum += groups[size_t(i)];
+        return sum;
+    }());
+    std::vector<std::string> options;
+    std::vector<int> candidate;
+    const auto emit = [&](auto&& self, int remaining) -> void {
+        if (options.size() >= 48)
+            return;
+        if (remaining == 0) {
+            std::string text;
+            for (size_t i = 0; i < candidate.size(); ++i) {
+                if (i)
+                    text += '+';
+                text += std::to_string(candidate[i]);
+            }
+            options.push_back(text);
+            return;
+        }
+        if (candidate.size() >= 16)
+            return;
+        for (int group : {2, 3}) {
+            if (group <= remaining) {
+                candidate.push_back(group);
+                self(self, remaining - group);
+                candidate.pop_back();
+            }
+        }
+    };
+    emit(emit, total);
+    const auto preferred = groupingText(groups, count);
+    if (std::find(options.begin(), options.end(), preferred) == options.end())
+        options.insert(options.begin(), preferred);
+    else
+        std::stable_partition(options.begin(), options.end(),
+                              [&](const std::string& text) { return text == preferred; });
+    return options;
+}
+int metricWeight(double beat, const Settings& settings) {
+    if (!std::isfinite(beat))
+        return 0;
+    const int numerator = std::clamp(settings.numerator, 1, 32);
+    const int denominator = (settings.denominator >= 1 && settings.denominator <= 32 &&
+                             (settings.denominator & (settings.denominator - 1)) == 0)
+                                ? settings.denominator
+                                : 4;
+    const double barLength = numerator * 4.0 / denominator;
+    if (!(barLength > 0.0))
+        return 0;
+    double wrapped = std::fmod(beat, barLength);
+    if (wrapped < 0.0)
+        wrapped += barLength;
+    if (wrapped < 0.01 || barLength - wrapped < 0.01)
+        return 3;
+    // Default x/4 keeps the previous accent: every integer quarter is strong.
+    if (settings.groupCount <= 0 && denominator == 4)
+        return std::abs(beat - std::round(beat)) < 0.01 ? 2 : 0;
+    const auto g = resolveGroups(settings);
+    if (g.count <= 0 || g.unit <= 0)
+        return 0;
+    const double unit = 4.0 / g.unit;
+    int sum = 0;
+    for (int i = 0; i < g.count; ++i)
+        sum += g.groups[size_t(i)];
+    if (sum <= 0 || !(unit > 0.0))
+        return 0;
+    const double cycle = sum * unit;
+    double pos = std::fmod(beat, cycle);
+    if (pos < 0.0)
+        pos += cycle;
+    const double nearest = std::round(pos / unit);
+    if (std::abs(pos - nearest * unit) >= 0.01)
+        return 0;
+    int index = int(std::lround(nearest)) % sum;
+    if (index < 0)
+        index += sum;
+    int cursor = 0;
+    for (int i = 0; i < g.count; ++i) {
+        if (index == cursor)
+            return 2;
+        cursor += g.groups[size_t(i)];
+    }
+    return 1;
+}
+bool usesLegacyQuarterGrid(const Settings& s) {
+    const int denominator = unitDenominator(s.denominator) ? s.denominator : 4;
+    if (s.groupCount <= 0)
+        return denominator == 4;
+    if (s.groupUnit != 4)
+        return false;
+    const int numerator = std::clamp(s.numerator, 1, 32);
+    if (numerator > 16 || s.groupCount != numerator)
+        return false;
+    for (int i = 0; i < s.groupCount; ++i)
+        if (s.groups[size_t(i)] != 1)
+            return false;
+    return true;
+}
 namespace {
 bool validDenominator(int d) {
     return d >= 1 && d <= 32 && (d & (d - 1)) == 0;
@@ -186,6 +404,11 @@ void sanitise(Clip& clip) {
     clip.numerator = std::clamp(clip.numerator, 1, 32);
     if (!validDenominator(clip.denominator))
         clip.denominator = 4;
+    clip.groupCount = std::clamp(clip.groupCount, 0, 16);
+    if (!unitDenominator(clip.groupUnit))
+        clip.groupUnit = clip.denominator;
+    for (int i = 0; i < clip.groupCount; ++i)
+        clip.groups[size_t(i)] = std::clamp(clip.groups[size_t(i)], 1, 32);
     clip.count = std::clamp(clip.count, 0, maxNotes);
     int count = 0;
     for (int i = 0; i < clip.count; ++i) {
@@ -219,7 +442,8 @@ void sanitise(Harmony& harmony) {
             chord.start >= harmony.length || chord.duration <= 0.0)
             continue;
         chord.root = (chord.root % 12 + 12) % 12;
-        chord.quality = std::clamp(chord.quality, 0, 15);
+        chord.quality = std::clamp(chord.quality, 0, 16);
+        chord.bass = chord.bass < 0 ? -1 : (chord.bass % 12 + 12) % 12;
         harmony.chords[count++] = chord;
     }
     std::stable_sort(harmony.chords.begin(), harmony.chords.begin() + count,
@@ -241,12 +465,27 @@ void sanitise(Harmony& harmony) {
             (i + 1 < harmony.count ? harmony.chords[i + 1].start : harmony.length) - harmony.chords[i].start;
 }
 namespace {
-constexpr int chordIntervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+constexpr int chordIntervals[17][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
                                     {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
                                     {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
-                                    {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
+                                    {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14},
+                                    {0, 3, 7, 11}};
 constexpr const char* chordSuffixes[]{"",    "m",    "dim", "aug", "7",   "maj7", "m7",  "sus2",
-                                      "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9"};
+                                      "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9",
+                                      "mM7"};
+struct ChordAlias {
+    const char* text;
+    int quality;
+};
+// Longer spellings first so "m7(b5)" is not read as minor plus junk.
+constexpr ChordAlias chordAliases[]{
+    {"m(maj7)", 16}, {"m7(b5)", 9}, {"min7", 6}, {"mmaj7", 16}, {"maj7", 5}, {"dim7", 10},
+    {"sus4", 8},    {"sus2", 7},    {"m7b5", 9}, {"add9", 13},  {"maj9", 15}, {"Δ7", 5},
+    {"°7", 10},     {"o7", 10},     {"ø7", 9},   {"mM7", 16},   {"min", 1},   {"maj", 0},
+    {"dim", 2},     {"aug", 3},     {"sus", 8},  {"M7", 5},     {"j7", 5},    {"-7", 6},
+    {"Δ", 5},       {"ø", 9},       {"°", 2},    {"+", 3},      {"M", 0},     {"-", 1},
+    {"o", 2},
+};
 bool validPassing(const Clip&, int, const Settings&);
 const ChordEvent* chordAt(const Harmony& harmony, double time) {
     if (!harmony.count || !std::isfinite(time) || harmony.length <= 0.0)
@@ -259,7 +498,7 @@ const ChordEvent* chordAt(const Harmony& harmony, double time) {
 }
 bool belongsToChord(int pitch, const ChordEvent& chord) {
     const int pc = ((pitch - chord.root) % 12 + 12) % 12;
-    for (int interval : chordIntervals[std::clamp(chord.quality, 0, 15)])
+    for (int interval : chordIntervals[std::clamp(chord.quality, 0, 16)])
         if (interval >= 0 && pc == interval % 12)
             return true;
     return false;
@@ -328,7 +567,14 @@ bool parseHarmony(const std::string& text, Harmony& harmony, std::string& error)
             error = "Use chord:beats, for example Cm:4 Fm:2 G7:2.";
             return false;
         }
-        const std::string name = token.substr(0, colon);
+        const std::string symbol = token.substr(0, colon);
+        const auto slash = symbol.rfind('/');
+        const std::string name = slash == std::string::npos ? symbol : symbol.substr(0, slash);
+        const std::string bassName = slash == std::string::npos ? std::string{} : symbol.substr(slash + 1);
+        if (name.empty()) {
+            error = "Unknown chord '" + symbol + "'.";
+            return false;
+        }
         int root = -1;
         switch (std::toupper(static_cast<unsigned char>(name[0]))) {
         case 'C':
@@ -362,15 +608,64 @@ bool parseHarmony(const std::string& text, Harmony& harmony, std::string& error)
         }
         const auto suffix = name.substr(suffixStart);
         int quality = -1;
-        for (int q = 0; q < 16; ++q)
+        for (int q = 0; q < 17; ++q)
             if (suffix == chordSuffixes[q])
                 quality = q;
+        if (quality < 0)
+            for (const auto& alias : chordAliases)
+                if (suffix == alias.text)
+                    quality = alias.quality;
+        auto pitchClass = [](const std::string& note, int& pc) {
+            if (note.empty())
+                return false;
+            int value = -1;
+            switch (std::toupper(static_cast<unsigned char>(note[0]))) {
+            case 'C':
+                value = 0;
+                break;
+            case 'D':
+                value = 2;
+                break;
+            case 'E':
+                value = 4;
+                break;
+            case 'F':
+                value = 5;
+                break;
+            case 'G':
+                value = 7;
+                break;
+            case 'A':
+                value = 9;
+                break;
+            case 'B':
+                value = 11;
+                break;
+            default:
+                return false;
+            }
+            size_t used = 1;
+            if (note.size() > 1 && (note[1] == '#' || note[1] == 'b')) {
+                value += note[1] == '#' ? 1 : -1;
+                used = 2;
+            }
+            if (used != note.size())
+                return false;
+            pc = (value + 12) % 12;
+            return true;
+        };
+        int bass = -1;
+        if (!bassName.empty() && !pitchClass(bassName, bass)) {
+            error = "Unknown slash bass in '" + symbol + "'.";
+            return false;
+        }
         const bool validLetter =
             std::string("ABCDEFG").find(char(std::toupper(static_cast<unsigned char>(name[0])))) !=
             std::string::npos;
         if (!validLetter || quality < 0) {
-            error = "Unknown chord '" + name +
-                    "'. Use A-G, optional #/b, and m/dim/aug/7/maj7/m7/sus2/sus4/m7b5/dim7/6/m6/add9/9/maj9.";
+            error = "Unknown chord '" + symbol +
+                    "'. Use A-G, optional #/b, a quality such as m/maj/min/dim/aug/7/maj7, and an optional "
+                    "/bass.";
             return false;
         }
         std::istringstream durationInput(token.substr(colon + 1));
@@ -387,7 +682,8 @@ bool parseHarmony(const std::string& text, Harmony& harmony, std::string& error)
             error = "A progression can contain at most 64 chords.";
             return false;
         }
-        parsed.chords[parsed.count++] = {position, duration, (root + 12) % 12, quality};
+        ChordEvent chord{position, duration, (root + 12) % 12, quality, bass};
+        parsed.chords[parsed.count++] = chord;
         position += duration;
     }
     if (parsed.count && position < 0.125) {
@@ -410,7 +706,10 @@ std::string harmonyText(const Harmony& source) {
         const auto& chord = harmony.chords[i];
         if (i)
             text << ' ';
-        text << names[chord.root] << chordSuffixes[chord.quality] << ':' << chord.duration;
+        text << names[chord.root] << chordSuffixes[std::clamp(chord.quality, 0, 16)];
+        if (chord.bass >= 0 && chord.bass != chord.root)
+            text << '/' << names[chord.bass];
+        text << ':' << chord.duration;
     }
     return text.str();
 }
@@ -492,6 +791,11 @@ Clip transformRegion(const Clip& source, double start, double end, RegionAction 
     s.timeOffset = std::isfinite(s.timeOffset) ? std::max(0.0, s.timeOffset) : 0.0;
     s.numerator = clip.numerator;
     s.denominator = clip.denominator;
+    if (clip.groupCount > 0) {
+        s.groups = clip.groups;
+        s.groupCount = clip.groupCount;
+        s.groupUnit = clip.groupUnit;
+    }
     s.tuning = std::clamp(s.tuning, 0, tuningCount - 1);
     std::vector<int> editable;
     for (int i = 0; i < clip.count; ++i)
@@ -811,7 +1115,7 @@ PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
         lowest = std::min(lowest, actualPitch(note));
         highest = std::max(highest, actualPitch(note));
         result.meanPitch += actualPitch(note) / (100.0 * clip.count);
-        result.offbeatRatio += std::abs(note.start - std::round(note.start)) > 0.01 ? 1.0 / clip.count : 0;
+        result.offbeatRatio += metricWeight(note.start, settings) < 2 ? 1.0 / clip.count : 0;
         const double duration = std::log2(std::max(0.03125, note.duration));
         durationSum += duration;
         durationSquared += duration * duration;
@@ -1028,7 +1332,7 @@ struct Evolution {
                             harmonicPitch(60, n.start, s, true) - harmonicPitch(60, originalStart, s, true);
                     n.pitch = n.cents != 0 ? std::clamp(desired, s.low, s.high)
                               : ((s.progression || s.harmony.count) &&
-                                 (s.tension == 0 || std::abs(n.start - std::round(n.start)) < 0.01))
+                                 (s.tension == 0 || metricWeight(n.start, s) >= 2))
                                   ? harmonicPitch(desired, n.start, s)
                                   : snapPitch(desired, s.root, s.scale, s.low, s.high);
                 }
@@ -1075,7 +1379,7 @@ struct Evolution {
         int p = std::clamp(previous + step, s.low, s.high);
         if (random() > s.tension * 0.25f)
             p = snapPitch(p, s.root, s.scale, s.low, s.high);
-        const bool strongBeat = std::abs(time - std::round(time)) < 0.01;
+        const bool strongBeat = metricWeight(time, s) >= 2;
         // Preserve strict chord-only requests, but leave weak beats available
         // for diatonic movement. Previously custom chords snapped almost every
         // proposal to a triad, including all the connecting notes.
@@ -1095,6 +1399,9 @@ struct Evolution {
         c.grid = grid;
         c.numerator = s.numerator;
         c.denominator = s.denominator;
+        c.groups = s.groups;
+        c.groupCount = s.groupCount;
+        c.groupUnit = s.groupUnit > 0 ? s.groupUnit : s.denominator;
         c.seed = s.seed;
         int previous =
             snapPitch((s.low + s.high) / 2 + int((s.valence - 0.5f) * 10), s.root, s.scale, s.low, s.high);
@@ -1102,8 +1409,16 @@ struct Evolution {
             const int maxSteps = std::max(1, int(std::round(targetDuration() * 2.5 / grid)));
             int steps = integer(1, maxSteps);
             if (random() > offbeatTarget()) {
-                const int options[]{1, 2, 4, 8};
-                steps = options[integer(0, std::min(3, int(std::log2(maxSteps))))];
+                if (usesLegacyQuarterGrid(s)) {
+                    const int options[]{1, 2, 4, 8};
+                    steps = options[integer(0, std::min(3, int(std::log2(maxSteps))))];
+                } else {
+                    const auto grouping = resolveGroups(s);
+                    const double unit = 4.0 / std::max(1, grouping.unit);
+                    const int choice = integer(0, 3);
+                    const double boundary = std::ceil((time + 1e-6) / unit) * unit + choice * unit;
+                    steps = std::max(1, std::min(maxSteps, int(std::lround(std::max(grid, boundary - time) / grid))));
+                }
             }
             if (random() > s.dynamics)
                 steps = std::max(1, int(std::round(targetDuration() / grid)));
@@ -1353,7 +1668,7 @@ struct Evolution {
             const int semitone = int(relative);
             consonanceCost += tonalCosts[semitone] +
                               (relative - semitone) * (tonalCosts[semitone + 1] - tonalCosts[semitone]);
-            offbeats += std::abs(n.start - std::round(n.start)) > 0.01 ? 1 : 0;
+            offbeats += metricWeight(n.start, s) < 2 ? 1 : 0;
         }
         const double count = c.count;
         const double targetNotes = c.length * (1.0 - s.space) / targetDuration();
@@ -1380,7 +1695,7 @@ struct Evolution {
             for (int i = 0; i < c.count; ++i) {
                 if (i && actualPitch(c.notes[i]) == actualPitch(c.notes[i - 1]))
                     ++unisons;
-                if (std::abs(c.notes[i].start - std::round(c.notes[i].start)) < .01) {
+                if (metricWeight(c.notes[i].start, s) >= 2) {
                     ++strong;
                     stable += chordTone(c.notes[i].pitch, c.notes[i].start) && c.notes[i].cents == 0;
                 }
@@ -1434,6 +1749,11 @@ double fitnessScore(const Clip& source, const Settings& settings) {
     auto s = normaliseSearchSettings(settings);
     s.numerator = clip.numerator;
     s.denominator = clip.denominator;
+    if (clip.groupCount > 0) {
+        s.groups = clip.groups;
+        s.groupCount = clip.groupCount;
+        s.groupUnit = clip.groupUnit;
+    }
     return Evolution(s, nullptr).score(clip);
 }
 void articulateCustomHarmony(Clip& clip, const Settings& s) {
@@ -1513,6 +1833,9 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             source = &parent;
             s.numerator = parent.numerator;
             s.denominator = parent.denominator;
+            s.groups = parent.groups;
+            s.groupCount = parent.groupCount;
+            s.groupUnit = parent.groupUnit > 0 ? parent.groupUnit : parent.denominator;
         }
     }
     if (!source &&

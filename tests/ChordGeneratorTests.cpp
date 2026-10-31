@@ -284,4 +284,30 @@ void runChordGeneratorTests() {
             halfDiminished |= progression.chords[size_t(i)].quality == 9;
     }
     check(halfDiminished, "minor harmony never produced a half-diminished seventh");
+
+    Harmony slash;
+    check(parseHarmony("C/E:4", slash, error) && slash.count == 1 && slash.chords[0].root == 0 &&
+              slash.chords[0].quality == 0 && slash.chords[0].bass == 4,
+          "C/E slash bass");
+    check(harmonyText(slash).rfind("C/E:", 0) == 0, "harmony text did not round-trip C/E");
+    check(chordName(slash.chords[0]) == "C/E", "chord name dropped the slash bass");
+    const auto voicedSlash = voiceHarmony(slash, 4, 4, {60, 0});
+    int lowest = 127;
+    for (int i = 0; i < voicedSlash.count; ++i)
+        lowest = std::min(lowest, voicedSlash.notes[size_t(i)].pitch);
+    check(lowest % 12 == 4, "slash bass is not the lowest chord tone");
+    Harmony plain;
+    check(parseHarmony("Cm:4", plain, error) && plain.chords[0].bass < 0 &&
+              harmonyText(plain).find('/') == std::string::npos,
+          "a chord without a slash gained a bass");
+    const std::pair<const char*, int> aliases[]{{"Cmaj:2", 0}, {"CM:2", 0}, {"Cmin:2", 1}, {"C-:2", 1},
+                                                {"Cdim:2", 2}, {"C°:2", 2}, {"Caug:2", 3}, {"C+:2", 3},
+                                                {"Csus:2", 8}, {"CM7:2", 5}, {"CΔ:2", 5}, {"CΔ7:2", 5},
+                                                {"Cj7:2", 5},  {"Cmin7:2", 6}, {"C-7:2", 6}, {"Cm7(b5):2", 9},
+                                                {"Cø:2", 9},   {"Cø7:2", 9}, {"CmM7:2", 16}, {"Cm(maj7):2", 16}};
+    for (const auto& alias : aliases) {
+        Harmony parsed;
+        check(parseHarmony(alias.first, parsed, error) && parsed.chords[0].quality == alias.second,
+              "chord alias did not map onto the existing quality");
+    }
 }

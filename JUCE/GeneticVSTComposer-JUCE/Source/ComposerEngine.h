@@ -22,6 +22,9 @@ struct Clip {
     double length = 16.0, grid = 0.25;
     bool favourite = false;
     uint32_t seed = 0;
+    // groupCount 0 means the meter default. groupUnit is the grouping denominator (4 = quarter).
+    std::array<int, 16> groups{};
+    int groupCount = 0, groupUnit = 4;
 };
 using Bank = std::array<Clip, slotCount>;
 enum class RegionAction { Simplify, MoreMovement, Answer, Resolve };
@@ -30,6 +33,8 @@ enum class RegionAction { Simplify, MoreMovement, Answer, Resolve };
 struct ChordEvent {
     double start = 0.0, duration = 4.0;
     int root = 0, quality = 0;
+    // Pitch class of a slash bass, or -1 when the chord has no slash.
+    int bass = -1;
 };
 struct Harmony {
     std::array<ChordEvent, 64> chords{};
@@ -39,6 +44,9 @@ struct Harmony {
 struct Settings {
     int root = 0, scale = 1, bars = 4, division = 16;
     int numerator = 4, denominator = 4, low = 48, high = 84;
+    // Same meaning as Clip: groupCount 0 selects the default grouping for this meter.
+    std::array<int, 16> groups{};
+    int groupCount = 0, groupUnit = 4;
     int mode = 0, progression = 0, quality = 1;
     // Musical architecture, independent of generation mode: riff, motif, melody.
     int phraseType = 0;
@@ -95,6 +103,16 @@ double intervalCost(double cents);
 PhraseDiagnostics analysePhrase(const Clip&, const Settings&);
 // The same objective used by fresh generation, without the parent-similarity term.
 double fitnessScore(const Clip&, const Settings&);
+// 3 on a barline, 2 at a group start, 1 on the grouping-unit grid, 0 elsewhere.
+// A groupCount of 0 uses the meter default, so 4/4 still treats integer quarters as strong.
+int metricWeight(double beat, const Settings&);
+void defaultGrouping(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount,
+                     int& groupUnit);
+std::string groupingText(const std::array<int, 16>& groups, int count);
+// "2+2+3" or "2 + 2 + 3". Groups are whole numbers 1-32, at most 16 of them.
+bool parseGrouping(const std::string& text, std::array<int, 16>& groups, int& count, std::string& error);
+// Compositions of 2 and 3 (and the meter default) that fill one bar.
+std::vector<std::string> groupingChoices(int numerator, int denominator);
 const std::vector<int>& scaleIntervals(int scale);
 int snapPitch(int pitch, int root, int scale, int low = 0, int high = 127);
 // Tunings give root-relative pitch classes a quarter-tone form. Inflections keep the selected

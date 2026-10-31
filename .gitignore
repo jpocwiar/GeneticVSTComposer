@@ -1,5 +1,6 @@
 .idea/
 .deps/
+.tools/
 build-*/
 .DS_Store
 generated_midi/

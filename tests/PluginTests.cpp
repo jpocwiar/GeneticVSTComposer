@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include <chrono>
 #include <cstdlib>
+#include <thread>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -33,6 +34,7 @@ void runUsabilityTests();
 void runChordPluginTests();
 void runChordPanelTests();
 void runPlaybackArchitectureTests();
+void runRealtimeTests();
 void renderMusicalExamples(const juce::File&);
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
@@ -42,8 +44,8 @@ int main(int argc, char** argv) {
     setenv("COMPOSER_DISABLE_UI_PREFS", "1", 1);
 #endif
     const std::string requested = argc > 1 ? argv[1] : "all";
-    const bool suiteMode =
-        requested == "plugin" || requested == "midi" || requested == "playback";
+    const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
+                           requested == "realtime";
     const std::string suite = suiteMode ? requested : "all";
     const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
@@ -213,6 +215,145 @@ int main(int argc, char** argv) {
         }
         p->setPlayHead(nullptr);
         parameter(*p, "follow", 0);
+        {
+            auto schema = juce::AudioProcessor::getXmlFromBinary(state.getData(), int(state.getSize()));
+            auto legacy = juce::ValueTree::fromXml(*schema);
+            legacy.setProperty("version", 5, nullptr);
+            legacy.removeProperty("grouping", nullptr);
+            auto params = legacy.getChildWithName("Parameters");
+            params.removeChild(params.getChildWithProperty("id", "auditionReverb"), nullptr);
+            juce::MemoryBlock legacyState;
+            juce::AudioProcessor::copyXmlToBinary(*legacy.createXml(), legacyState);
+            auto migrated = std::make_unique<Processor>();
+            migrated->setStateInformation(legacyState.getData(), int(legacyState.getSize()));
+            require(migrated->selectedIndex() == 3 && migrated->selectedClip().count == c.count,
+                    "schema 5 state did not load");
+            require(migrated->parameters.getRawParameterValue("auditionReverb")->load() == 0.0f,
+                    "a session without audition reverb must restore it as dry");
+        }
+        require(p->setTimeSignature("7/8").wasOk(), "7/8 meter");
+        {
+            auto phrase = p->selectedClip();
+            phrase.numerator = 7;
+            phrase.denominator = 8;
+            p->setClip(p->selectedIndex(), phrase);
+        }
+        require(p->setGroupingText("2+2+3").wasOk(), "7/8 grouping");
+        require(p->setCustomHarmony("C/E:4").wasOk(), "slash harmony");
+        const auto grouped = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                 .getNonexistentChildFile("genetic-groups", ".mid", false);
+        require(p->exportMelodyAndChords(grouped).wasOk(), "grouped MIDI export");
+        auto imported = std::make_unique<Processor>();
+        require(imported->importMidi(grouped).wasOk(), "grouped MIDI import");
+        require(imported->selectedClip().denominator == 8 && imported->selectedClip().groupCount == 3 &&
+                    imported->selectedClip().groupUnit == 8 && imported->groupingText().startsWith("2+2+3"),
+                "MIDI import did not restore the grouping");
+        require(imported->importHarmonyMidi(grouped).wasOk(), "marker harmony import");
+        require(imported->customHarmonyText().startsWith("C/E:"), "MIDI markers did not restore C/E");
+        grouped.deleteFile();
+        p->setTimeSignature("4/4");
+        p->clearCustomHarmony();
+        struct HostMeter : juce::AudioPlayHead {
+            juce::Optional<PositionInfo> getPosition() const override {
+                PositionInfo position;
+                position.setPpqPosition(0);
+                position.setBpm(120);
+                position.setIsPlaying(false);
+                juce::AudioPlayHead::TimeSignature signature;
+                signature.numerator = 7;
+                signature.denominator = 8;
+                position.setTimeSignature(signature);
+                return position;
+            }
+        } meterHead;
+        parameter(*p, "hostMeter", 1);
+        p->setPlayHead(&meterHead);
+        {
+            juce::AudioBuffer<float> audio(2, 64);
+            juce::MidiBuffer midi;
+            p->processBlock(audio, midi);
+        }
+        const auto meterDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(400);
+        while (p->timeSignature().numerator != 7 && std::chrono::steady_clock::now() < meterDeadline) {
+            p->serviceMessageThread();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        require(p->timeSignature().numerator == 7 && p->timeSignature().denominator == 8,
+                "host meter was not applied on the message thread");
+        parameter(*p, "hostMeter", 0);
+        p->setPlayHead(nullptr);
+        p->setTimeSignature("4/4");
+        struct PhraseHead : juce::AudioPlayHead {
+            double beat = 0;
+            juce::Optional<PositionInfo> getPosition() const override {
+                PositionInfo position;
+                position.setPpqPosition(beat);
+                position.setBpm(120);
+                position.setIsPlaying(true);
+                return position;
+            }
+        } phraseHead;
+        p->selectClip(0);
+        parameter(*p, "capturePhrase", 1);
+        p->setPlayHead(&phraseHead);
+        auto playNote = [&](int pitch, int velocity, double beat) {
+            phraseHead.beat = beat;
+            juce::AudioBuffer<float> audio(2, 32);
+            juce::MidiBuffer midi;
+            midi.addEvent(velocity > 0 ? juce::MidiMessage::noteOn(1, pitch, juce::uint8(velocity))
+                                       : juce::MidiMessage::noteOff(1, pitch),
+                          0);
+            p->processBlock(audio, midi);
+        };
+        playNote(67, 100, 10.0);
+        playNote(67, 0, 10.5);
+        playNote(48, 90, 11.0);
+        playNote(48, 0, 11.25);
+        p->finishCapture();
+        const auto captured = p->selectedClip();
+        require(captured.count == 2, "capture did not keep both notes");
+        require(std::abs(captured.notes[0].start) < 1e-4 && std::abs(captured.notes[0].duration - 0.5) < 1e-3 &&
+                    captured.notes[0].pitch == 67,
+                "captured phrase start, duration or pitch");
+        require(captured.notes[1].pitch == 48 && std::abs(captured.notes[1].start - 1.0) < 1e-3,
+                "capture treated a low note as a variation trigger");
+        require(p->bankSnapshot()[3].favourite, "capture changed a pinned variation");
+        parameter(*p, "capturePhrase", 0);
+        p->setPlayHead(nullptr);
+        parameter(*p, "evolveEachLoop", 1);
+        parameter(*p, "customSearch", 1);
+        parameter(*p, "searchPopulation", 16);
+        parameter(*p, "searchGenerations", 1);
+        composer::Clip looped;
+        looped.length = 0.5;
+        looped.count = 1;
+        looped.notes[0] = {0, 0.25, 60, 100, false};
+        p->setClip(0, looped);
+        p->selectClip(0);
+        p->setPreview(true);
+        const auto serial = p->searchSerial();
+        bool requested = false;
+        for (int block = 0; block < 90 && !requested; ++block) {
+            juce::AudioBuffer<float> audio(2, 256);
+            juce::MidiBuffer midi;
+            p->processBlock(audio, midi);
+            p->serviceMessageThread();
+            requested = p->isGenerating() || p->searchSerial() != serial;
+        }
+        const auto evolveDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        while (!requested && std::chrono::steady_clock::now() < evolveDeadline) {
+            p->serviceMessageThread();
+            std::this_thread::sleep_for(std::chrono::milliseconds(15));
+            requested = p->isGenerating() || p->searchSerial() != serial;
+        }
+        require(requested, "evolve each loop did not request a search");
+        const auto evolveDone = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+        while (p->isGenerating() && std::chrono::steady_clock::now() < evolveDone)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        parameter(*p, "evolveEachLoop", 0);
+        parameter(*p, "customSearch", 0);
+        p->setPreview(false);
+        require(p->bankSnapshot()[3].favourite, "evolve each loop replaced a pinned variation");
         // Worker completion preserves pinned slots; cancellation cannot overwrite edits.
         parameter(*p, "quality", 0);
         const auto pinned = p->bankSnapshot()[3];
@@ -242,6 +383,8 @@ int main(int argc, char** argv) {
             runMicrotonalTests();
         if (want("playback"))
             runPlaybackArchitectureTests();
+        if (want("realtime"))
+            runRealtimeTests();
         if (!suiteMode && argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());

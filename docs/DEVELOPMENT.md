@@ -2,7 +2,7 @@
 
 ## Structure
 
-This section describes version **2.7**. The dated sections below retain the implementation and validation history of 2.0–2.6. See [GA_ARCHITECTURE.md](GA_ARCHITECTURE.md) for the current chromosome, phrase construction, fitness terms, interval-cost tables and control mappings.
+This section describes version **2.8**. The 2.7 notes below remain the previous baseline. The dated sections below retain the implementation and validation history of 2.0–2.6. See [GA_ARCHITECTURE.md](GA_ARCHITECTURE.md) for the current chromosome, phrase construction, fitness terms, interval-cost tables and control mappings.
 
 - `ComposerEngine.{h,cpp}` is a JUCE-independent, deterministic genetic search. The old `genetic`, `mingus` and `notes_generator` files live in `legacy/reference/` and are not compiled by CMake. The current engine uses a full population, tournament selection, crossover and mutation. Populations of 64 or more run as four islands, each keeping one unchanged elite; smaller populations use one island. The phrase-type feature does not replace the search with a preset lookup.
 - `Clip` holds up to 512 sorted note events in quarter-note units. Each note carries pitch, velocity, duration, a lock flag and a cents offset (±50 around its key; `sanitise` respells larger offsets onto a nearer key). Each of twelve slots also carries phrase length, meter, grid, favourite status and seed. Fitness and similarity use the actual pitch, `100 * pitch + cents`.
@@ -27,6 +27,25 @@ This section describes version **2.7**. The dated sections below retain the impl
 `chordLength` is appended: Follow melody / 1 bar / 2 bars / 4 bars / 8 bars, default 4 bars. Root, Scale and Meter remain shared. `Settings::lengthOverride` lets generation from the Chords page cover an exact custom sequence, including fractional bars. Existing automation IDs and state schema 5 remain unchanged. Density is visible again. Search counts and elapsed time remain visible after completion. Space previews the currently visible part.
 
 The GA adds rhythm insertion/deletion/onset shifts/joins/fragment copying, a denser duration target, partial chord conformity on weak beats, and an excess-unison penalty. Two-chord resolved progressions use V–I rather than I–I. See [REFERENCE_AUDIT_2.6.md](REFERENCE_AUDIT_2.6.md) for reference execution and measurements.
+
+### Additions in 2.8
+
+State schema is **6**. Readers still accept schemas 2–5. A missing `auditionReverb` parameter restores as 0 so older projects stay dry; new instances default to 0.15. Grouping is a document property and is also stored on each clip. Schema 2–5 keep the meter’s default grouping.
+
+`metricWeight` scores a bar start as 3, a group start as 2, another grouping-unit grid point as 1, and everything else as 0. Default x/4 grouping is one group per quarter, so integer quarters stay strong. Default x/8 grouping is a 2-and-3 tiling that ends on 3 when the number of eighths is odd (6/8 is 3+3). Evolve copies the parent clip’s grouping.
+
+The audio callback publishes the host time signature and, while **Host** is on, a 30 Hz timer applies it. **Capture phrase** writes note on/off and PPQ into a fixed 65536-event ring with no allocation; finishing an empty capture does not replace the bank. **Each loop** only sets an atomic request on the loop boundary. The same timer calls `generate(true)` with the current Evolution amount and selects the best unpinned slot. Pinned slots are still skipped.
+
+Audition reverb is an 8-line FDN after the internal voice sum and before the output tanh. It is bypassed when the smoothed mix is 0, and it never touches outgoing MIDI. The FDN is prepared in `prepareToPlay`.
+
+Chord text accepts slash bass (`C/E`) and common quality aliases on the existing quality indices, plus `mM7` where the minor-major seventh cannot be mapped. MIDI export writes `RHYTHMS_GROUPS:` at tick 0 and type-6 chord-name markers. Import prefers those markers over inferred harmony, and melody/groove import restores the grouping.
+
+| Parameter ID | Role / values | Default |
+| --- | --- | --- |
+| `hostMeter` | Apply the host time signature on the message thread | Off |
+| `capturePhrase` | Record incoming notes instead of using them as triggers | Off |
+| `evolveEachLoop` | Evolve when the playback loop wraps | Off |
+| `auditionReverb` | Internal monitor reverb mix, 0–1 | 0.15 (0 when restoring an older session) |
 
 ### Additions in 2.7
 
@@ -79,7 +98,7 @@ These are coverage descriptions, not a final 2.5 release-validation record.
 - `tests/MusicalArchitectureTests.cpp` checks cent-aware interval costs and octave-sized leaps, the last-to-first loop interval, changed fitness when only cents change, resolution constraints, microtonal candidates actually reaching evaluation, exact winner fitness after final selection, seed determinism, OFF/lock semantics, and independence from the legacy amount parameter. It also checks repeated Riff cells, Motif return/contrast, Melody contour and the actual influence of Dynamics, Valence, Arousal and Weirdness. Detailed rules are in [GA_ARCHITECTURE.md](GA_ARCHITECTURE.md).
 - `tests/ChordGeneratorTests.cpp` checks seeded harmonic grammar, all-key transposition, originality/resolution, meters/capacity, three voicing styles and registers, pitch-class membership, unique tones, 12-TET notes, exact timing, slash names and movement reduction.
 - `tests/PluginTests.cpp` and `tests/WorkflowTests.cpp` cover host-state/undo round trips, atomic invalid-state rejection, MIDI import/export, cross-block note-offs, sample timestamps, short MIDI triggers, host start/stop, custom harmony/groove references, scoped edits, draft preview/discard/accept/export, comparison persistence, arrangement limits and loop-aligned selection/A-B changes.
-- `tests/MicrotonalTests.cpp` checks plain channel-1 output, RPN/bends and MPE member allocation, note-off ownership, panic/mode changes, internal oscillator frequency, MIDI round trips, Fit preserving cents without adding new offsets, schema-5 parameters and schema-2–4 migration, a nondestructive Micro toggle, and generation with Micro OFF despite a retained nonzero palette.
+- `tests/MicrotonalTests.cpp` checks plain channel-1 output, RPN/bends and MPE member allocation, note-off ownership, panic/mode changes, internal oscillator frequency, MIDI round trips, Fit preserving cents without adding new offsets, schema-6 parameters and schema-2–5 migration, a nondestructive Micro toggle, and generation with Micro OFF despite a retained nonzero palette.
 - `tests/ChordPluginTests.cpp` checks harmony/voicing undo and exact state restoration, conditioning melody generation on actual generated chords, atomic rejection of incompatible voicings, exact plain chord export despite melody performance/MPE settings, chord-only playback timestamps, and sample-accurate return to melody/MPE. Migration cases preserve historical Fit behavior with custom harmony.
 - `tests/PlaybackArchitectureTests.cpp` compares outgoing MIDI byte-for-byte and sample-for-sample with accompaniment ON/OFF. It isolates the rendered chord signal to detect interference from melody bends in mono and MPE modes, including shared MIDI pitches. It checks chord telemetry, mid-bar chase, monitor/With chords toggles, stop/panic/clear/release, host seek/loop, Follow returning from solo chords, and a four-beat progression continuing beneath a one-beat riff. Live Fit is checked with custom harmony and transposition while preserving cents and the bank.
 - `tests/ChordPanelTests.cpp` and `tests/UsabilityTests.cpp` exercise native actions, layout/gesture dispatch, Play beneath both rolls, in-editor Melody/Chords navigation without a new desktop window, read-only chord dragging, With chords preview, the explicit Micro switch and removal of blanket retuning actions. They also cover audition sounds, meter export and parameter compatibility; OS/DAW drop acceptance is not simulated.

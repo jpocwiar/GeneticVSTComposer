@@ -337,7 +337,7 @@ void testStateAndToggle() {
           "Microtones ON with legacy tuning Off must select the first active palette");
 
     const auto xml = juce::AudioProcessor::getXmlFromBinary(state.getData(), int(state.getSize()));
-    check(xml && xml->getIntAttribute("version") == 5, "new state must use schema version 5");
+    check(xml && xml->getIntAttribute("version") == 6, "new state must use schema version 6");
     const auto saved = juce::ValueTree::fromXml(*xml);
     for (int version : {2, 3, 4})
         for (int tuning : {0, 2}) {

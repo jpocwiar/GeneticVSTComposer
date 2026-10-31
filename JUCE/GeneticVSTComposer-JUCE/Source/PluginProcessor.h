@@ -2,11 +2,12 @@
 #include "ChordGenerator.h"
 #include "ComposerEngine.h"
 #include <JuceHeader.h>
+#include "reverbcore/Fdn.hpp"
 #include <deque>
 #include <memory>
 #include <mutex>
 
-class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
+class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, private juce::Timer {
   public:
     GeneticVSTComposerJUCEAudioProcessor();
     ~GeneticVSTComposerJUCEAudioProcessor() override;
@@ -64,6 +65,13 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     juce::Result exportChordMidi(const juce::File&) const;
     juce::Result setTimeSignature(const juce::String&);
     composer::TimeSignature timeSignature() const;
+    juce::String groupingText() const;
+    juce::Result setGroupingText(const juce::String&);
+    void finishCapture();
+    // Applies capture, evolve-each-loop and host-meter requests; message thread only.
+    void serviceMessageThread();
+    void setArrangementForm(int form);
+    int arrangementFormIndex() const { return arrangementForm; }
     void setProgressionPreset(int index);
     int progressionIndex() const;
     int scaleIndex() const;
@@ -169,6 +177,10 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
         std::atomic<float>* chordMidiOut = nullptr;
         std::atomic<float>* humanize = nullptr;
         std::atomic<float>* extendedScale = nullptr;
+        std::atomic<float>* hostMeter = nullptr;
+        std::atomic<float>* capturePhrase = nullptr;
+        std::atomic<float>* evolveEachLoop = nullptr;
+        std::atomic<float>* auditionReverb = nullptr;
     };
     CachedParameters cached;
     void cacheAudioParameters();
@@ -179,6 +191,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
         uint64_t startRevision = 0;
         bool useParent = false;
         bool evolve = false;
+        bool selectBest = false;
     };
     void performSearch(SearchJob);
     void assignStatusLocked(const juce::String&);
@@ -189,7 +202,14 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0,
                                 int index = -1) const;
     void setParameter(const char*, float);
-    juce::Result readMidi(const juce::File&, composer::Clip&, bool& truncated) const;
+    juce::Result readMidi(const juce::File&, composer::Clip&, bool& truncated,
+                          composer::Harmony* markers = nullptr) const;
+    juce::Result clipFromSequence(const juce::MidiMessageSequence&, double ticksPerQuarter, composer::Clip&,
+                                  bool& truncated) const;
+    void addMusicalMeta(juce::MidiMessageSequence&, const composer::Clip&) const;
+    void timerCallback() override;
+    void applyHostMeter();
+    bool selectBestOnFinish = false;
     void appendClipMidi(juce::MidiMessageSequence&, const composer::Clip&, bool alreadyRendered,
                         bool plainMidi) const;
     juce::Result writeMidiFile(const juce::File&, const juce::MidiMessageSequence&,
@@ -229,6 +249,23 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     std::atomic<uint64_t> searchSerialValue{0};
     std::atomic<uint64_t> statusSerialValue{1};
     std::atomic<int> interfaceLanguage{0};
+    std::array<int, 16> groups{};
+    int groupCount = 0, groupUnit = 4;
+    int arrangementForm = 0;
+    std::atomic<int> hostNumerator{0}, hostDenominator{0};
+    std::atomic<bool> evolveLoopRequested{false};
+    static constexpr int captureCapacity = 65536;
+    struct CaptureEvent {
+        double ppq = 0;
+        int pitch = 0;
+        int velocity = 0;
+    };
+    std::unique_ptr<std::array<CaptureEvent, captureCapacity>> captureEvents;
+    std::atomic<uint32_t> captureWrite{0}, captureOrigin{0};
+    bool captureWasOn = false;
+    bool captureAudioArmed = false;
+    reverbcore::Fdn8 auditionReverbFx;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> reverbMix;
     std::atomic<double> playBeat{0}, displayTempo{120};
     class SearchThread;
     friend class SearchThread;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
-project(GeneticComposer VERSION 2.7.0 LANGUAGES C CXX)
+project(GeneticComposer VERSION 2.8.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -17,6 +17,11 @@ target_link_libraries(composer_engine PUBLIC Threads::Threads)
 if(BUILD_TESTING)
     add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp tests/MusicalArchitectureTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
+    # Tests keep Clips/Banks and whole Processors on the main-thread stack; match the
+    # 8 MB macOS default instead of the 1 MB Windows one.
+    if(MSVC)
+        target_link_options(engine_tests PRIVATE /STACK:8388608)
+    endif()
     add_test(NAME engine COMMAND engine_tests engine)
     add_test(NAME harmony COMMAND engine_tests harmony)
     add_test(NAME search COMMAND engine_tests search)
@@ -60,11 +65,18 @@ juce_add_plugin(GeneticComposer
 juce_generate_juce_header(GeneticComposer)
 target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginProcessor.cpp" "${SOURCE_DIR}/PluginProcessor.h"
+    "${SOURCE_DIR}/ProcessorPlayback.cpp" "${SOURCE_DIR}/ProcessorState.cpp"
     "${SOURCE_DIR}/PluginEditor.cpp" "${SOURCE_DIR}/PluginEditor.h"
+    "${SOURCE_DIR}/PianoRoll.cpp" "${SOURCE_DIR}/PianoRoll.h"
+    "${SOURCE_DIR}/ComposerGuide.cpp" "${SOURCE_DIR}/ComposerGuide.h"
     "${SOURCE_DIR}/ComposerTheme.cpp" "${SOURCE_DIR}/ComposerTheme.h"
     "${SOURCE_DIR}/ChordComposerPanel.cpp" "${SOURCE_DIR}/ChordComposerPanel.h"
     "${SOURCE_DIR}/ActivityDisplay.cpp" "${SOURCE_DIR}/ActivityDisplay.h"
-    "${SOURCE_DIR}/InterfaceText.cpp" "${SOURCE_DIR}/InterfaceText.h")
+    "${SOURCE_DIR}/InterfaceText.cpp" "${SOURCE_DIR}/InterfaceText.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/src/Fdn.cpp")
+target_include_directories(GeneticComposer PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/dsp-kit/include")
 target_compile_definitions(GeneticComposer PUBLIC
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(GeneticComposer PRIVATE composer_engine juce::juce_audio_utils
@@ -84,10 +96,17 @@ if(BUILD_TESTING)
     add_executable(plugin_tests)
     set_target_properties(plugin_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugin_tests_artefacts/$<CONFIG>")
     target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp
-        tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp)
+        tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp
+        tests/RealtimeTests.cpp tests/AllocationGuard.cpp)
     target_link_libraries(plugin_tests PRIVATE GeneticComposer juce::juce_audio_utils)
-    target_include_directories(plugin_tests PRIVATE "${SOURCE_DIR}" "${CMAKE_BINARY_DIR}/GeneticComposer_artefacts/JuceLibraryCode")
+    if(MSVC)
+        target_link_options(plugin_tests PRIVATE /STACK:8388608)
+    endif()
+    target_include_directories(plugin_tests PRIVATE "${SOURCE_DIR}" "${CMAKE_BINARY_DIR}/GeneticComposer_artefacts/JuceLibraryCode"
+        "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/libs/dsp-kit/include")
     add_test(NAME plugin COMMAND plugin_tests plugin)
     add_test(NAME midi COMMAND plugin_tests midi)
     add_test(NAME playback COMMAND plugin_tests playback)
+    add_test(NAME realtime COMMAND plugin_tests realtime)
 endif()

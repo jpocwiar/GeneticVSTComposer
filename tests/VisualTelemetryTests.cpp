@@ -106,6 +106,7 @@ void runVisualTelemetryTests() {
     const auto initial = processor->visualState();
     check(noNotes(initial) && initial.outputPeak == 0 && initial.noteOnSerial == 0,
           "visual state must start silent before prepare");
+    setParameter(*processor, "auditionReverb", 0);
     processor->prepareToPlay(48000, 128);
     setParameter(*processor, "follow", 0);
     setParameter(*processor, "tempo", 120);

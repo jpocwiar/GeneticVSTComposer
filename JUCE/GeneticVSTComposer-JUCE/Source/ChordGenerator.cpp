@@ -7,12 +7,14 @@
 
 namespace composer {
 namespace {
-constexpr int intervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+constexpr int intervals[17][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
                                {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
                                {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
-                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
+                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14},
+                               {0, 3, 7, 11}};
 constexpr const char* suffixes[]{"",    "m",   "dim", "aug", "7",   "maj7", "m7",  "sus2",
-                                 "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9"};
+                                 "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9",
+                                 "mM7"};
 constexpr const char* names[]{"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 int pc(int pitch) {
     return (pitch % 12 + 12) % 12;
@@ -77,7 +79,7 @@ struct Voicing {
 };
 std::vector<Voicing> candidates(const ChordEvent& chord, int centre, int style) {
     std::vector<Voicing> result;
-    const auto& tones = intervals[std::clamp(chord.quality, 0, 15)];
+    const auto& tones = intervals[std::clamp(chord.quality, 0, 16)];
     const int count = tones[3] < 0 ? 3 : 4;
     for (int octave = 1; octave <= 8; ++octave) {
         for (int inversion = 0; inversion < (style == 1 ? 1 : count); ++inversion) {
@@ -303,7 +305,28 @@ Clip voiceHarmony(const Harmony& source, int numerator, int denominator, const V
     }
     for (int i = 0; i < harmony.count; ++i) {
         const auto& chord = harmony.chords[size_t(i)];
-        const auto& voicing = options[size_t(i)][size_t(selected[size_t(i)])];
+        auto voicing = options[size_t(i)][size_t(selected[size_t(i)])];
+        if (chord.bass >= 0) {
+            const int bassPc = pc(chord.bass);
+            int lowest = 0, bassVoice = -1;
+            for (int voice = 0; voice < voicing.count; ++voice) {
+                if (voicing.pitches[size_t(voice)] < voicing.pitches[size_t(lowest)])
+                    lowest = voice;
+                if (pc(voicing.pitches[size_t(voice)]) == bassPc)
+                    bassVoice = voice;
+            }
+            if (bassVoice < 0) {
+                int pitch = voicing.pitches[size_t(lowest)];
+                while (pitch > 0 && pc(pitch) != bassPc)
+                    --pitch;
+                voicing.pitches[size_t(lowest)] = pitch;
+            } else {
+                while (voicing.pitches[size_t(bassVoice)] > voicing.pitches[size_t(lowest)] &&
+                       voicing.pitches[size_t(bassVoice)] >= 12)
+                    voicing.pitches[size_t(bassVoice)] -= 12;
+            }
+            std::sort(voicing.pitches.begin(), voicing.pitches.begin() + voicing.count);
+        }
         for (int voice = 0; voice < voicing.count; ++voice)
             result.notes[size_t(result.count++)] = {chord.start,
                                                     chord.duration,
@@ -318,9 +341,14 @@ Clip voiceHarmony(const Harmony& source, int numerator, int denominator, const V
 }
 
 std::string chordName(const ChordEvent& chord) {
-    return std::string(names[pc(chord.root)]) + suffixes[std::clamp(chord.quality, 0, 15)];
+    std::string name = std::string(names[pc(chord.root)]) + suffixes[std::clamp(chord.quality, 0, 16)];
+    if (chord.bass >= 0 && pc(chord.bass) != pc(chord.root))
+        name += "/" + std::string(names[pc(chord.bass)]);
+    return name;
 }
 std::string voicedChordName(const ChordEvent& chord, const Clip& clip) {
+    if (chord.bass >= 0)
+        return chordName(chord);
     int bass = 128;
     for (int i = 0; i < std::clamp(clip.count, 0, maxNotes); ++i)
         if (std::abs(clip.notes[size_t(i)].start - chord.start) < 1e-8)

@@ -1,5 +1,6 @@
 #include "ComposerEngine.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -426,6 +427,48 @@ void testMicrotonal() {
     for (int i = 0; i < combined.count; ++i)
         require(combined.notes[i].cents == rastPhrase.notes[i].cents, "combination lost pitch offsets");
 }
+void testMetricGrouping() {
+    Settings quarters;
+    quarters.numerator = 4;
+    quarters.denominator = 4;
+    Clip clip;
+    clip.numerator = 4;
+    clip.denominator = 4;
+    clip.length = 4;
+    clip.grid = 0.25;
+    clip.count = 3;
+    clip.notes[0] = {0, 0.5, 60, 100, false, 0};
+    clip.notes[1] = {1, 0.5, 62, 90, false, 0};
+    clip.notes[2] = {1.5, 0.5, 64, 80, false, 0};
+    Settings explicitGroups = quarters;
+    explicitGroups.groupCount = 4;
+    explicitGroups.groupUnit = 4;
+    explicitGroups.groups = {1, 1, 1, 1};
+    require(fitnessScore(clip, quarters) == fitnessScore(clip, explicitGroups),
+            "4/4 default grouping changed quarter-note accents");
+    Settings six;
+    six.numerator = 6;
+    six.denominator = 8;
+    require(metricWeight(1.5, six) >= 2, "6/8 second dotted-quarter pulse is not strong");
+    require(metricWeight(1.0, six) < 2, "6/8 beat 1.0 should stay off the dotted pulse");
+    Clip parent = clip;
+    parent.numerator = 7;
+    parent.denominator = 8;
+    parent.length = 3.5;
+    parent.groupCount = 3;
+    parent.groupUnit = 8;
+    parent.groups = {2, 2, 3};
+    Settings evolved;
+    evolved.population = 16;
+    evolved.generations = 1;
+    evolved.seed = 7;
+    std::atomic<bool> cancelled{false};
+    const auto bank = generate(evolved, &parent, cancelled);
+    require(!bank.empty() && bank[0].numerator == 7 && bank[0].denominator == 8 && bank[0].groupCount == 3 &&
+                bank[0].groupUnit == 8 && bank[0].groups[0] == 2 && bank[0].groups[1] == 2 &&
+                bank[0].groups[2] == 3,
+            "evolve did not keep the parent grouping");
+}
 void runSearchTests();
 void runChordGeneratorTests();
 void runMusicalArchitectureTests();
@@ -450,6 +493,7 @@ int main(int argc, char** argv) {
             std::cout << "Engine suite '" << suite << "' passed.\n";
             return 0;
         }
+        testMetricGrouping();
         std::atomic<bool> cancelled{false};
         Settings s;
         s.quality = 0;

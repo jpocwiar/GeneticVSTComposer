@@ -89,6 +89,7 @@ std::unique_ptr<Processor> player(bool accompany, int output = 1, bool detuned =
         melody.notes[i] = {starts[i], 0.25, chords.notes[0].pitch, 100, false, detuned ? cents[i] : 0};
     processor->setClip(0, melody);
     processor->selectClip(0);
+    parameter(*processor, "auditionReverb", 0);
     processor->prepareToPlay(48000, blockSize);
     parameter(*processor, "follow", 0);
     parameter(*processor, "tempo", 120);
