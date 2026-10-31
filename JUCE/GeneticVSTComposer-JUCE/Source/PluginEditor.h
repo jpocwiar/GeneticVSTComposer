@@ -13,6 +13,7 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     void setEditable(bool enabled) { editable = enabled; }
     void setNoteEditing(bool enabled);
     void setMicrotonal(bool enabled);
+    void setInterfaceLanguage(int language) { interfaceLanguage = language; }
     void selectAllTime();
     double regionStart() const { return selectionStart; }
     double regionEnd() const { return selectionEnd; }
@@ -40,6 +41,7 @@ class PianoRoll : public juce::Component, public juce::SettableTooltipClient {
     std::array<float, composer::maxNotes> sourceActivity{};
     bool changed = false, resizingNote = false, changingVelocity = false, selectingTime = false;
     bool editable = true, showReference = false, microtonal = false;
+    int interfaceLanguage = 0;
     bool noteEditing = false, dragArmed = false, midiDragged = false;
     double selectionStart = 0, selectionEnd = 16, selectionAnchor = 0;
     composer::Note original;
@@ -131,6 +133,9 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     PianoRoll roll;
     ActivityDisplay activity;
     juce::ToggleButton motion{"Motion"};
+    juce::TextButton interfaceLanguageButton{"EN"};
+    std::unique_ptr<juce::PropertiesFile> preferences;
+    int shownLanguage = -1;
     std::array<std::unique_ptr<VariationButton>, 12> variants;
     juce::ComboBox preset, root, scale, bars, grid, meter, mode, phraseType, harmony, quality, auditionSound;
     juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"};
@@ -140,14 +145,14 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::TextButton searchDetails{"Search settings..."};
     juce::Label searchInfo;
     std::array<juce::Slider, 9> knobs;
-    juce::Slider low, high, swing, gate, tempo, volume;
+    juce::Slider low, high, swing, gate, humanize, tempo, volume;
     juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},
-        monitor{"Internal sound"}, withChords{"With chords"}, microEnabled{"Micro"};
+        monitor{"Internal sound"}, withChords{"With chords"}, chordMidi{"Chord MIDI"}, microEnabled{"Micro"};
     juce::ToggleButton quantiseSwitch{"Switch at loop"};
     juce::TextButton generate{"Generate melody bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
     TransportButton play;
     juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save bank"}, load{"Open bank"};
-    juce::TextButton import{"Import MIDI"}, exportFile{"Export..."}, help{"?"};
+    juce::TextButton import{"Import MIDI"}, exportBoth{"Melody + chords"}, exportFile{"Export..."}, help{"?"};
     MidiDragButton drag;
     juce::Label status, phraseTitle, phraseInfo, tempoInfo;
     juce::TextButton captureA{"Capture A"}, compare{"Hear A"}, clearA{"Clear A"};
@@ -178,6 +183,15 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     uint64_t shownRevision = 0;
     int shownSlot = -1, shownTuning = -1, shownOutput = -1, shownBend = -1;
     bool shownBusy = false;
+    int shownMeterNumerator = -1, shownMeterDenominator = -1;
+    int shownProgression = -2;
+    bool shownCustomHarmony = false;
+    uint64_t shownSearchSerial = ~uint64_t{0};
+    uint64_t shownStatusSerial = 0;
+    int shownBudgetPopulation = -1, shownBudgetGenerations = -1;
+    bool shownSearchBusy = false;
+    int shownSearchPage = -1;
+    juce::String shownSearchDescription;
     double lastFrame = 0, motionPhase = 0, lastReportedBeat = -1, beatReceivedAt = 0;
     float onsetPulse = 0;
     uint64_t seenNoteSerial = 0;
@@ -186,6 +200,9 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::String shownHarmony;
     void timerCallback() override;
     void chooseFile(int action);
+    void applyInterfaceLanguage();
+    void storeInterfaceLanguage(int language);
+    juce::String tr(const juce::String&) const;
     void startMidiDrag(juce::Component* source = nullptr);
     void refresh();
     void updateWorkflow();

@@ -2,8 +2,10 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 using Processor = GeneticVSTComposerJUCEAudioProcessor;
 void require(bool b, const char* m) {
     if (!b)
@@ -34,7 +36,18 @@ void runPlaybackArchitectureTests();
 void renderMusicalExamples(const juce::File&);
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
+#if JUCE_WINDOWS
+    _putenv_s("COMPOSER_DISABLE_UI_PREFS", "1");
+#else
+    setenv("COMPOSER_DISABLE_UI_PREFS", "1", 1);
+#endif
+    const std::string requested = argc > 1 ? argv[1] : "all";
+    const bool suiteMode =
+        requested == "plugin" || requested == "midi" || requested == "playback";
+    const std::string suite = suiteMode ? requested : "all";
+    const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
+        if (want("plugin")) {
         auto p = std::make_unique<Processor>();
         p->prepareToPlay(48000, 128);
         auto c = p->selectedClip();
@@ -221,12 +234,15 @@ int main(int argc, char** argv) {
         require(p->selectedClip().notes[0].pitch == 47, "stale worker overwrote a newer edit");
         runWorkflowTests();
         runVisualTelemetryTests();
-        runMicrotonalTests();
         runUsabilityTests();
         runChordPluginTests();
         runChordPanelTests();
-        runPlaybackArchitectureTests();
-        if (argc > 1) {
+        }
+        if (want("midi"))
+            runMicrotonalTests();
+        if (want("playback"))
+            runPlaybackArchitectureTests();
+        if (!suiteMode && argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());
             editor->setVisible(true);
@@ -357,8 +373,7 @@ int main(int argc, char** argv) {
         }
         if (argc > 3)
             renderMusicalExamples(juce::File(argv[3]));
-        std::cout << "Plugin: session restore, undo/redo, MIDI round trip, note scheduling, audition, "
-                     "triggers, host transport and microtonal output passed.\n";
+        std::cout << "Plugin suite '" << suite << "' passed.\n";
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

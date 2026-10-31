@@ -92,13 +92,32 @@ void runSearchTests() {
             });
         check(result.size() == slotCount && reports == 8 && last.generation == 7,
               "requested generations were skipped");
-        check(last.evaluations == 32 * 8 && last.crossovers == 30 * 7,
+        check(last.evaluations == 32 * 8 && last.crossovers == 31 * 7,
               "fitness or crossover operation counts do not match budget");
         s.crossover = 0;
         result = generate(s, mode == 2 ? &bank[0] : nullptr, cancelled, {},
                           [&](const SearchStats& stats) { last = stats; });
         check(last.crossovers == 0 && result.size() == slotCount, "zero crossover was ignored");
     }
+    s = {};
+    s.population = 64;
+    s.generations = 2;
+    s.crossover = 1;
+    s.seed = 9;
+    SearchStats islands;
+    auto islandResult = generate(s, nullptr, cancelled, {}, [&](const SearchStats& stats) { islands = stats; });
+    check(islandResult.size() == slotCount && islands.evaluations == 64 * 3 && islands.crossovers == 60 * 2,
+          "four islands did not keep one elite each or the evaluation budget");
+    const auto repeated = generate(s, nullptr, cancelled);
+    check(similarity(islandResult.front(), repeated.front()) == 1, "island search was not deterministic");
+    std::vector<Clip> mates{makeInitialBank()[0]};
+    s.population = 16;
+    s.generations = 2;
+    s.seed = 3;
+    const auto evolved = generate(s, &mates.front(), cancelled, {}, {}, &mates);
+    const auto evolvedAgain = generate(s, &mates.front(), cancelled, {}, {}, &mates);
+    check(evolved.size() == slotCount && similarity(evolved.front(), evolvedAgain.front()) == 1,
+          "pinned mates made evolution nondeterministic");
     s.generations = 2000;
     auto stopped = generate(s, nullptr, cancelled, {}, [&](const SearchStats& stats) {
         if (stats.generation == 2)

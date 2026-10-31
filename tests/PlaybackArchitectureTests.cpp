@@ -396,6 +396,64 @@ void testLiveFitToScaleWithHarmony() {
 }
 } // namespace
 
+void testChordMidiOutputAndCombinedExport() {
+    auto processor = player(true, 0, false);
+    parameter(*processor, "chordMidiOut", 1);
+    processor->setPreview(true);
+    Frame frame;
+    int chordOns = 0, melodyOns = 0;
+    for (int block = 0; block < 40; ++block) {
+        process(*processor, frame);
+        for (const auto event : frame.midi)
+            if (event.getMessage().isNoteOn()) {
+                if (event.getMessage().getChannel() == 16)
+                    ++chordOns;
+                else
+                    ++melodyOns;
+            }
+    }
+    check(chordOns > 0 && melodyOns > 0, "chord MIDI did not join the melody on channel 16");
+
+    auto mpe = player(true, 1, false);
+    parameter(*mpe, "chordMidiOut", 1);
+    mpe->setPreview(true);
+    int channel16 = 0;
+    for (int block = 0; block < 40; ++block) {
+        process(*mpe, frame);
+        for (const auto event : frame.midi)
+            if (event.getMessage().getChannel() == 16 && event.getMessage().isNoteOnOrOff())
+                ++channel16;
+    }
+    check(channel16 == 0, "MPE allowed chord MIDI on channel 16");
+
+    const auto file = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                          .getNonexistentChildFile("composer-both", ".mid", false);
+    check(processor->exportMelodyAndChords(file).wasOk(), "combined export failed");
+    juce::MemoryBlock bytes;
+    check(file.loadFileAsData(bytes) && bytes.getSize() > 10 && static_cast<const char*>(bytes.getData())[9] == 1,
+          "combined export is not MIDI type 1");
+    juce::FileInputStream stream(file);
+    juce::MidiFile midi;
+    check(stream.openedOk() && midi.readFrom(stream) && midi.getNumTracks() == 2,
+          "combined export did not write melody and chord tracks");
+    bool melodyBend = false;
+    for (int i = 0; i < midi.getTrack(0)->getNumEvents(); ++i)
+        melodyBend |= midi.getTrack(0)->getEventPointer(i)->message.isPitchWheel();
+    check(melodyBend, "melody track dropped its pitch-bend performance");
+    int chordNotes = 0;
+    const auto* chordTrack = midi.getTrack(1);
+    for (int i = 0; i < chordTrack->getNumEvents(); ++i) {
+        const auto& message = chordTrack->getEventPointer(i)->message;
+        check(!message.isPitchWheel() && !message.isController(), "chord track includes melody transforms");
+        if (message.isNoteOn()) {
+            check(message.getChannel() == 1, "chord track left channel 1");
+            ++chordNotes;
+        }
+    }
+    check(chordNotes == processor->chordClipSnapshot().count, "chord track dropped a voiced note");
+    file.deleteFile();
+}
+
 void runPlaybackArchitectureTests() {
     Processor defaults;
     check(defaults.parameters.getRawParameterValue("snap")->load() == 0,
@@ -406,4 +464,5 @@ void runPlaybackArchitectureTests() {
     testHostSeekLoopAndFollowReturn();
     testHarmonyLongerThanRiff();
     testLiveFitToScaleWithHarmony();
+    testChordMidiOutputAndCombinedExport();
 }

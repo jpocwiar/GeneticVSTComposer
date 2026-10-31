@@ -1,6 +1,6 @@
 # Architektura generowania melodii
 
-Ten dokument opisuje wersję 2.6 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
+Ten dokument opisuje wersję 2.7 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
 
 ## Inspiracja i różnice wobec pierwotnego projektu
 
@@ -19,11 +19,11 @@ Chromosom to `Clip`, zawierający do 512 uporządkowanych zdarzeń. Gen nuty prz
 
 Rzeczywista wysokość używana do oceny interwałów wynosi `100 × pitch + cents`. Dwie nuty o tym samym klawiszu i różnych centach są różnymi zdarzeniami także przy porównywaniu podobieństwa fraz.
 
-Preset Quick to 64 osobniki i 40 pokoleń, Balanced 128 i 100, Deep 256 i 300. Własny budżet pozwala ustawić 16–512 osobników oraz 1–2000 pokoleń. W każdym pokoleniu oceniana jest cała populacja. Selekcja jest turniejowa, dwa najlepsze osobniki przechodzą bez zmian, a potomstwo powstaje przez krzyżowanie i mutację. Domyślna szansa krzyżowania wynosi 90%. Zatrzymanie przez Cancel przerywa wyszukiwanie i nie zwraca częściowego banku.
+Preset Quick to 64 osobniki i 40 pokoleń, Balanced 128 i 100, Deep 256 i 300. Własny budżet pozwala ustawić 16–512 osobników oraz 1–2000 pokoleń. Przy co najmniej 64 osobnikach populacja dzieli się na cztery wyspy; mniejsza zostaje jedną. Ziarno każdej wyspy jest funkcją ziarna frazy i numeru wyspy. W każdym pokoleniu oceniana jest cała populacja, równolegle, a wynik nie zależy od kolejności wątków. Selekcja jest turniejowa. Każda wyspa zachowuje swojego najlepszego osobnika bez zmian, więc globalnie najlepszy wynik nie spada; nie ma już dwóch elit całej populacji. Potomstwo powstaje przez krzyżowanie i mutację. Domyślna szansa krzyżowania wynosi 90%. Bazowa mutacja to 0.25 przy nowej frazie i `mutation × 0.4` przy ewolucji. Gdy najlepszy wynik wyspy nie poprawia się przez 8 pokoleń, ten mnożnik rośnie do 1.5 i wraca do 1 po poprawie. Co 10 pokoleń najsłabszy osobnik wyspy jest zastępowany już ocenioną kopią lidera sąsiedniej wyspy, bez dodatkowej oceny, więc liczba ocen zostaje `populacja × (pokolenia + 1)`. Przy ewolucji przypięte frazy są dodatkową pulą do krzyżowania. Świeże generowanie ich nie używa. Zatrzymanie przez Cancel przerywa wyszukiwanie i nie zwraca częściowego banku.
 
 Krzyżowanie wymienia fragmenty całych zdarzeń, więc dziedziczone są także centy. Przy blokadach, Keep rhythm lub Melody on rhythm zachowane są czasy, a wymieniane wysokości, centy i velocity odblokowanych nut. Mutacja może zmieniać klawisz i gen mikrotonowy; przy dozwolonej zmianie rytmu także długość lub podział nuty, wstawienie nowego początku, usunięcie nuty do pauzy, przesunięcie początku o krok siatki, połączenie sąsiednich nut i kopiowanie krótkiego fragmentu razem z przerwami. Naprawa ograniczeń następuje przed oceną potomka.
 
-Końcowy wybór preferuje różne osobniki z ocenionej populacji. Jeśli zabraknie dostatecznie różnych wyników, pozostałe sloty otrzymują ocenione osobniki. Silnik nie tworzy wtedy nieocenionych mutacji i nie losuje nowych centów po zakończeniu GA. `SearchStats::microtonalEvaluations` liczy oceny osobników zawierających faktyczne niezerowe offsety; nie jest liczbą nut ani obietnicą, że każda wynikowa fraza będzie mikrotonowa.
+Końcowy wybór najpierw bierze po jednym liderze z wyspy, potem resztę rankingu, odrzucając frazy podobne powyżej 0.85. Jeśli zabraknie dostatecznie różnych wyników, pozostałe sloty otrzymują ocenione osobniki. Silnik nie tworzy wtedy nieocenionych mutacji i nie losuje nowych centów po zakończeniu GA. `SearchStats::microtonalEvaluations` liczy oceny osobników zawierających faktyczne niezerowe offsety; nie jest liczbą nut ani obietnicą, że każda wynikowa fraza będzie mikrotonowa.
 
 ## Riff, Motif i Melody
 

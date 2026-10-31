@@ -1,5 +1,6 @@
 #include "ChordGenerator.h"
 #include "ComposerEngine.h"
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <set>

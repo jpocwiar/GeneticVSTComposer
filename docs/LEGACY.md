@@ -1,3 +1,7 @@
+# Legacy reference
+
+The supported build is the root `CMakeLists.txt`. `JUCE/GeneticVSTComposer-JUCE/GeneticVSTComposer-JUCE.jucer` is a version 1 project artifact and is not the current build entry. The files under `legacy/reference/` (`genetic`, `mingus`, `notes_generator`, `test.cpp`, `plot_fitness.py` and `fitness/`) are the original research sources. CMake does not compile them.
+
 # GeneticVSTComposer
 
 Interactive VST Plugin composing tool for generating short melodic lines using genetic algorithms. Plugin is desired to work as a MIDI Effect, which enables user to to quickly generate and modify melody ideas in any time signature / scale, using desired qualities like number of dissonances or chord conformance, as well as control parameters / automation of the instruments. 

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 using namespace composer;
 void require(bool condition, const char* message) {
     if (!condition)
@@ -60,6 +61,16 @@ void testHarmony() {
     require(parseHarmony(harmonyText(harmony), roundTrip, error) &&
                 harmonyText(roundTrip) == harmonyText(harmony),
             "harmony text round trip");
+    require(parseHarmony("Dm7b5:4 G9:2 Cmaj9:2 Am6:2 F6:2 Bdim7:2 Cadd9:2", harmony, error),
+            "ninth and half-diminished symbols rejected");
+    require(harmony.chords[0].quality == 9 && harmony.chords[1].quality == 14 &&
+                harmony.chords[2].quality == 15 && harmony.chords[3].quality == 12 &&
+                harmony.chords[4].quality == 11 && harmony.chords[5].quality == 10 &&
+                harmony.chords[6].quality == 13,
+            "new chord qualities were parsed as the wrong type");
+    require(parseHarmony(harmonyText(harmony), roundTrip, error) &&
+                harmonyText(roundTrip) == harmonyText(harmony),
+            "new chord symbols did not round-trip");
     require(parseHarmony(" \t\n", roundTrip, error) && roundTrip.count == 0, "clear harmony");
 
     Clip chords;
@@ -272,6 +283,9 @@ void testMicrotonal() {
     require(tuningScale(0, 6) == 6 && tuningScale(1, 6) == 6 && tuningScale(2, 6) == 0 &&
                 tuningScale(4, 6) == 9 && scaleIntervals(9).size() == 7,
             "tunings select their own scales");
+    require(tuningScale(2, 12) == 12 && tuningScale(0, 15) == 15 && scaleIntervals(10).size() == 7 &&
+                scaleIntervals(13).size() == 6 && scaleIntervals(14).size() == 6,
+            "extended scales were clamped or replaced by a tuning");
     require(snapTuned(63, 0, 0, 1, 2) == std::make_pair(64, -50), "Eb did not snap to Rast's E half-flat");
     require(snapTuned(63, 50, 0, 1, 2) == std::make_pair(64, -50), "Eb+50 must respell as E half-flat");
     require(snapTuned(64, 0, 0, 1, 2) == std::make_pair(64, 0), "plain form of a degree was not kept");
@@ -415,11 +429,27 @@ void testMicrotonal() {
 void runSearchTests();
 void runChordGeneratorTests();
 void runMusicalArchitectureTests();
-int main() {
+int main(int argc, char** argv) {
+    const std::string suite = argc > 1 ? argv[1] : "all";
+    if (suite != "all" && suite != "engine" && suite != "harmony" && suite != "search" &&
+        suite != "architecture") {
+        std::cerr << "Unknown suite: " << suite << '\n';
+        return 2;
+    }
+    const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
-        runSearchTests();
-        runChordGeneratorTests();
-        runMusicalArchitectureTests();
+        if (want("search"))
+            runSearchTests();
+        if (want("harmony")) {
+            runChordGeneratorTests();
+            testHarmony();
+        }
+        if (want("architecture"))
+            runMusicalArchitectureTests();
+        if (!want("engine")) {
+            std::cout << "Engine suite '" << suite << "' passed.\n";
+            return 0;
+        }
         std::atomic<bool> cancelled{false};
         Settings s;
         s.quality = 0;
@@ -434,6 +464,14 @@ int main() {
         for (size_t i = 1; i < a.size(); ++i)
             different |= similarity(a[0], a[i]) < 0.95;
         require(different, "alternatives lack variety");
+        s.bars = 12;
+        s.scale = 10;
+        s.population = 16;
+        s.generations = 1;
+        s.seed = 7;
+        const auto longPhrase = generate(s, nullptr, cancelled);
+        require(!longPhrase.empty() && std::abs(longPhrase.front().length - 48.0) < 1e-6,
+                "a 12-bar phrase was clamped to eight bars");
         for (int scale = 0; scale < 9; ++scale)
             for (int root = 0; root < 12; ++root)
                 for (int p = 0; p < 128; ++p) {
@@ -503,7 +541,6 @@ int main() {
         sanitise(dirty);
         require(dirty.count == 1 && dirty.notes[0].pitch == 127 && dirty.notes[0].velocity == 1,
                 "input validation");
-        testHarmony();
         testRegionTransforms();
         testGrooveAndCombine();
         testMicrotonal();

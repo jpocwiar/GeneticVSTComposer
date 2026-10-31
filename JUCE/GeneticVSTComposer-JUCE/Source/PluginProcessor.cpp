@@ -1,7 +1,10 @@
 #include "PluginProcessor.h"
+#include "InterfaceText.h"
 #include "PluginEditor.h"
 #include <cmath>
+#include <condition_variable>
 #include <tuple>
+#include <utility>
 
 using Processor = GeneticVSTComposerJUCEAudioProcessor;
 namespace {
@@ -45,6 +48,75 @@ template <typename Add> void microtonalSetup(int output, int range, Add&& add) {
     }
 }
 } // namespace
+
+class Processor::SearchThread : public juce::Thread {
+  public:
+    explicit SearchThread(Processor& ownerIn) : juce::Thread("composer-search"), owner(ownerIn) {
+        startThread();
+    }
+    ~SearchThread() override { shutdown(); }
+    void shutdown() {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            stopping = true;
+        }
+        wake.notify_all();
+        stopThread(15000);
+    }
+    void submit(SearchJob job) {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            pending = std::move(job);
+            hasJob = true;
+        }
+        wake.notify_one();
+    }
+    void run() override {
+        while (!threadShouldExit()) {
+            SearchJob job;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                wake.wait(lock, [&] { return stopping || hasJob || threadShouldExit(); });
+                if (stopping || threadShouldExit())
+                    return;
+                job = std::move(pending);
+                hasJob = false;
+            }
+            owner.performSearch(std::move(job));
+        }
+    }
+
+  private:
+    Processor& owner;
+    std::mutex mutex;
+    std::condition_variable wake;
+    SearchJob pending;
+    bool hasJob = false;
+    bool stopping = false;
+};
+
+void Processor::cacheAudioParameters() {
+    auto take = [this](const char* id) { return parameters.getRawParameterValue(id); };
+    cached.swing = take("swing");
+    cached.gate = take("gate");
+    cached.snap = take("snap");
+    cached.root = take("root");
+    cached.scale = take("scale");
+    cached.microEnabled = take("microEnabled");
+    cached.tuning = take("tuning");
+    cached.microOutput = take("microOutput");
+    cached.tempo = take("tempo");
+    cached.follow = take("follow");
+    cached.bendRange = take("bendRange");
+    cached.monitor = take("monitor");
+    cached.volume = take("volume");
+    cached.auditionSound = take("auditionSound");
+    cached.quantiseSwitch = take("quantiseSwitch");
+    cached.auditionChords = take("auditionChords");
+    cached.chordMidiOut = take("chordMidiOut");
+    cached.humanize = take("humanize");
+    cached.extendedScale = take("extendedScale");
+}
 juce::StringArray Processor::rootNames() {
     return {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 }
@@ -133,18 +205,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     number("weirdness", "Weirdness", 0, 1, 0.1f);
     choice("chordLength", "Chord sequence length", {"Follow melody", "1 bar", "2 bars", "4 bars", "8 bars"},
            3);
+    number("humanize", "Humanize", 0, 1, 0);
+    choice("extendedBars", "Extended phrase length", {"Use Length", "3 bars", "6 bars", "12 bars", "16 bars"},
+           0);
+    choice("extendedChordLength", "Extended chord length",
+           {"Use chord length", "3 bars", "6 bars", "12 bars", "16 bars"}, 0);
+    choice("extendedScale", "Extended scale",
+           {"Use Scale", "Phrygian", "Locrian", "Melodic minor", "Whole tone", "Blues", "Phrygian dominant"},
+           0);
+    choice("chordRhythmShape", "Chord rhythm shape", {"Even", "Long-short", "Short-long"}, 0);
+    toggle("chordMidiOut", "Chord MIDI output", false);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters(*this, nullptr, "Parameters", createParameters()), bank(composer::makeInitialBank()),
       pendingBank(bank), audioBank(bank) {
+    cacheAudioParameters();
     clearVisualState();
+    searchThread = std::make_unique<SearchThread>(*this);
 }
 GeneticVSTComposerJUCEAudioProcessor::~GeneticVSTComposerJUCEAudioProcessor() {
     cancelled.store(true);
-    if (worker.joinable())
-        worker.join();
+    searchThread.reset();
 }
 bool Processor::isBusesLayoutSupported(const BusesLayout& layout) const {
     return layout.getMainOutputChannelSet() == juce::AudioChannelSet::stereo() ||
@@ -255,11 +338,22 @@ composer::Clip Processor::displayedClip() const {
 }
 juce::String Processor::statusText() const {
     std::lock_guard<std::mutex> lock(documentMutex);
-    return status;
+    return interfaceText(status, interfaceLanguage.load());
+}
+void Processor::setInterfaceLanguage(int language) {
+    const int next = language == 1 ? 1 : 0;
+    if (interfaceLanguage.exchange(next) != next)
+        statusSerialValue.fetch_add(1, std::memory_order_relaxed);
+}
+void Processor::assignStatusLocked(const juce::String& text) {
+    if (status == text)
+        return;
+    status = text;
+    statusSerialValue.fetch_add(1, std::memory_order_relaxed);
 }
 void Processor::setStatus(const juce::String& text) {
     std::lock_guard<std::mutex> lock(documentMutex);
-    status = text;
+    assignStatusLocked(text);
 }
 void Processor::selectClip(int index) {
     index = juce::jlimit(0, 11, index);
@@ -267,7 +361,7 @@ void Processor::selectClip(int index) {
     const bool changed = selected.exchange(index) != index;
     if (changed && draftActive) {
         draftActive = false;
-        status = "Preview discarded after selecting another variation.";
+        assignStatusLocked("Preview discarded after selecting another variation.");
         publishLocked();
     }
     if (!playing.load())
@@ -308,7 +402,7 @@ void Processor::setClip(int index, composer::Clip clip) {
     composer::sanitise(clip);
     std::lock_guard<std::mutex> lock(documentMutex);
     if (draftActive) {
-        status = "Apply or discard the preview before editing a phrase.";
+        assignStatusLocked("Apply or discard the preview before editing a phrase.");
         return;
     }
     pushHistoryLocked();
@@ -389,14 +483,14 @@ composer::Clip Processor::chordClipSnapshot() const {
 juce::Result Processor::generateChords() {
     composer::ChordGenerationSettings s;
     s.root = int(param("root"));
-    s.scale = int(param("scale"));
-    const int length = int(param("chordLength"));
-    s.bars = 1 << (length == 0 ? int(param("bars")) : length - 1);
+    s.scale = scaleIndex();
+    s.bars = chordBarCount();
     const auto meter = timeSignature();
     s.numerator = meter.numerator;
     s.denominator = meter.denominator;
     s.originality = param("chordOriginality");
     s.harmonicRhythm = int(param("chordRhythm"));
+    s.rhythmShape = int(param("chordRhythmShape"));
     s.resolve = param("chordResolve") > 0.5f;
     s.seed = uint32_t(seedGenerator.nextInt());
     const auto harmony = composer::generateHarmony(s);
@@ -412,8 +506,8 @@ juce::Result Processor::generateChords() {
     chordClip = voiced;
     customHarmonyEnabled.store(true);
     publishLocked();
-    status = "New chords are active. Generate or evolve a melody to follow them; existing variations are "
-             "retained.";
+    assignStatusLocked("New chords are active. Generate or evolve a melody to follow them; existing variations are "
+                       "retained.");
     return juce::Result::ok();
 }
 juce::Result Processor::revoiceChords() {
@@ -426,7 +520,7 @@ juce::Result Processor::revoiceChords() {
     pushHistoryLocked();
     chordClip = voiced;
     publishLocked();
-    status = "Chord voicings updated. The harmonic sequence and melody notes are unchanged.";
+    assignStatusLocked("Chord voicings updated. The harmonic sequence and melody notes are unchanged.");
     return juce::Result::ok();
 }
 composer::TimeSignature Processor::timeSignature() const {
@@ -456,6 +550,86 @@ int Processor::progressionIndex() const {
     const int extended = int(param("extendedProgression"));
     return extended > 0 ? extended + 4 : int(param("progression"));
 }
+int Processor::scaleIndex() const {
+    const int extended = int(cached.extendedScale->load());
+    return extended > 0 ? 9 + juce::jlimit(1, 6, extended) : juce::jlimit(0, 8, int(cached.scale->load()));
+}
+juce::StringArray Processor::extendedScaleNames() {
+    auto names = scaleNames();
+    names.add("Phrygian");
+    names.add("Locrian");
+    names.add("Melodic minor");
+    names.add("Whole tone");
+    names.add("Blues");
+    names.add("Phrygian dominant");
+    return names;
+}
+void Processor::setScaleChoice(int engineScale) {
+    if (engineScale >= 10 && engineScale <= 15)
+        setParameter("extendedScale", float(engineScale - 9));
+    else {
+        setParameter("extendedScale", 0);
+        setParameter("scale", float(juce::jlimit(0, 8, engineScale)));
+    }
+}
+int Processor::phraseBarCount() const {
+    const int extended = int(param("extendedBars"));
+    constexpr int extra[]{3, 6, 12, 16};
+    if (extended >= 1 && extended <= 4)
+        return extra[extended - 1];
+    return 1 << juce::jlimit(0, 3, int(param("bars")));
+}
+int Processor::phraseLengthMenuId() const {
+    constexpr int values[]{1, 2, 3, 4, 6, 8, 12, 16};
+    const int bars = phraseBarCount();
+    for (int i = 0; i < 8; ++i)
+        if (values[i] == bars)
+            return i + 1;
+    return 5;
+}
+void Processor::setPhraseBarCount(int bars) {
+    switch (bars) {
+    case 1: setParameter("extendedBars", 0); setParameter("bars", 0); break;
+    case 2: setParameter("extendedBars", 0); setParameter("bars", 1); break;
+    case 3: setParameter("extendedBars", 1); break;
+    case 4: setParameter("extendedBars", 0); setParameter("bars", 2); break;
+    case 6: setParameter("extendedBars", 2); break;
+    case 8: setParameter("extendedBars", 0); setParameter("bars", 3); break;
+    case 12: setParameter("extendedBars", 3); break;
+    case 16: setParameter("extendedBars", 4); break;
+    default: break;
+    }
+}
+int Processor::chordBarCount() const {
+    const int extended = int(param("extendedChordLength"));
+    constexpr int extra[]{3, 6, 12, 16};
+    if (extended >= 1 && extended <= 4)
+        return extra[extended - 1];
+    const int length = juce::jlimit(0, 4, int(param("chordLength")));
+    return length == 0 ? phraseBarCount() : 1 << (length - 1);
+}
+int Processor::chordLengthMenuId() const {
+    const int extended = int(param("extendedChordLength"));
+    constexpr int extendedIds[]{4, 6, 8, 9};
+    if (extended >= 1 && extended <= 4)
+        return extendedIds[extended - 1];
+    constexpr int ids[]{1, 2, 3, 5, 7};
+    return ids[juce::jlimit(0, 4, int(param("chordLength")))];
+}
+void Processor::setChordLengthMenu(int id) {
+    switch (id) {
+    case 1: setParameter("extendedChordLength", 0); setParameter("chordLength", 0); break;
+    case 2: setParameter("extendedChordLength", 0); setParameter("chordLength", 1); break;
+    case 3: setParameter("extendedChordLength", 0); setParameter("chordLength", 2); break;
+    case 4: setParameter("extendedChordLength", 1); break;
+    case 5: setParameter("extendedChordLength", 0); setParameter("chordLength", 3); break;
+    case 6: setParameter("extendedChordLength", 2); break;
+    case 7: setParameter("extendedChordLength", 0); setParameter("chordLength", 4); break;
+    case 8: setParameter("extendedChordLength", 3); break;
+    case 9: setParameter("extendedChordLength", 4); break;
+    default: break;
+    }
+}
 void Processor::setProgressionPreset(int index) {
     index = juce::jlimit(0, int(composer::progressionPresets().size()) - 1, index);
     if (customHarmonyEnabled.load())
@@ -478,7 +652,8 @@ composer::SearchBudget Processor::configuredSearchBudget() const {
 juce::String Processor::searchDescription() const {
     std::lock_guard<std::mutex> lock(searchMutex);
     if (lastSearch.population == 0)
-        return "Tournament selection / 2 elites / crossover / mutation. Fitness is an internal score.";
+        return "Tournament selection / one elite per island / crossover / adaptive mutation. Fitness is an "
+               "internal score.";
     return "Generation " + juce::String(lastSearch.generation) + "/" + juce::String(lastSearch.generations) +
            "  |  Population " + juce::String(lastSearch.population) + "  |  Evaluations " +
            juce::String(lastSearch.evaluations) + "  |  Crossovers " + juce::String(lastSearch.crossovers) +
@@ -490,8 +665,8 @@ juce::String Processor::searchDescription() const {
 composer::Settings Processor::settings() const {
     composer::Settings s;
     s.root = int(param("root"));
-    s.scale = int(param("scale"));
-    s.bars = 1 << int(param("bars"));
+    s.scale = scaleIndex();
+    s.bars = phraseBarCount();
     s.division = 8 << int(param("grid"));
     const auto meter = timeSignature();
     s.numerator = meter.numerator;
@@ -536,8 +711,6 @@ void Processor::generate(bool evolve, bool overHarmony) {
     }
     if (busy.exchange(true))
         return;
-    if (worker.joinable())
-        worker.join();
     cancelled.store(false);
     progress.store(0);
     auto s = settings();
@@ -555,9 +728,9 @@ void Processor::generate(bool evolve, bool overHarmony) {
         setParameter("mode", 0);
         setTimeSignature(juce::String(s.numerator) + "/" + juce::String(s.denominator));
         const double bars = s.harmony.length / (s.numerator * 4.0 / s.denominator);
-        for (int i = 0; i < 4; ++i)
-            if (std::abs(bars - (1 << i)) < 1e-8)
-                setParameter("bars", float(i));
+        for (int count : {1, 2, 3, 4, 6, 8, 12, 16})
+            if (std::abs(bars - count) < 1e-8)
+                setPhraseBarCount(count);
     }
     s.seed = uint32_t(seedGenerator.nextInt());
     const auto parent = selectedClip();
@@ -575,37 +748,53 @@ void Processor::generate(bool evolve, bool overHarmony) {
         lastSearch.population = s.population;
         lastSearch.generations = s.generations;
         searchSeconds = 0;
+        searchSerialValue.fetch_add(1, std::memory_order_relaxed);
     }
     setStatus(evolve ? "Evolving the selected phrase..." : "Searching for new phrases...");
-    worker = std::thread([this, s, parent, startRevision, useParent] {
-        try {
-            const auto startTime = juce::Time::getMillisecondCounterHiRes();
-            auto results = composer::generate(
-                s, useParent ? &parent : nullptr, cancelled, [this](float p) { progress.store(p); },
-                [this, startTime](const composer::SearchStats& stats) {
-                    std::lock_guard<std::mutex> lock(searchMutex);
-                    lastSearch = stats;
-                    searchSeconds = (juce::Time::getMillisecondCounterHiRes() - startTime) / 1000.0;
-                });
-            std::lock_guard<std::mutex> lock(documentMutex);
-            if (!results.empty() && !cancelled.load() && revision.load() == startRevision) {
-                pushHistoryLocked();
-                int next = 0;
-                for (auto& c : bank)
-                    if (!c.favourite)
-                        c = results[size_t(next++)];
-                publishLocked();
-                status = next > 0 ? "Ready: " + juce::String(s.generations) + " generations x " +
-                                        juce::String(s.population) +
-                                        " individuals. Audition a phrase; drag its piano roll to your DAW."
-                                  : "All variations are pinned. Unpin a slot to generate into it.";
-            } else
-                status = "Generation cancelled. Your previous phrases are safe.";
-        } catch (const std::exception& e) {
-            setStatus("Generation failed: " + juce::String(e.what()));
-        }
-        busy.store(false);
-    });
+    SearchJob job;
+    job.settings = s;
+    job.parent = parent;
+    job.startRevision = startRevision;
+    job.useParent = useParent;
+    job.evolve = evolve;
+    if (evolve)
+        for (const auto& clip : bankSnapshot())
+            if (clip.favourite && clip.count > 0)
+                job.mates.push_back(clip);
+    searchThread->submit(std::move(job));
+}
+void Processor::performSearch(SearchJob job) {
+    const auto& s = job.settings;
+    try {
+        const auto startTime = juce::Time::getMillisecondCounterHiRes();
+        auto results = composer::generate(
+            s, job.useParent ? &job.parent : nullptr, cancelled, [this](float value) { progress.store(value); },
+            [this, startTime](const composer::SearchStats& stats) {
+                std::lock_guard<std::mutex> lock(searchMutex);
+                lastSearch = stats;
+                searchSeconds = (juce::Time::getMillisecondCounterHiRes() - startTime) / 1000.0;
+                searchSerialValue.fetch_add(1, std::memory_order_relaxed);
+            },
+            job.evolve && !job.mates.empty() ? &job.mates : nullptr);
+        std::lock_guard<std::mutex> lock(documentMutex);
+        if (!results.empty() && !cancelled.load() && revision.load() == job.startRevision) {
+            pushHistoryLocked();
+            int next = 0;
+            for (auto& clip : bank)
+                if (!clip.favourite)
+                    clip = results[size_t(next++)];
+            publishLocked();
+            assignStatusLocked(next > 0 ? "Ready: " + juce::String(s.generations) + " generations x " +
+                                              juce::String(s.population) +
+                                              " individuals. Audition a phrase; drag its piano roll to your DAW."
+                                        : "All variations are pinned. Unpin a slot to generate into it.");
+        } else
+            assignStatusLocked("Generation cancelled. Your previous phrases are safe.");
+    } catch (const std::exception& error) {
+        setStatus("Generation failed: " + juce::String(error.what()));
+    }
+    busy.store(false);
+    searchSerialValue.fetch_add(1, std::memory_order_relaxed);
 }
 void Processor::setParameter(const char* id, float value) {
     auto* p = parameters.getParameter(id);
@@ -614,17 +803,31 @@ void Processor::setParameter(const char* id, float value) {
     p->endChangeGesture();
 }
 void Processor::applyPreset(int i) {
-    const float macros[][6]{{0.5f, 0.5f, 0.25f, 0.15f, 0.15f, 0.35f},
-                            {0.25f, 0.25f, 0.1f, 0.05f, 0.35f, 0.25f},
-                            {0.8f, 0.65f, 0.55f, 0.15f, 0.08f, 0.45f},
-                            {0.6f, 0.8f, 0.7f, 0.75f, 0.2f, 0.6f},
-                            {0.35f, 0.3f, 0.4f, 0.1f, 0.3f, 0.3f}};
-    const char* ids[]{"density", "diversity", "syncopation", "tension", "space", "mutation"};
+    struct Preset {
+        float density, diversity, syncopation, tension, space, mutation;
+        float dynamics, valence, arousal, weirdness;
+        float phraseType, low, high;
+    };
+    // The first six columns keep the original starting points. The 2.5 controls and phrase type
+    // now move with the same names: airy stays open, rhythmic raises energy, chromatic raises
+    // tension, and bass stays in a low register.
+    constexpr Preset presets[]{
+        {0.5f, 0.5f, 0.25f, 0.15f, 0.15f, 0.35f, 0.5f, 0.5f, 0.5f, 0.1f, 0, 48, 84},
+        {0.25f, 0.25f, 0.1f, 0.05f, 0.35f, 0.25f, 0.35f, 0.65f, 0.25f, 0.05f, 2, 48, 84},
+        {0.8f, 0.65f, 0.55f, 0.15f, 0.08f, 0.45f, 0.55f, 0.45f, 0.85f, 0.25f, 0, 48, 84},
+        {0.6f, 0.8f, 0.7f, 0.75f, 0.2f, 0.6f, 0.7f, 0.35f, 0.6f, 0.75f, 1, 48, 84},
+        {0.35f, 0.3f, 0.4f, 0.1f, 0.3f, 0.3f, 0.3f, 0.4f, 0.35f, 0.15f, 0, 36, 60}};
+    const char* ids[]{"density", "diversity", "syncopation", "tension",   "space",     "mutation",
+                      "dynamics", "valence",  "arousal",     "weirdness", "phraseType"};
     i = juce::jlimit(0, 4, i);
-    for (int j = 0; j < 6; ++j)
-        setParameter(ids[j], macros[i][j]);
-    setParameter("low", i == 4 ? 36 : 48);
-    setParameter("high", i == 4 ? 60 : 84);
+    const auto& preset = presets[i];
+    const float values[]{preset.density, preset.diversity, preset.syncopation, preset.tension,
+                         preset.space,   preset.mutation,  preset.dynamics,    preset.valence,
+                         preset.arousal, preset.weirdness, preset.phraseType};
+    for (int j = 0; j < 11; ++j)
+        setParameter(ids[j], values[j]);
+    setParameter("low", preset.low);
+    setParameter("high", preset.high);
     setStatus("Starting point loaded. Generate to create a new bank.");
 }
 composer::Harmony Processor::harmonySnapshot() const {
@@ -650,7 +853,7 @@ juce::Result Processor::setCustomHarmony(const juce::String& text) {
         preview.store(false);
     customHarmonyEnabled.store(parsed.count > 0);
     publishLocked();
-    status = "Custom chords set. Generate or evolve to use them; playback scale snap is bypassed.";
+    assignStatusLocked("Custom chords set. Generate or evolve to use them; playback scale snap is bypassed.");
     return juce::Result::ok();
 }
 void Processor::clearCustomHarmony() {
@@ -665,7 +868,7 @@ void Processor::clearCustomHarmony() {
         preview.store(false);
     customHarmonyEnabled.store(false);
     publishLocked();
-    status = "Custom harmony cleared. The scale and progression controls apply again.";
+    assignStatusLocked("Custom harmony cleared. The scale and progression controls apply again.");
 }
 juce::Result Processor::importHarmonyMidi(const juce::File& file) {
     composer::Clip reference;
@@ -685,8 +888,8 @@ juce::Result Processor::importHarmonyMidi(const juce::File& file) {
     chordClip = voiced;
     customHarmonyEnabled.store(true);
     publishLocked();
-    status = truncated ? "Harmony imported from a truncated reference. Check the chord names and lengths."
-                       : "Chords estimated from MIDI. Check and edit the chord names before generating.";
+    assignStatusLocked(truncated ? "Harmony imported from a truncated reference. Check the chord names and lengths."
+                                 : "Chords estimated from MIDI. Check and edit the chord names before generating.");
     return juce::Result::ok();
 }
 bool Processor::hasGrooveReference() const {
@@ -704,8 +907,8 @@ juce::Result Processor::importGrooveMidi(const juce::File& file) {
     grooveReference = reference;
     grooveLoaded = true;
     publishLocked();
-    status = truncated ? "Groove imported; reference limited to 512 notes and 128 beats."
-                       : "Groove reference loaded. Adjust Timing and Velocity, then apply.";
+    assignStatusLocked(truncated ? "Groove imported; reference limited to 512 notes and 128 beats."
+                                 : "Groove reference loaded. Adjust Timing and Velocity, then apply.");
     return juce::Result::ok();
 }
 void Processor::useSelectedAsGroove() {
@@ -713,14 +916,14 @@ void Processor::useSelectedAsGroove() {
     std::lock_guard<std::mutex> lock(documentMutex);
     const auto& source = draftActive ? draft : bank[selected.load()];
     if (source.count == 0) {
-        status = "Choose a non-empty phrase as the groove reference.";
+        assignStatusLocked("Choose a non-empty phrase as the groove reference.");
         return;
     }
     pushHistoryLocked();
     grooveReference = source;
     grooveLoaded = true;
     publishLocked();
-    status = "Groove captured. Select a target phrase, then apply timing and velocity.";
+    assignStatusLocked("Groove captured. Select a target phrase, then apply timing and velocity.");
 }
 juce::Result Processor::applyGroove(float timing, float velocity) {
     cancelled.store(true);
@@ -736,7 +939,7 @@ juce::Result Processor::applyGroove(float timing, float velocity) {
     bank[selected.load()] = transformed;
     compareRequested.store(false);
     publishLocked();
-    status = "Groove applied. Locked notes are preserved; Undo restores the previous performance.";
+    assignStatusLocked("Groove applied. Locked notes are preserved; Undo restores the previous performance.");
     return juce::Result::ok();
 }
 juce::Result Processor::applyRegion(double start, double end, composer::RegionAction action) {
@@ -755,7 +958,7 @@ juce::Result Processor::applyRegion(double start, double end, composer::RegionAc
     bank[selected.load()] = transformed;
     compareRequested.store(false);
     publishLocked();
-    status = "Selected region edited. Notes outside the range and locked notes are preserved.";
+    assignStatusLocked("Selected region edited. Notes outside the range and locked notes are preserved.");
     return juce::Result::ok();
 }
 
@@ -783,7 +986,7 @@ juce::Result Processor::previewCombination(int rhythm, int pitches, int accents)
                  juce::String(pitches + 1) + ", accents " + juce::String(accents + 1);
     compareRequested.store(false);
     publishLocked();
-    status = "Preview ready. Play to audition, then Apply or Discard. The saved bank is unchanged.";
+    assignStatusLocked("Preview ready. Play to audition, then Apply or Discard. The saved bank is unchanged.");
     return juce::Result::ok();
 }
 juce::Result Processor::previewArrangement() {
@@ -829,8 +1032,8 @@ juce::Result Processor::previewArrangement() {
     draftLabel = "Arrangement A / A' / B / A''  |  " + juce::String(result.length / bar, 1) + " bars";
     compareRequested.store(false);
     publishLocked();
-    status =
-        "Arrangement preview ready. A stays intact, A' develops, B answers, A'' resolves. Apply or Discard.";
+    assignStatusLocked(
+        "Arrangement preview ready. A stays intact, A' develops, B answers, A'' resolves. Apply or Discard.");
     return juce::Result::ok();
 }
 void Processor::applyDraft() {
@@ -843,7 +1046,7 @@ void Processor::applyDraft() {
     selected.store(draftSlot);
     draftActive = false;
     publishLocked();
-    status = "Preview applied to the selected variation. Undo restores the original.";
+    assignStatusLocked("Preview applied to the selected variation. Undo restores the original.");
 }
 void Processor::discardDraft() {
     cancelled.store(true);
@@ -852,7 +1055,7 @@ void Processor::discardDraft() {
         return;
     draftActive = false;
     publishLocked();
-    status = "Preview discarded. The bank is unchanged.";
+    assignStatusLocked("Preview discarded. The bank is unchanged.");
 }
 void Processor::captureComparison() {
     std::lock_guard<std::mutex> lock(documentMutex);
@@ -860,7 +1063,7 @@ void Processor::captureComparison() {
     comparisonAvailable.store(true);
     compareRequested.store(false);
     publishLocked();
-    status = "A captured. Edit or choose a variation for B; switch A/B to compare.";
+    assignStatusLocked("A captured. Edit or choose a variation for B; switch A/B to compare.");
 }
 composer::Clip Processor::comparisonClip() const {
     std::lock_guard<std::mutex> lock(documentMutex);
@@ -883,11 +1086,27 @@ void Processor::clearComparison() {
     comparison = {};
     publishLocked();
 }
-composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& clip,
-                                       int transposition) const {
-    n.start = swingTime(n.start, clip.grid, param("swing"));
+composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& clip, int transposition,
+                                       int index) const {
+    const double swing = cached.swing->load();
+    n.start = swingTime(n.start, clip.grid, swing);
+    const float humanize = cached.humanize->load();
+    if (humanize > 0.0001f && index >= 0) {
+        uint32_t hash = clip.seed * 2246822519u ^ uint32_t(index) * 3266489917u ^ uint32_t(n.pitch) * 668265263u;
+        auto unit = [&] {
+            hash = hash * 1664525u + 1013904223u;
+            return (hash >> 8) / 16777216.0;
+        };
+        const double shift = (unit() * 2.0 - 1.0) * humanize * clip.grid * 0.45;
+        const double previous = index > 0 ? swingTime(clip.notes[index - 1].start, clip.grid, swing) + 0.001 : 0.0;
+        const double following = index + 1 < clip.count
+                                     ? swingTime(clip.notes[index + 1].start, clip.grid, swing) - 0.001
+                                     : clip.length - 0.001;
+        n.start = following > previous ? std::clamp(n.start + shift, previous, following) : n.start;
+        n.velocity = std::clamp(n.velocity + int(std::lround((unit() * 2.0 - 1.0) * humanize * 24.0)), 1, 127);
+    }
     n.start = std::min(n.start, clip.length - 0.001);
-    n.duration = std::max(0.001, std::min(n.duration * param("gate"), clip.length - n.start));
+    n.duration = std::max(0.001, std::min(n.duration * cached.gate->load(), clip.length - n.start));
     n.pitch = juce::jlimit(0, 127, n.pitch + transposition);
     // With the tuning off, stored offsets are kept but the output is plain 12-TET.
     const int tuning = tuningIndex();
@@ -895,8 +1114,8 @@ composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& c
         n.cents = 0;
     // Fit to scale is an explicit performance projection, including live transposition.
     // It never invents offsets after the search; optimized passing-note cents are retained.
-    if (param("snap") > 0.5f)
-        n.pitch = composer::snapPitch(n.pitch, int(param("root")), int(param("scale")));
+    if (cached.snap->load() > 0.5f)
+        n.pitch = composer::snapPitch(n.pitch, int(cached.root->load()), scaleIndex());
 
     return n;
 }
@@ -927,8 +1146,11 @@ void Processor::resetOutput(int sample, juce::MidiBuffer& midi) {
 }
 void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) {
     audio.clear();
-    if (audio.getNumSamples() > 0)
+    if (audio.getNumSamples() > 0) {
         allOff(0, midi);
+        stopChordLayer(0, midi);
+    } else
+        chordMidiSounding = {};
     voices = {};
     chordVoices = {};
     chordLayerPlaying = false;
@@ -976,34 +1198,52 @@ void Processor::noteOn(const composer::Note& n, int sourceIndex, int sample, juc
     midi.addEvent(juce::MidiMessage::noteOn(channel, n.pitch, juce::uint8(n.velocity)), sample);
     ++audioNoteOnSerial;
 }
-void Processor::stopChordLayer() noexcept {
+void Processor::releaseChordMidi(int sample, juce::MidiBuffer& midi) noexcept {
+    for (int pitch = 0; pitch < 128; ++pitch)
+        if (chordMidiSounding[size_t(pitch)]) {
+            midi.addEvent(juce::MidiMessage::noteOff(16, pitch), sample);
+            chordMidiSounding[size_t(pitch)] = false;
+        }
+}
+void Processor::stopChordLayer(int sample, juce::MidiBuffer& midi) noexcept {
     for (auto& voice : chordVoices) {
         voice.on = false;
         voice.target = 0;
         voice.sourceIndex = -1;
     }
+    releaseChordMidi(sample, midi);
     chordLayerPlaying = false;
     lastChordPhase = -1;
 }
-void Processor::scheduleChordLayer(bool run, bool restart, double beat, double step) noexcept {
+void Processor::scheduleChordLayer(bool run, bool restart, double beat, double step, int sample,
+                                   juce::MidiBuffer& midi) noexcept {
+    const bool sendChordMidi = cached.chordMidiOut->load() > 0.5f && outputMode != 2;
+    if (!sendChordMidi)
+        releaseChordMidi(sample, midi);
     if (!run || audioChords.count == 0) {
         if (chordLayerPlaying)
-            stopChordLayer();
+            stopChordLayer(sample, midi);
         return;
     }
     const double position = std::fmod(std::max(0.0, beat), audioChords.length);
     const bool chase = restart || !chordLayerPlaying || position + step * 0.5 < lastChordPhase;
     if (chase) {
-        stopChordLayer();
+        stopChordLayer(sample, midi);
         nextChordNote = 0;
     }
     chordLayerPlaying = true;
-    for (auto& voice : chordVoices)
+    for (int pitch = 0; pitch < 128; ++pitch) {
+        auto& voice = chordVoices[size_t(pitch)];
         if (voice.on && voice.remaining <= 1e-9) {
             voice.on = false;
             voice.target = 0;
             voice.sourceIndex = -1;
+            if (chordMidiSounding[size_t(pitch)]) {
+                midi.addEvent(juce::MidiMessage::noteOff(16, pitch), sample);
+                chordMidiSounding[size_t(pitch)] = false;
+            }
         }
+    }
     while (nextChordNote < audioChords.count) {
         const auto& n = audioChords.notes[nextChordNote];
         if (n.start > position + step * 0.5)
@@ -1017,9 +1257,26 @@ void Processor::scheduleChordLayer(bool run, bool restart, double beat, double s
             voice.increment = phaseIncrements[size_t(n.pitch)];
             voice.sourceIndex = nextChordNote;
             ++chordNoteOnSerial;
+            if (sendChordMidi) {
+                if (chordMidiSounding[size_t(n.pitch)])
+                    midi.addEvent(juce::MidiMessage::noteOff(16, n.pitch), sample);
+                midi.addEvent(juce::MidiMessage::noteOn(16, n.pitch, juce::uint8(n.velocity)), sample);
+                chordMidiSounding[size_t(n.pitch)] = true;
+            }
         }
         ++nextChordNote;
     }
+    if (sendChordMidi)
+        for (int pitch = 0; pitch < 128; ++pitch) {
+            const auto& voice = chordVoices[size_t(pitch)];
+            if (!voice.on || chordMidiSounding[size_t(pitch)])
+                continue;
+            const int velocity = voice.sourceIndex >= 0 && voice.sourceIndex < audioChords.count
+                                     ? audioChords.notes[voice.sourceIndex].velocity
+                                     : juce::jlimit(1, 127, int(std::lround(voice.target * 127.0)));
+            midi.addEvent(juce::MidiMessage::noteOn(16, pitch, juce::uint8(velocity)), sample);
+            chordMidiSounding[size_t(pitch)] = true;
+        }
     lastChordPhase = position;
 }
 double Processor::renderVoice(Voice& v, bool monitor, int sound, double step) noexcept {
@@ -1056,7 +1313,8 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                                    : audioCompare    ? pendingComparison
                                    : nextHasDraft    ? pendingDraft
                                                      : pendingBank[slot];
-            const bool switchingLater = !audioChordPreview && wasPlaying && param("quantiseSwitch") > 0.5f &&
+            const bool switchingLater = !audioChordPreview && wasPlaying &&
+                                        cached.quantiseSwitch->load() > 0.5f &&
                                         selected.load() != audioSelection;
             bankChanged = audioSelection >= 0 && !switchingLater && !samePlayback(activeClip, nextClip);
             audioBank = pendingBank;
@@ -1069,7 +1327,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
             audioRevision = pendingRevision;
         }
     }
-    double bpm = param("tempo"), ppq = 0.0;
+    double bpm = cached.tempo->load(), ppq = 0.0;
     bool hostPlaying = false, hasPosition = false;
     if (auto* head = getPlayHead())
         if (auto position = head->getPosition()) {
@@ -1085,13 +1343,13 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     bpm = juce::jlimit(20.0, 400.0, bpm);
     displayTempo.store(bpm);
     const double step = bpm / (60.0 * rate);
-    const bool follow = param("follow") > 0.5f;
+    const bool follow = cached.follow->load() > 0.5f;
     const bool hostJump =
         follow && hostPlaying && hasPosition && (!wasHostPlaying || std::abs(ppq - expectedPpq) > step * 2.0);
     // Chord audition is a local preview. Enabling Follow DAW returns to the melody.
     if (follow)
         chordPreview.store(false);
-    const int melodyOutput = microtonalOutput(), bendRange = int(param("bendRange"));
+    const int melodyOutput = microtonalOutput(), bendRange = int(cached.bendRange->load());
     if (bendRange != outputBendRange) {
         outputBendRange = bendRange;
         outputConfigured = outputMode != 1 && outputConfigured;
@@ -1099,7 +1357,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const bool panicNow = panicRequested.exchange(false);
     if (panicNow) {
         allOff(0, outputMidi);
-        stopChordLayer();
+        stopChordLayer(0, outputMidi);
         for (int channel = 1; channel <= (outputMode == 2 ? 16 : 1); ++channel) {
             outputMidi.addEvent(juce::MidiMessage::controllerEvent(channel, 64, 0), 0);
             outputMidi.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
@@ -1112,12 +1370,12 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     bool restart = bankChanged || hostJump || follow != lastFollow;
     auto incoming = midi.cbegin();
     const auto end = midi.cend();
-    const bool monitor = param("monitor") > 0.5f;
-    const float volume = param("volume");
-    const int auditionSound = int(param("auditionSound"));
-    const double swingAmount = param("swing");
-    const bool quantise = param("quantiseSwitch") > 0.5f;
-    const bool accompany = param("auditionChords") > 0.5f;
+    const bool monitor = cached.monitor->load() > 0.5f;
+    const float volume = cached.volume->load();
+    const int auditionSound = int(cached.auditionSound->load());
+    const double swingAmount = cached.swing->load();
+    const bool quantise = cached.quantiseSwitch->load() > 0.5f;
+    const bool accompany = cached.auditionChords->load() > 0.5f;
     float blockPeak = 0;
     for (int sample = 0; sample < samples; ++sample) {
         bool restartLayer = sample == 0 && chordsChanged;
@@ -1158,7 +1416,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                 }
             } else if (message.isAllNotesOff() || message.isAllSoundOff()) {
                 allOff(sample, outputMidi);
-                stopChordLayer();
+                stopChordLayer(sample, outputMidi);
                 trigger = -1;
                 heldTriggers = {};
                 heldTranspose = {};
@@ -1185,6 +1443,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         if (requestedOutput != outputMode) {
             // Sounding notes end on the channels on which they began, before resetting bends/MPE.
             allOff(sample, outputMidi);
+            releaseChordMidi(sample, outputMidi);
             resetOutput(sample, outputMidi);
             outputMode = requestedOutput;
             outputConfigured = false;
@@ -1215,7 +1474,8 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
             while (nextNote < activeClip.count &&
                    (audioChordPreview
                         ? activeClip.notes[nextNote].start
-                        : renderedNote(activeClip.notes[nextNote], activeClip).start) < phase - step * 0.5)
+                        : renderedNote(activeClip.notes[nextNote], activeClip, 0, nextNote).start) <
+                          phase - step * 0.5)
                 ++nextNote;
             restart = false;
         }
@@ -1243,18 +1503,21 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                         : std::min(clip.length - 0.001, swingTime(raw.start, clip.grid, swingAmount));
                 if (start > phase + step * 0.5)
                     break;
-                auto n = audioChordPreview ? raw : renderedNote(raw, clip, transpose);
+                auto n = audioChordPreview ? raw : renderedNote(raw, clip, transpose, nextNote);
                 if (n.start >= phase - step * 1.5)
                     noteOn(n, nextNote, sample, outputMidi);
                 ++nextNote;
             }
         }
         scheduleChordLayer(run && monitor && accompany && !audioChordPreview, restartLayer, accompanimentBeat,
-                           step);
+                           step, sample, outputMidi);
         double signal = 0.0;
         for (int p = 0; p < 128; ++p) {
-            signal += renderVoice(voices[p], monitor, auditionSound, step);
-            signal += renderVoice(chordVoices[p], monitor, auditionSound, step) * 0.65;
+            // A released voice below the tail threshold no longer changes the mix.
+            if (voices[p].on || voices[p].gain > 0.00005)
+                signal += renderVoice(voices[p], monitor, auditionSound, step);
+            if (chordVoices[p].on || chordVoices[p].gain > 0.00005)
+                signal += renderVoice(chordVoices[p], monitor, auditionSound, step) * 0.65;
         }
         const float value = float(std::tanh(signal * volume));
         for (int ch = 0; ch < audio.getNumChannels(); ++ch)
@@ -1459,7 +1722,7 @@ bool Processor::restore(const void* data, int size) {
         undoStack.clear();
         redoStack.clear();
         publishLocked();
-        status = "Session restored.";
+        assignStatusLocked("Session restored.");
     }
     return true;
 }
@@ -1487,6 +1750,28 @@ juce::Result Processor::exportMidi(const juce::File& file) const {
 juce::Result Processor::exportChordMidi(const juce::File& file) const {
     return exportClip(chordClipSnapshot(), file, true, true);
 }
+juce::Result Processor::exportMelodyAndChords(const juce::File& file) const {
+    const auto melody = displayedClip();
+    const auto chords = chordClipSnapshot();
+    if (melody.count == 0)
+        return juce::Result::fail("This variation is empty.");
+    if (chords.count == 0)
+        return juce::Result::fail("Create a chord sequence before exporting melody and chords.");
+    auto track = [&](const composer::Clip& clip, bool alreadyRendered, bool plain) {
+        juce::MidiMessageSequence sequence;
+        sequence.addEvent(juce::MidiMessage::tempoMetaEvent(int(60000000.0 / tempo())));
+        sequence.addEvent(juce::MidiMessage::timeSignatureMetaEvent(clip.numerator, clip.denominator));
+        appendClipMidi(sequence, clip, alreadyRendered, plain);
+        auto end = juce::MidiMessage::endOfTrack();
+        end.setTimeStamp(clip.length * 960);
+        sequence.addEvent(end);
+        sequence.updateMatchedPairs();
+        return sequence;
+    };
+    const auto melodyTrack = track(melody, false, false);
+    const auto chordTrack = track(chords, true, true);
+    return writeMidiFile(file, melodyTrack, &chordTrack);
+}
 juce::Result Processor::exportMidiRange(const juce::File& file, double start, double end) const {
     const auto source = displayedClip();
     if (!std::isfinite(start) || !std::isfinite(end) || start < 0 || end <= start || end > source.length)
@@ -1495,7 +1780,7 @@ juce::Result Processor::exportMidiRange(const juce::File& file, double start, do
     result.count = 0;
     result.length = end - start;
     for (int i = 0; i < source.count; ++i) {
-        auto n = renderedNote(source.notes[i], source);
+        auto n = renderedNote(source.notes[i], source, 0, i);
         const double finish = std::min(end, n.start + n.duration);
         const double begin = std::max(start, n.start);
         if (finish <= begin)
@@ -1506,22 +1791,17 @@ juce::Result Processor::exportMidiRange(const juce::File& file, double start, do
     }
     return exportClip(result, file, true);
 }
-juce::Result Processor::exportClip(const composer::Clip& clip, const juce::File& file, bool alreadyRendered,
-                                   bool plainMidi) const {
-    if (clip.count == 0)
-        return juce::Result::fail("This variation is empty.");
-    juce::MidiMessageSequence sequence;
-    sequence.addEvent(juce::MidiMessage::tempoMetaEvent(int(60000000.0 / tempo())));
-    sequence.addEvent(juce::MidiMessage::timeSignatureMetaEvent(clip.numerator, clip.denominator));
+void Processor::appendClipMidi(juce::MidiMessageSequence& sequence, const composer::Clip& clip,
+                               bool alreadyRendered, bool plainMidi) const {
     // Microtonal files carry the same setup and bends as live output. Sorted notes let an MPE
-    // note take the member channel whose last note ended first.
+    // note take the member channel whose last note ended first. Plain tracks stay on channel 1.
     const int output = plainMidi ? 0 : microtonalOutput();
     const int range = output == 2 ? mpeBendRange : int(param("bendRange"));
     microtonalSetup(output, range, [&](const juce::MidiMessage& m) { sequence.addEvent(m); });
     std::array<double, 17> channelEnd;
     channelEnd.fill(-1.0);
     for (int i = 0; i < clip.count; ++i) {
-        const auto n = alreadyRendered ? clip.notes[i] : renderedNote(clip.notes[i], clip);
+        const auto n = alreadyRendered ? clip.notes[i] : renderedNote(clip.notes[i], clip, 0, i);
         int channel = 1;
         if (output == 2) {
             channel = 2;
@@ -1542,19 +1822,34 @@ juce::Result Processor::exportClip(const composer::Clip& clip, const juce::File&
         off.setTimeStamp((n.start + n.duration) * 960);
         sequence.addEvent(off);
     }
-    auto end = juce::MidiMessage::endOfTrack();
-    end.setTimeStamp(clip.length * 960);
-    sequence.addEvent(end);
-    sequence.updateMatchedPairs();
+}
+juce::Result Processor::writeMidiFile(const juce::File& file, const juce::MidiMessageSequence& first,
+                                      const juce::MidiMessageSequence* second) const {
     juce::MidiFile midi;
     midi.setTicksPerQuarterNote(960);
-    midi.addTrack(sequence);
+    midi.addTrack(first);
+    if (second != nullptr)
+        midi.addTrack(*second);
     juce::MemoryOutputStream stream;
-    if (!midi.writeTo(stream, 0))
+    if (!midi.writeTo(stream, second != nullptr ? 1 : 0))
         return juce::Result::fail("Could not encode MIDI.");
     return file.replaceWithData(stream.getData(), stream.getDataSize())
                ? juce::Result::ok()
                : juce::Result::fail("Could not write MIDI file.");
+}
+juce::Result Processor::exportClip(const composer::Clip& clip, const juce::File& file, bool alreadyRendered,
+                                   bool plainMidi) const {
+    if (clip.count == 0)
+        return juce::Result::fail("This variation is empty.");
+    juce::MidiMessageSequence sequence;
+    sequence.addEvent(juce::MidiMessage::tempoMetaEvent(int(60000000.0 / tempo())));
+    sequence.addEvent(juce::MidiMessage::timeSignatureMetaEvent(clip.numerator, clip.denominator));
+    appendClipMidi(sequence, clip, alreadyRendered, plainMidi);
+    auto end = juce::MidiMessage::endOfTrack();
+    end.setTimeStamp(clip.length * 960);
+    sequence.addEvent(end);
+    sequence.updateMatchedPairs();
+    return writeMidiFile(file, sequence, nullptr);
 }
 juce::Result Processor::readMidi(const juce::File& file, composer::Clip& clip, bool& truncated) const {
     if (file.getSize() > 4 * 1024 * 1024)

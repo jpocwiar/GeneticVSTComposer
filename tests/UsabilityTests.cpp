@@ -46,6 +46,27 @@ void runUsabilityTests() {
     check(dynamic_cast<juce::AudioParameterChoice*>(p->parameters.getParameter("progression"))
                   ->choices.size() == 5,
           "legacy progression automation range changed");
+    check(dynamic_cast<juce::AudioParameterChoice*>(p->parameters.getParameter("bars"))->choices.size() == 4,
+          "legacy phrase-length automation range changed");
+    check(dynamic_cast<juce::AudioParameterChoice*>(p->parameters.getParameter("scale"))->choices.size() == 9,
+          "legacy scale automation range changed");
+    p->setPhraseBarCount(6);
+    check(p->phraseBarCount() == 6 && int(p->parameters.getRawParameterValue("bars")->load()) == 2,
+          "six-bar length rewrote the original Length parameter");
+    p->setPhraseBarCount(4);
+    p->setScaleChoice(10);
+    check(p->scaleIndex() == 10, "Phrygian was not selected");
+    p->setScaleChoice(1);
+    check(p->scaleIndex() == 1 && p->parameters.getRawParameterValue("extendedScale")->load() < 0.5f,
+          "returning to a base scale left the extension active");
+    p->applyPreset(2);
+    check(p->parameters.getRawParameterValue("arousal")->load() > 0.7f &&
+              int(p->parameters.getRawParameterValue("phraseType")->load()) == 0,
+          "rhythmic starting point did not raise arousal");
+    p->setChordLengthMenu(8);
+    check(p->chordBarCount() == 12, "12-bar chord length was not applied");
+    p->setChordLengthMenu(1);
+    check(p->chordBarCount() == p->phraseBarCount(), "Follow melody ignored the melody length");
     check(p->setTimeSignature("11/16").wasOk(), "typed meter rejected");
     check(p->setTimeSignature("9/7").failed() && p->timeSignature().numerator == 11,
           "invalid meter changed settings");
@@ -95,6 +116,11 @@ void runUsabilityTests() {
     check(p->statusText().contains("exceed 128") &&
               composer::similarity(beforeOversize, p->selectedClip()) == 1,
           "oversize generation silently truncated or replaced the bank");
+    p->setInterfaceLanguage(1);
+    check(p->statusText().contains("taktów") && !p->statusText().contains("exceed 128"),
+          "Polish interface left the status in English");
+    p->setInterfaceLanguage(0);
+    check(p->statusText().contains("exceed 128"), "English interface did not restore the status");
     p->setStateInformation(state.getData(), int(state.getSize()));
     check(restored->setCustomHarmony("Cm:4 Ab:4 Eb:4 Bb:4").wasOk(), "custom harmony entry failed");
     restored->setProgressionPreset(5);
@@ -174,4 +200,19 @@ void runUsabilityTests() {
     roll.mouseDrag(mouse(roll, {430, 160}, start, true));
     roll.mouseUp(mouse(roll, {430, 160}, start, true));
     check(drags == 2 && edits == 0, "draft piano roll must still export");
+    const auto plain = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                           .getNonexistentChildFile("humanize-off", ".mid", false);
+    const auto varied = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                            .getNonexistentChildFile("humanize-on", ".mid", false);
+    parameter(*p, "humanize", 0);
+    check(p->exportMidi(plain).wasOk(), "plain export failed");
+    parameter(*p, "humanize", 1);
+    check(p->exportMidi(varied).wasOk() && p->exportMidi(varied).wasOk(), "humanized export failed");
+    juce::MemoryBlock first, second, repeat;
+    check(plain.loadFileAsData(first) && varied.loadFileAsData(second), "could not read humanize MIDI");
+    check(p->exportMidi(varied).wasOk() && varied.loadFileAsData(repeat), "humanize repeat export failed");
+    check(first != second && second == repeat, "humanize was not deterministic or did not change the MIDI");
+    plain.deleteFile();
+    varied.deleteFile();
+    parameter(*p, "humanize", 0);
 }

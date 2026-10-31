@@ -3,8 +3,8 @@
 #include "ComposerEngine.h"
 #include <JuceHeader.h>
 #include <deque>
+#include <memory>
 #include <mutex>
-#include <thread>
 
 class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
   public:
@@ -48,6 +48,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     bool canRedo() const;
     void generate(bool evolve, bool overHarmony = false);
     juce::String searchSummary() const;
+    uint64_t searchSerial() const { return searchSerialValue.load(std::memory_order_relaxed); }
+    uint64_t statusSerial() const { return statusSerialValue.load(std::memory_order_relaxed); }
     void cancelGeneration() { cancelled.store(true); }
     void setPreview(bool enabled);
     void startAudition();
@@ -64,6 +66,15 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     composer::TimeSignature timeSignature() const;
     void setProgressionPreset(int index);
     int progressionIndex() const;
+    int scaleIndex() const;
+    int phraseBarCount() const;
+    int chordBarCount() const;
+    void setScaleChoice(int engineScale);
+    void setPhraseBarCount(int bars);
+    void setChordLengthMenu(int id);
+    int phraseLengthMenuId() const;
+    int chordLengthMenuId() const;
+    static juce::StringArray extendedScaleNames();
     composer::SearchBudget configuredSearchBudget() const;
     juce::String searchDescription() const;
     bool previewRequested() const { return preview.load(); }
@@ -86,13 +97,17 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     uint64_t documentRevision() const { return revision.load(); }
     juce::String statusText() const;
     void setStatus(const juce::String&);
+    void setInterfaceLanguage(int language);
+    int interfaceLanguageIndex() const { return interfaceLanguage.load(); }
     void applyPreset(int index);
     juce::Result applyRegion(double start, double end, composer::RegionAction);
-    bool microtonesEnabled() const { return param("microEnabled") > 0.5f; }
-    int tuningIndex() const { return microtonesEnabled() ? std::max(1, int(param("tuning"))) : 0; }
+    bool microtonesEnabled() const { return cached.microEnabled->load() > 0.5f; }
+    int tuningIndex() const { return microtonesEnabled() ? std::max(1, int(cached.tuning->load())) : 0; }
     // MIDI encoding of microtonal pitches: 0 is plain 12-TET (tuning off), 1 pitch bend on
     // channel 1, 2 MPE with one member channel per note.
-    int microtonalOutput() const { return tuningIndex() > 0 ? 1 + int(param("microOutput")) : 0; }
+    int microtonalOutput() const {
+        return tuningIndex() > 0 ? 1 + int(cached.microOutput->load()) : 0;
+    }
     juce::Result setCustomHarmony(const juce::String&);
     void clearCustomHarmony();
     juce::String customHarmonyText() const;
@@ -116,6 +131,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     bool audibleComparison() const { return heardComparison.load(); }
     composer::Clip comparisonClip() const;
     juce::Result exportMidi(const juce::File&) const;
+    juce::Result exportMelodyAndChords(const juce::File&) const;
     juce::Result exportMidiRange(const juce::File&, double start, double end) const;
     juce::Result importMidi(const juce::File&);
     juce::Result saveBank(const juce::File&);
@@ -132,13 +148,52 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
   private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     float param(const char* id) const { return parameters.getRawParameterValue(id)->load(); }
+    // Audio-thread reads use pointers taken once. APVTS lookup walks a string map.
+    struct CachedParameters {
+        std::atomic<float>* swing = nullptr;
+        std::atomic<float>* gate = nullptr;
+        std::atomic<float>* snap = nullptr;
+        std::atomic<float>* root = nullptr;
+        std::atomic<float>* scale = nullptr;
+        std::atomic<float>* microEnabled = nullptr;
+        std::atomic<float>* tuning = nullptr;
+        std::atomic<float>* microOutput = nullptr;
+        std::atomic<float>* tempo = nullptr;
+        std::atomic<float>* follow = nullptr;
+        std::atomic<float>* bendRange = nullptr;
+        std::atomic<float>* monitor = nullptr;
+        std::atomic<float>* volume = nullptr;
+        std::atomic<float>* auditionSound = nullptr;
+        std::atomic<float>* quantiseSwitch = nullptr;
+        std::atomic<float>* auditionChords = nullptr;
+        std::atomic<float>* chordMidiOut = nullptr;
+        std::atomic<float>* humanize = nullptr;
+        std::atomic<float>* extendedScale = nullptr;
+    };
+    CachedParameters cached;
+    void cacheAudioParameters();
+    struct SearchJob {
+        composer::Settings settings;
+        composer::Clip parent;
+        std::vector<composer::Clip> mates;
+        uint64_t startRevision = 0;
+        bool useParent = false;
+        bool evolve = false;
+    };
+    void performSearch(SearchJob);
+    void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
     void publishLocked();
     void pushHistoryLocked();
     bool restore(const void*, int);
-    composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0) const;
+    composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0,
+                                int index = -1) const;
     void setParameter(const char*, float);
     juce::Result readMidi(const juce::File&, composer::Clip&, bool& truncated) const;
+    void appendClipMidi(juce::MidiMessageSequence&, const composer::Clip&, bool alreadyRendered,
+                        bool plainMidi) const;
+    juce::Result writeMidiFile(const juce::File&, const juce::MidiMessageSequence&,
+                               const juce::MidiMessageSequence*) const;
     juce::Result exportClip(const composer::Clip&, const juce::File&, bool alreadyRendered = false,
                             bool plainMidi = false) const;
     composer::VoicingSettings voicingSettings() const;
@@ -171,8 +226,13 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     mutable std::mutex searchMutex;
     composer::SearchStats lastSearch;
     double searchSeconds = 0;
+    std::atomic<uint64_t> searchSerialValue{0};
+    std::atomic<uint64_t> statusSerialValue{1};
+    std::atomic<int> interfaceLanguage{0};
     std::atomic<double> playBeat{0}, displayTempo{120};
-    std::thread worker;
+    class SearchThread;
+    friend class SearchThread;
+    std::unique_ptr<SearchThread> searchThread;
     juce::Random seedGenerator;
     // The audio thread only tries this lock, retaining the last bank if busy.
     juce::SpinLock exchangeLock;
@@ -196,14 +256,17 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor {
     };
     std::array<Voice, 128> voices{};
     // Internal accompaniment has independent voices: melody pitch bend/MPE can never detune it.
-    // MIDI exports and MIDI output remain separate from this audition-only layer.
     std::array<Voice, 128> chordVoices{};
+    // Channel 16 note state for optional chord MIDI. It never shares the melody channel table.
+    std::array<bool, 128> chordMidiSounding{};
     bool chordLayerPlaying = false;
     int nextChordNote = 0;
     double lastChordPhase = -1, accompanimentBeat = 0;
     uint64_t chordNoteOnSerial = 0;
-    void stopChordLayer() noexcept;
-    void scheduleChordLayer(bool run, bool restart, double beat, double step) noexcept;
+    void releaseChordMidi(int sample, juce::MidiBuffer&) noexcept;
+    void stopChordLayer(int sample, juce::MidiBuffer&) noexcept;
+    void scheduleChordLayer(bool run, bool restart, double beat, double step, int sample,
+                            juce::MidiBuffer&) noexcept;
     double renderVoice(Voice&, bool monitor, int sound, double step) noexcept;
     std::array<double, 128> phaseIncrements{};
     // Notes and last use per MIDI channel, so an MPE note takes the longest-idle member channel.

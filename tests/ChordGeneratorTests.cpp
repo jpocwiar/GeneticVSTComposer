@@ -12,8 +12,10 @@ void check(bool ok, const char* message) {
     if (!ok)
         throw std::runtime_error(message);
 }
-constexpr int intervals[9][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
-                              {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}};
+constexpr int intervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+                               {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
+                               {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
+                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
 int pc(int pitch) {
     return (pitch % 12 + 12) % 12;
 }
@@ -34,7 +36,7 @@ void validateHarmony(const Harmony& harmony) {
     double position = 0;
     for (int i = 0; i < harmony.count; ++i) {
         const auto& chord = harmony.chords[size_t(i)];
-        check(chord.root >= 0 && chord.root < 12 && chord.quality >= 0 && chord.quality < 9,
+        check(chord.root >= 0 && chord.root < 12 && chord.quality >= 0 && chord.quality < 16,
               "chord generator: invalid root or quality");
         check(std::abs(chord.start - position) < 1e-8 && chord.duration >= 0.125,
               "chord generator: gap, overlap or tiny duration");
@@ -61,8 +63,10 @@ void validateVoicing(const Harmony& harmony, const Clip& clip, int style) {
                   "voicing: nonstandard tuning or invalid velocity");
             priorPitch = note.pitch;
             const int relative = pc(note.pitch - chord.root);
-            check(std::find(intervals[chord.quality], intervals[chord.quality] + tones, relative) !=
-                      intervals[chord.quality] + tones,
+            const auto* tonesBegin = intervals[chord.quality];
+            check(std::find_if(tonesBegin, tonesBegin + tones,
+                               [&](int interval) { return interval >= 0 && interval % 12 == relative; }) !=
+                      tonesBegin + tones,
                   "voicing: non-chord tone");
             check(std::find(seen.begin(), seen.end(), relative) == seen.end(),
                   "voicing: duplicate pitch class");
@@ -113,6 +117,15 @@ void runChordGeneratorTests() {
             check(pair.count == 2 && pair.chords[0].root != pair.chords[1].root && pair.chords[1].root == 0,
                   "two-position resolving progression collapsed to the same tonic twice");
         }
+    for (int scale : {10, 11, 12, 13, 14, 15}) {
+        ChordGenerationSettings extended;
+        extended.scale = scale;
+        extended.bars = 4;
+        extended.seed = 5;
+        const auto harmony = generateHarmony(extended);
+        validateHarmony(harmony);
+        check(harmony.count >= 4 && harmony.chords[0].root == 0, "extended scale produced no tonic progression");
+    }
     ChordGenerationSettings settings;
     settings.scale = 0;
     settings.bars = 8;
@@ -233,4 +246,42 @@ void runChordGeneratorTests() {
     inversion.notes[inversion.count++] = {0, 4, 72, 90, false, 0};
     check(voicedChordName({0, 4, 0, 1}, inversion) == "Cm/Eb", "voicing: expected slash chord name");
     check(voiceHarmony({}, 4, 4, {}).count == 0, "voicing: empty harmony invented notes");
+
+    ChordGenerationSettings shaped;
+    shaped.bars = 4;
+    shaped.harmonicRhythm = 1;
+    shaped.rhythmShape = 1;
+    shaped.seed = 1;
+    const auto longShort = generateHarmony(shaped);
+    validateHarmony(longShort);
+    check(longShort.count == 3 && std::abs(longShort.chords[0].duration - 8.0) < 1e-6 &&
+              std::abs(longShort.chords[1].duration - 4.0) < 1e-6 &&
+              std::abs(longShort.chords[2].duration - 4.0) < 1e-6,
+          "long-short rhythm did not join two steps and then one");
+    shaped.rhythmShape = 2;
+    const auto shortLong = generateHarmony(shaped);
+    validateHarmony(shortLong);
+    check(shortLong.count == 3 && std::abs(shortLong.chords[0].duration - 4.0) < 1e-6 &&
+              std::abs(shortLong.chords[1].duration - 8.0) < 1e-6,
+          "short-long rhythm did not join one step and then two");
+
+    Harmony ninths;
+    check(parseHarmony("Dm7b5:4 Cmaj9:4", ninths, error), "voicing: ninth symbols");
+    const auto voicedNinths = voiceHarmony(ninths, 4, 4, {60, 1});
+    check(voicedNinths.count == 8, "ninth chords were not voiced in four notes");
+    check(chordName(ninths.chords[0]) == "Dm7b5" && chordName(ninths.chords[1]) == "Cmaj9",
+          "new chord names");
+    bool halfDiminished = false;
+    ChordGenerationSettings minor;
+    minor.scale = 1;
+    minor.originality = 1;
+    minor.bars = 8;
+    minor.resolve = false;
+    for (uint32_t seed = 1; seed <= 80 && !halfDiminished; ++seed) {
+        minor.seed = seed;
+        const auto progression = generateHarmony(minor);
+        for (int i = 0; i < progression.count; ++i)
+            halfDiminished |= progression.chords[size_t(i)].quality == 9;
+    }
+    check(halfDiminished, "minor harmony never produced a half-diminished seventh");
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
-project(GeneticComposer VERSION 2.6.0 LANGUAGES C CXX)
+project(GeneticComposer VERSION 2.7.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -12,11 +12,19 @@ add_library(composer_engine STATIC "${SOURCE_DIR}/ComposerEngine.cpp"
     "${SOURCE_DIR}/ChordGenerator.cpp" "${SOURCE_DIR}/ChordGenerator.h")
 target_include_directories(composer_engine PUBLIC "${SOURCE_DIR}")
 set_target_properties(composer_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+target_link_libraries(composer_engine PUBLIC Threads::Threads)
 if(BUILD_TESTING)
     add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp tests/MusicalArchitectureTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
-    add_test(NAME engine COMMAND engine_tests)
+    add_test(NAME engine COMMAND engine_tests engine)
+    add_test(NAME harmony COMMAND engine_tests harmony)
+    add_test(NAME search COMMAND engine_tests search)
+    add_test(NAME architecture COMMAND engine_tests architecture)
 endif()
+# Measurements only. Not part of the default build or CTest.
+add_executable(composer_probe EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/scripts/probe-musical-engine.cpp")
+target_link_libraries(composer_probe PRIVATE composer_engine)
 
 option(COMPOSER_BUILD_PLUGIN "Build JUCE plugins and standalone" ON)
 if(NOT COMPOSER_BUILD_PLUGIN)
@@ -55,7 +63,8 @@ target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginEditor.cpp" "${SOURCE_DIR}/PluginEditor.h"
     "${SOURCE_DIR}/ComposerTheme.cpp" "${SOURCE_DIR}/ComposerTheme.h"
     "${SOURCE_DIR}/ChordComposerPanel.cpp" "${SOURCE_DIR}/ChordComposerPanel.h"
-    "${SOURCE_DIR}/ActivityDisplay.cpp" "${SOURCE_DIR}/ActivityDisplay.h")
+    "${SOURCE_DIR}/ActivityDisplay.cpp" "${SOURCE_DIR}/ActivityDisplay.h"
+    "${SOURCE_DIR}/InterfaceText.cpp" "${SOURCE_DIR}/InterfaceText.h")
 target_compile_definitions(GeneticComposer PUBLIC
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(GeneticComposer PRIVATE composer_engine juce::juce_audio_utils
@@ -78,5 +87,7 @@ if(BUILD_TESTING)
         tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp)
     target_link_libraries(plugin_tests PRIVATE GeneticComposer juce::juce_audio_utils)
     target_include_directories(plugin_tests PRIVATE "${SOURCE_DIR}" "${CMAKE_BINARY_DIR}/GeneticComposer_artefacts/JuceLibraryCode")
-    add_test(NAME plugin COMMAND plugin_tests)
+    add_test(NAME plugin COMMAND plugin_tests plugin)
+    add_test(NAME midi COMMAND plugin_tests midi)
+    add_test(NAME playback COMMAND plugin_tests playback)
 endif()

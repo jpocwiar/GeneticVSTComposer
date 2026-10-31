@@ -8,6 +8,7 @@
 #include <numeric>
 #include <random>
 #include <sstream>
+#include <thread>
 
 namespace composer {
 const std::vector<TimeSignature>& timeSignatures() {
@@ -85,7 +86,7 @@ int progressionDegree(int progression, double time, double bar) {
 }
 } // namespace
 const std::vector<int>& scaleIntervals(int scale) {
-    static const std::array<std::vector<int>, 10> scales{{{0, 2, 4, 5, 7, 9, 11},
+    static const std::array<std::vector<int>, 16> scales{{{0, 2, 4, 5, 7, 9, 11},
                                                           {0, 2, 3, 5, 7, 8, 10},
                                                           {0, 2, 3, 5, 7, 9, 10},
                                                           {0, 2, 4, 5, 7, 9, 10},
@@ -95,8 +96,14 @@ const std::vector<int>& scaleIntervals(int scale) {
                                                           {0, 2, 4, 6, 7, 9, 11},
                                                           {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
                                                           // Maqam Saba; selected only by its tuning.
-                                                          {0, 2, 3, 4, 7, 8, 10}}};
-    return scales[std::clamp(scale, 0, 9)];
+                                                          {0, 2, 3, 4, 7, 8, 10},
+                                                          {0, 1, 3, 5, 7, 8, 10}, // Phrygian
+                                                          {0, 1, 3, 5, 6, 8, 10}, // Locrian
+                                                          {0, 2, 3, 5, 7, 9, 11}, // Melodic minor
+                                                          {0, 2, 4, 6, 8, 10},    // Whole tone
+                                                          {0, 3, 5, 6, 7, 10},    // Hexatonic blues
+                                                          {0, 1, 4, 5, 7, 8, 10}}}; // Phrygian dominant
+    return scales[std::clamp(scale, 0, int(scales.size()) - 1)];
 }
 int snapPitch(int pitch, int root, int scale, int low, int high) {
     low = std::clamp(low, 0, 127);
@@ -117,6 +124,10 @@ namespace {
 constexpr int tuningScales[tuningCount]{-1, -1, 0, 1, 9, 5, 8};
 } // namespace
 int tuningScale(int tuning, int scale) {
+    // An explicit extended scale is not folded back into the original nine, and a tuning
+    // that owns a scale does not replace it.
+    if (scale >= 10)
+        return std::clamp(scale, 10, 15);
     const int own = tuningScales[std::clamp(tuning, 0, tuningCount - 1)];
     return own < 0 ? std::clamp(scale, 0, 8) : own;
 }
@@ -208,7 +219,7 @@ void sanitise(Harmony& harmony) {
             chord.start >= harmony.length || chord.duration <= 0.0)
             continue;
         chord.root = (chord.root % 12 + 12) % 12;
-        chord.quality = std::clamp(chord.quality, 0, 8);
+        chord.quality = std::clamp(chord.quality, 0, 15);
         harmony.chords[count++] = chord;
     }
     std::stable_sort(harmony.chords.begin(), harmony.chords.begin() + count,
@@ -230,9 +241,12 @@ void sanitise(Harmony& harmony) {
             (i + 1 < harmony.count ? harmony.chords[i + 1].start : harmony.length) - harmony.chords[i].start;
 }
 namespace {
-constexpr int chordIntervals[9][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
-                                   {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}};
-constexpr const char* chordSuffixes[]{"", "m", "dim", "aug", "7", "maj7", "m7", "sus2", "sus4"};
+constexpr int chordIntervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+                                    {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
+                                    {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
+                                    {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
+constexpr const char* chordSuffixes[]{"",    "m",    "dim", "aug", "7",   "maj7", "m7",  "sus2",
+                                      "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9"};
 bool validPassing(const Clip&, int, const Settings&);
 const ChordEvent* chordAt(const Harmony& harmony, double time) {
     if (!harmony.count || !std::isfinite(time) || harmony.length <= 0.0)
@@ -245,8 +259,8 @@ const ChordEvent* chordAt(const Harmony& harmony, double time) {
 }
 bool belongsToChord(int pitch, const ChordEvent& chord) {
     const int pc = ((pitch - chord.root) % 12 + 12) % 12;
-    for (int interval : chordIntervals[chord.quality])
-        if (interval >= 0 && pc == interval)
+    for (int interval : chordIntervals[std::clamp(chord.quality, 0, 15)])
+        if (interval >= 0 && pc == interval % 12)
             return true;
     return false;
 }
@@ -348,14 +362,15 @@ bool parseHarmony(const std::string& text, Harmony& harmony, std::string& error)
         }
         const auto suffix = name.substr(suffixStart);
         int quality = -1;
-        for (int q = 0; q < 9; ++q)
+        for (int q = 0; q < 16; ++q)
             if (suffix == chordSuffixes[q])
                 quality = q;
         const bool validLetter =
             std::string("ABCDEFG").find(char(std::toupper(static_cast<unsigned char>(name[0])))) !=
             std::string::npos;
         if (!validLetter || quality < 0) {
-            error = "Unknown chord '" + name + "'. Use A-G, optional #/b, and m/dim/aug/7/maj7/m7/sus2/sus4.";
+            error = "Unknown chord '" + name +
+                    "'. Use A-G, optional #/b, and m/dim/aug/7/maj7/m7/sus2/sus4/m7b5/dim7/6/m6/add9/9/maj9.";
             return false;
         }
         std::istringstream durationInput(token.substr(colon + 1));
@@ -435,7 +450,7 @@ Harmony inferHarmony(const Clip& source) {
         int bestRoot = 0, bestQuality = 0;
         double bestScore = -1e9;
         for (int root = 0; root < 12; ++root)
-            for (int quality = 0; quality < 9; ++quality) {
+            for (int quality = 0; quality < 16; ++quality) {
                 int hits = 0, missing = 0;
                 for (int interval : chordIntervals[quality])
                     if (interval >= 0) {
@@ -853,11 +868,11 @@ PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
 }
 namespace {
 Settings normaliseSearchSettings(Settings s) {
-    s.bars = std::clamp(s.bars, 1, 8);
+    s.bars = std::clamp(s.bars, 1, 16);
     s.low = std::clamp(s.low, 0, 126);
     s.high = std::clamp(s.high, s.low + 1, 127);
     s.root = (s.root % 12 + 12) % 12;
-    s.scale = std::clamp(s.scale, 0, 9);
+    s.scale = std::clamp(s.scale, 0, 15);
     s.phraseType = std::clamp(s.phraseType, 0, 2);
     s.numerator = std::clamp(s.numerator, 1, 32);
     if (!validDenominator(s.denominator))
@@ -1421,9 +1436,72 @@ double fitnessScore(const Clip& source, const Settings& settings) {
     s.denominator = clip.denominator;
     return Evolution(s, nullptr).score(clip);
 }
+void articulateCustomHarmony(Clip& clip, const Settings& s) {
+    // Strict custom harmony already cuts fresh phrases at each change. Mutation and
+    // crossover may erase that onset; put it back before scoring so the evaluated
+    // phrase still speaks the chord boundary. Locked rhythms stay untouched.
+    if (s.tension != 0.0f || !s.harmony.count || s.lockRhythm || s.mode == 2 || clip.count <= 0 ||
+        !(s.harmony.length > 0.0))
+        return;
+    if (std::any_of(clip.notes.begin(), clip.notes.begin() + clip.count,
+                    [](const Note& note) { return note.locked; }))
+        return;
+    bool changed = false;
+    for (double origin = 0.0; origin < clip.length - 1e-8; origin += s.harmony.length) {
+        for (int chord = 0; chord < s.harmony.count; ++chord) {
+            const double start = origin + s.harmony.chords[size_t(chord)].start;
+            if (start < 1e-6 || start >= clip.length - 1e-8 || clip.count >= maxNotes)
+                continue;
+            bool present = false;
+            int covering = -1;
+            for (int i = 0; i < clip.count; ++i) {
+                const auto& note = clip.notes[size_t(i)];
+                if (std::abs(note.start - start) < 1e-6) {
+                    present = true;
+                    break;
+                }
+                if (covering < 0 && note.start < start && note.start + note.duration > start + 1e-8)
+                    covering = i;
+            }
+            if (present)
+                continue;
+            Note inserted{};
+            if (covering >= 0) {
+                auto& previous = clip.notes[size_t(covering)];
+                inserted = previous;
+                inserted.start = start;
+                inserted.duration = previous.start + previous.duration - start;
+                previous.duration = start - previous.start;
+            } else {
+                double limit = clip.length;
+                int previousPitch = clip.notes[0].pitch;
+                for (int i = 0; i < clip.count; ++i) {
+                    if (clip.notes[size_t(i)].start > start)
+                        limit = std::min(limit, clip.notes[size_t(i)].start);
+                    else
+                        previousPitch = clip.notes[size_t(i)].pitch;
+                }
+                inserted.duration = std::min(clip.grid, limit - start);
+                if (inserted.duration < 0.03125)
+                    continue;
+                inserted.start = start;
+                inserted.pitch = previousPitch;
+                inserted.velocity = 90;
+            }
+            inserted.pitch = harmonicPitch(inserted.pitch, start, s);
+            inserted.cents = 0;
+            inserted.locked = false;
+            clip.notes[size_t(clip.count++)] = inserted;
+            changed = true;
+        }
+    }
+    if (changed)
+        sanitise(clip);
+}
 std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<bool>& cancelled,
                            const std::function<void(float)>& progress,
-                           const std::function<void(const SearchStats&)>& statistics) {
+                           const std::function<void(const SearchStats&)>& statistics,
+                           const std::vector<Clip>* mates) {
     s = normaliseSearchSettings(s);
     Clip parent;
     if (source) {
@@ -1441,41 +1519,125 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         (!std::isfinite(s.lengthOverride) || s.lengthOverride < 0 ||
          (s.lengthOverride > 0 ? s.lengthOverride : s.bars * s.numerator * 4.0 / s.denominator) > 128.0))
         return {};
-    Evolution e(s, source);
     const auto budget = searchBudget(s);
     const int size = budget.population, rounds = budget.generations;
+    const int islands = size >= 64 ? 4 : 1;
+    std::vector<int> counts(size_t(islands), size / islands);
+    for (int extra = 0; extra < size % islands; ++extra)
+        ++counts[size_t(extra)];
+    auto mixSeed = [](uint32_t seed, int island) {
+        uint32_t mixed = seed ^ (0x9E3779B9u * uint32_t(island + 1));
+        mixed ^= mixed >> 16;
+        mixed *= 0x7feb352du;
+        mixed ^= mixed >> 15;
+        mixed *= 0x846ca68bu;
+        mixed ^= mixed >> 16;
+        return mixed ? mixed : 1u;
+    };
+    struct Island {
+        Evolution evolution;
+        std::vector<Clip> population;
+        std::vector<double> scores;
+        std::vector<int> order;
+        double best = -1e100;
+        int stagnant = 0;
+        float mutationScale = 1;
+        Island(Settings settings, const Clip* parentIn, int count)
+            : evolution(std::move(settings), parentIn), population(size_t(count)), scores(size_t(count)),
+              order(size_t(count)) {}
+    };
+    std::vector<Island> island;
+    island.reserve(size_t(islands));
+    for (int index = 0; index < islands; ++index) {
+        auto settings = s;
+        settings.seed = mixSeed(s.seed, index);
+        island.emplace_back(settings, source, counts[size_t(index)]);
+        auto& current = island.back();
+        for (auto& clip : current.population) {
+            if (cancelled.load())
+                return {};
+            clip = source ? *source : current.evolution.fresh();
+            clip.favourite = false;
+            clip.seed = s.seed;
+            if (source)
+                current.evolution.mutate(clip, s.mutation);
+        }
+    }
+    auto scoreIsland = [&](Island& current) {
+        const int count = int(current.population.size());
+        unsigned workers = std::thread::hardware_concurrency();
+        workers = std::min<unsigned>(workers == 0 ? 1u : workers, 8u);
+        workers = std::min<unsigned>(workers, unsigned(std::max(count, 1)));
+        if (workers <= 1) {
+            for (int i = 0; i < count && !cancelled.load(); ++i)
+                current.scores[size_t(i)] = current.evolution.score(current.population[size_t(i)]);
+            return;
+        }
+        std::atomic<int> cursor{0};
+        std::vector<std::thread> pool;
+        for (unsigned worker = 0; worker < workers; ++worker)
+            pool.emplace_back([&] {
+                while (!cancelled.load()) {
+                    const int i = cursor.fetch_add(1);
+                    if (i >= count)
+                        return;
+                    current.scores[size_t(i)] = current.evolution.score(current.population[size_t(i)]);
+                }
+            });
+        for (auto& worker : pool)
+            worker.join();
+    };
     SearchStats stats;
     stats.population = size;
     stats.generations = rounds;
-    std::vector<Clip> population(size);
-    for (auto& clip : population) {
-        if (cancelled.load())
-            return {};
-        clip = source ? *source : e.fresh();
-        clip.favourite = false;
-        clip.seed = s.seed;
-        if (source)
-            e.mutate(clip, s.mutation);
-    }
-    std::vector<double> scores(size);
-    std::vector<int> order(size);
+    const float baseMutation = source ? s.mutation * 0.4f : 0.25f;
     for (int generation = 0; generation <= rounds; ++generation) {
         if (cancelled.load())
             return {};
-        for (int i = 0; i < size; ++i) {
+        for (auto& current : island) {
+            if (s.tension == 0.0f && s.harmony.count)
+                for (auto& clip : current.population)
+                    articulateCustomHarmony(clip, s);
+            scoreIsland(current);
             if (cancelled.load())
                 return {};
-            scores[i] = e.score(population[i]);
-            if (std::any_of(population[i].notes.begin(), population[i].notes.begin() + population[i].count,
-                            [](const Note& n) { return n.cents != 0; }))
-                ++stats.microtonalEvaluations;
+            for (const auto& clip : current.population)
+                if (std::any_of(clip.notes.begin(), clip.notes.begin() + clip.count,
+                                [](const Note& note) { return note.cents != 0; }))
+                    ++stats.microtonalEvaluations;
         }
-        std::iota(order.begin(), order.end(), 0);
-        std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return scores[a] > scores[b]; });
+        double total = 0, globalBest = -1e100;
+        for (auto& current : island) {
+            std::iota(current.order.begin(), current.order.end(), 0);
+            std::stable_sort(current.order.begin(), current.order.end(), [&](int a, int b) {
+                return current.scores[size_t(a)] > current.scores[size_t(b)];
+            });
+            globalBest = std::max(globalBest, current.scores[size_t(current.order.front())]);
+            total = std::accumulate(current.scores.begin(), current.scores.end(), total);
+        }
+        if (islands > 1 && generation > 0 && generation % 10 == 0) {
+            for (int index = 0; index < islands; ++index) {
+                auto& current = island[size_t(index)];
+                const auto& neighbor = island[size_t((index + 1) % islands)];
+                const int worst = current.order.back();
+                const int immigrant = neighbor.order.front();
+                current.population[size_t(worst)] = neighbor.population[size_t(immigrant)];
+                current.scores[size_t(worst)] = neighbor.scores[size_t(immigrant)];
+                std::stable_sort(current.order.begin(), current.order.end(), [&](int a, int b) {
+                    return current.scores[size_t(a)] > current.scores[size_t(b)];
+                });
+            }
+            globalBest = -1e100;
+            total = 0;
+            for (const auto& current : island) {
+                globalBest = std::max(globalBest, current.scores[size_t(current.order.front())]);
+                total = std::accumulate(current.scores.begin(), current.scores.end(), total);
+            }
+        }
         stats.generation = generation;
         stats.evaluations += uint64_t(size);
-        stats.bestFitness = scores[order[0]];
-        stats.meanFitness = std::accumulate(scores.begin(), scores.end(), 0.0) / size;
+        stats.bestFitness = globalBest;
+        stats.meanFitness = total / size;
         if (generation == 0)
             stats.initialBest = stats.bestFitness;
         if (statistics)
@@ -1484,54 +1646,82 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             progress(float(generation) / rounds);
         if (generation == rounds)
             break;
-        std::vector<Clip> next;
-        next.reserve(size);
-        next.push_back(population[order[0]]);
-        next.push_back(population[order[1]]);
-        while (int(next.size()) < size) {
-            if (cancelled.load())
-                return {};
-            auto select = [&] {
-                int best = e.integer(0, size - 1);
-                for (int t = 0; t < 3; ++t) {
-                    int n = e.integer(0, size - 1);
-                    if (scores[n] > scores[best])
-                        best = n;
+        for (auto& current : island) {
+            const double leader = current.scores[size_t(current.order.front())];
+            if (leader > current.best + 1e-12) {
+                current.best = leader;
+                current.stagnant = 0;
+                current.mutationScale = 1;
+            } else if (++current.stagnant >= 8)
+                current.mutationScale = 1.5f;
+            const int count = int(current.population.size());
+            std::vector<Clip> next;
+            next.reserve(size_t(count));
+            next.push_back(current.population[size_t(current.order.front())]);
+            while (int(next.size()) < count) {
+                if (cancelled.load())
+                    return {};
+                auto select = [&] {
+                    int chosen = current.evolution.integer(0, count - 1);
+                    for (int tournament = 0; tournament < 3; ++tournament) {
+                        const int candidate = current.evolution.integer(0, count - 1);
+                        if (current.scores[size_t(candidate)] > current.scores[size_t(chosen)])
+                            chosen = candidate;
+                    }
+                    return chosen;
+                };
+                Clip child = current.population[size_t(select())];
+                const Clip* other = &current.population[size_t(select())];
+                const bool useMate = source && mates && !mates->empty() && current.evolution.random() < 0.5f;
+                if (useMate)
+                    other = &(*mates)[size_t(current.evolution.integer(0, int(mates->size()) - 1))];
+                if (current.evolution.random() < s.crossover) {
+                    ++stats.crossovers;
+                    current.evolution.cross(child, *other);
+                    if (useMate)
+                        sanitise(child);
                 }
-                return best;
-            };
-            Clip child = population[select()];
-            const auto& other = population[select()];
-            if (e.random() < s.crossover) {
-                ++stats.crossovers;
-                e.cross(child, other);
+                current.evolution.mutate(child, std::min(1.0f, baseMutation * current.mutationScale));
+                next.push_back(std::move(child));
             }
-            e.mutate(child, source ? s.mutation * 0.4f : 0.25f);
-            next.push_back(child);
+            current.population = std::move(next);
         }
-        population = std::move(next);
     }
+    std::vector<Clip> ranked;
+    std::vector<double> rankedScores;
+    ranked.reserve(size_t(size));
+    for (const auto& current : island)
+        for (int index : current.order) {
+            ranked.push_back(current.population[size_t(index)]);
+            rankedScores.push_back(current.scores[size_t(index)]);
+        }
+    std::vector<int> rank(ranked.size());
+    std::iota(rank.begin(), rank.end(), 0);
+    std::stable_sort(rank.begin(), rank.end(),
+                     [&](int a, int b) { return rankedScores[size_t(a)] > rankedScores[size_t(b)]; });
+    auto tooClose = [](const std::vector<Clip>& chosen, const Clip& clip) {
+        for (const auto& existing : chosen)
+            if (similarity(existing, clip) > 0.85)
+                return true;
+        return false;
+    };
     std::vector<Clip> results;
-    // Pick a useful spread of alternatives, not twelve copies of the winner.
-    for (int index : order) {
-        bool duplicate = false;
-        for (const auto& c : results)
-            if (similarity(c, population[index]) > 0.92) {
-                duplicate = true;
-                break;
-            }
-        if (!duplicate)
-            results.push_back(population[index]);
+    for (const auto& current : island) {
+        const auto& leader = current.population[size_t(current.order.front())];
+        if (!tooClose(results, leader))
+            results.push_back(leader);
+    }
+    for (int index : rank) {
         if (results.size() == slotCount)
             break;
+        if (!tooClose(results, ranked[size_t(index)]))
+            results.push_back(ranked[size_t(index)]);
     }
     while (results.size() < slotCount) {
         if (cancelled.load())
             return {};
-        auto c = population[order[results.size() % size]];
-        // Every output is an evaluated chromosome, including cents. A small
-        // search may return related alternatives rather than unscored mutations.
-        results.push_back(c);
+        // Every output is an evaluated chromosome. A small search may repeat a high-scoring one.
+        results.push_back(ranked[size_t(rank[results.size() % rank.size()])]);
     }
     return results;
 }

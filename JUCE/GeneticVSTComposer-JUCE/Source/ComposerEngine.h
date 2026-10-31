@@ -124,8 +124,10 @@ Clip applyGroove(const Clip& target, const Clip& reference, float timingAmount, 
 Clip combineParts(const Clip& rhythm, const Clip& pitches, const Clip& accents);
 Bank makeInitialBank();
 // A cancelled run returns no results. The caller keeps its previous bank.
+// mates are extra crossover parents for evolution. Fresh generation ignores them.
 std::vector<Clip> generate(Settings settings, const Clip* parent, const std::atomic<bool>& cancelled,
                            const std::function<void(float)>& progress = {},
-                           const std::function<void(const SearchStats&)>& statistics = {});
+                           const std::function<void(const SearchStats&)>& statistics = {},
+                           const std::vector<Clip>* mates = nullptr);
 double similarity(const Clip& a, const Clip& b);
 } // namespace composer

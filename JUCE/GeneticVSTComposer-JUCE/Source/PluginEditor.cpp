@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "InterfaceText.h"
 #include "ChordComposerPanel.h"
 #include "ChordGenerator.h"
 #include <cmath>
@@ -191,7 +192,7 @@ void PianoRoll::paint(juce::Graphics& g) {
     g.fillRect(selX, 21.0f, selW, 2.0f);
     g.setFont(font(9));
     g.setColour(muted);
-    g.drawText("BARS", 3, 1, 40, 20, juce::Justification::centredRight);
+    g.drawText(interfaceText("BARS", interfaceLanguage), 3, 1, 40, 20, juce::Justification::centredRight);
     if (harmony.count > 0) {
         for (double offset = 0; offset < clip.length; offset += std::max(0.25, harmony.length)) {
             for (int i = 0; i < harmony.count; ++i) {
@@ -212,8 +213,8 @@ void PianoRoll::paint(juce::Graphics& g) {
         }
     } else {
         g.setColour(muted.withAlpha(0.6f));
-        g.drawText("HARMONY  /  create a sequence on Chords", int(r.getX()) + 4, 25, int(r.getWidth()) - 8,
-                   17, juce::Justification::centredLeft);
+        g.drawText(interfaceText("HARMONY  /  create a sequence on Chords", interfaceLanguage),
+                   int(r.getX()) + 4, 25, int(r.getWidth()) - 8, 17, juce::Justification::centredLeft);
     }
     g.saveState();
     g.reduceClipRegion(r.toNearestInt());
@@ -294,7 +295,9 @@ void PianoRoll::paint(juce::Graphics& g) {
     }
     g.setColour(muted);
     g.setFont(font(9));
-    g.drawText(chosen >= 0 ? "V " + juce::String(clip.notes[chosen].velocity) : "VEL", 4, getHeight() - 22,
+    g.drawText(chosen >= 0 ? "V " + juce::String(clip.notes[chosen].velocity)
+                           : interfaceText("VEL", interfaceLanguage),
+               4, getHeight() - 22,
                36, 20, juce::Justification::centredRight);
 }
 void PianoRoll::mouseDown(const juce::MouseEvent& e) {
@@ -578,7 +581,11 @@ class ComposerGuide final : public juce::Component {
         addAndMakeVisible(language);
         language.addItemList({"Polski", "English"}, 1);
         language.setSelectedId(1, juce::dontSendNotification);
-        language.onChange = [this] { updateChapters(); };
+        language.onChange = [this] {
+            updateChapters();
+            if (onLanguage)
+                onLanguage(language.getSelectedId() == 1 ? 1 : 0);
+        };
         addAndMakeVisible(chapter);
         chapter.onChange = [this] { updateText(); };
         addAndMakeVisible(close);
@@ -605,6 +612,14 @@ class ComposerGuide final : public juce::Component {
         setWantsKeyboardFocus(true);
     }
     std::function<void()> onClose;
+    std::function<void(int)> onLanguage;
+    void setLanguage(int languageIndex) {
+        const int id = languageIndex == 1 ? 1 : 2;
+        if (language.getSelectedId() == id)
+            return;
+        language.setSelectedId(id, juce::dontSendNotification);
+        updateChapters();
+    }
     void showChapter(int number) {
         chapter.setSelectedId(juce::jlimit(1, 11, number), juce::dontSendNotification);
         updateText();
@@ -790,7 +805,7 @@ Export i Drag MIDI zapisują odpowiednie komunikaty stroju. Odsłuch wewnętrzny
 
 Search pokazuje rzeczywistą pracę algorytmu. Quick: 64 osobniki i 40 pokoleń. Balanced: 128 i 100. Deep: 256 i 300. Custom budget pozwala ustawić 16-512 osobników i 1-2000 pokoleń. Crossover to prawdopodobieństwo krzyżowania (domyślnie 90%).
 
-Każde pokolenie jest oceniane funkcją fitness. Selekcja turniejowa wybiera rodziców; dwa najlepsze osobniki przechodzą bez zmian. Krzyżowanie wymienia fragmenty fraz, mutacja zmienia ich cechy. Blokady, Keep rhythm i Melody on rhythm chronią granice nut; wtedy krzyżowane są wysokości i velocity. W Rhythm only krzyżowane są także fragmenty rytmu, o ile rytm nie jest chroniony.
+Każde pokolenie jest oceniane równolegle funkcją fitness. Od 64 osobników wyszukiwanie dzieli się na cztery wyspy; każda wyspa zachowuje jedną elitę bez zmian. Selekcja turniejowa wybiera rodziców. Krzyżowanie wymienia fragmenty fraz, a mutacja rośnie, gdy wyspa przestaje się poprawiać. Blokady, Keep rhythm i Melody on rhythm chronią granice nut; wtedy krzyżowane są wysokości i velocity. W Rhythm only krzyżowane są także fragmenty rytmu, o ile rytm nie jest chroniony. Przypięte warianty mogą wejść do Evolve jako dodatkowi rodzice. Humanize domyślnie wynosi zero. Powyżej zera przesuwa początki i velocity melodii w eksporcie i odsłuchu; zapisana fraza, rolka akordów i eksport akordów pozostają dokładne. Przycisk EN/PL zmienia tylko język tego edytora i zapisuje się lokalnie, nie jako parametr hosta.
 
 Generation, Evaluations, Crossovers oraz Best/Mean fitness pokazują faktyczne obliczenia. Populacja początkowa także jest oceniana, więc liczba ocen to populacja x (pokolenia + 1). Fitness to wewnętrzna miara zgodności z ustawieniami, nie obiektywna ocena muzyki. Więcej pokoleń nie gwarantuje lepszego pomysłu. Cancel search zachowuje poprzedni bank.
 
@@ -811,7 +826,9 @@ Smooth inversions ogranicza ruch głosów przez całą sekwencję. Root position
 
 Trójkąt Play pod akordowym piano rollem odtwarza same akordy, a kwadrat Stop zatrzymuje odsłuch. Na Melody włącz With chords i naciśnij Play, aby usłyszeć melodię wraz z harmonią. Przełączanie kart nie zatrzymuje odtwarzania.
 
-Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciągaj z Melody. Export zapisuje widoczne przewroty i rejestr akordów. MIDI obu warstw pozostaje oddzielne. Akordy mają strój 12-TET również przy włączonym Micro; wewnętrzny odsłuch używa osobnej warstwy, więc pitch bend melodii nie zmienia stroju akordów. Progresja i przewroty zapisują się z bankiem i projektem DAW.)"};
+Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciągaj z Melody. Export zapisuje widoczne przewroty i rejestr akordów. MIDI obu warstw pozostaje oddzielne. Akordy mają strój 12-TET również przy włączonym Micro; wewnętrzny odsłuch używa osobnej warstwy, więc pitch bend melodii nie zmienia stroju akordów. Progresja i przewroty zapisują się z bankiem i projektem DAW.
+
+Length ma też 3, 6, 12 i 16 taktów. Nazwy akordów obejmują m7b5, dim7, 6, m6, add9, 9 i maj9, nadal jako cztery głosy. Skale dodają frygijską, lokrycką, molową melodyczną, całotonową, bluesową i frygijską dominantową. Kształt rytmu może być równy, długi-krótki albo krótki-długi. Melody + chords zapisuje MIDI typu 1: melodię na ścieżce 1 i dokładne głosy akordów na ścieżce 2. Chord MIDI output jest domyślnie wyłączone; po włączeniu wysyła te głosy na kanale 16 i pozostaje wyłączone, gdy MPE używa kanałów 2–16.)"};
         static const char* english[]{
             R"(YOUR FIRST PHRASE
 
@@ -935,7 +952,7 @@ Export and Drag MIDI include the tuning messages. Internal preview needs no MIDI
 
 Quick uses 64 individuals and 40 generations; Balanced 128 and 100; Deep 256 and 300. Search > Custom budget allows 16-512 individuals and 1-2000 generations. Crossover is the mating probability (90% by default).
 
-Every population is scored by fitness. Tournament selection chooses parents; two elites survive unchanged. One-point crossover exchanges phrase sections, followed by mutation. Locks, Keep rhythm and Melody on rhythm protect timing; crossover then exchanges pitches and velocities. Rhythm only also crosses rhythm sections when timing is unprotected.
+Every population is scored in parallel by fitness. From 64 individuals the search uses four islands, and each island keeps one elite unchanged. Tournament selection chooses parents. One-point crossover exchanges phrase sections, and mutation rises when an island stops improving. Locks, Keep rhythm and Melody on rhythm protect timing; crossover then exchanges pitches and velocities. Rhythm only also crosses rhythm sections when timing is unprotected. Pinned variations can join Evolve as extra parents. Humanize defaults to zero. Above zero it shifts melody starts and velocities in export and preview; the stored phrase, chord roll and chord export stay exact. The EN/PL button changes only this editor's language and is saved locally, not as a host parameter.
 
 Generation, Evaluations, Crossovers and Best/Mean fitness report real work. The initial population is also evaluated: total evaluations = population x (generations + 1). Fitness is an internal measure of matching settings, not an objective musical rating. More generations do not guarantee a better idea. Cancel search keeps the old bank.
 
@@ -956,7 +973,9 @@ Smooth inversions limits voice movement across the sequence. Root position keeps
 
 The triangular Play button below the chord piano roll plays the chords alone; the square Stop ends preview. On Melody, enable With chords and press Play to hear both layers together. Switching tabs does not stop playback.
 
-Drag the Chords piano roll or Drag chord MIDI for the chord part. Drag the Melody piano roll for the melody. Export saves the displayed inversions and register. Each layer remains a separate MIDI export. Chords use 12-TET even with Micro on; internal preview gives them a separate sound layer so melody pitch bends do not detune them. The progression and voicings are saved with the bank and DAW project.)"};
+Drag the Chords piano roll or Drag chord MIDI for the chord part. Drag the Melody piano roll for the melody. Export saves the displayed inversions and register. Each layer remains a separate MIDI export. Chords use 12-TET even with Micro on; internal preview gives them a separate sound layer so melody pitch bends do not detune them. The progression and voicings are saved with the bank and DAW project.
+
+Length also offers 3, 6, 12 and 16 bars. Chord names add m7b5, dim7, 6, m6, add9, 9 and maj9, still as four voices. Scales add Phrygian, Locrian, melodic minor, whole tone, blues and Phrygian dominant. Rhythm shape can be even, long-short or short-long. Melody + chords writes MIDI type 1: the melody on track 1 and the exact chord voices on track 2. Chord MIDI output is off by default; when enabled it sends those voices on channel 16 and stays off while MPE uses channels 2-16.)"};
         const auto index = juce::jlimit(0, 10, chapter.getSelectedId() - 1);
         body.setText(juce::String::fromUTF8(language.getSelectedId() == 1 ? polish[index] : english[index]),
                      false);
@@ -1030,8 +1049,25 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     setOpaque(true);
     setWantsKeyboardFocus(true);
     attach(root, "root");
-    attach(scale, "scale");
-    attach(bars, "bars");
+    addAndMakeVisible(scale);
+    scale.addItemList(GeneticVSTComposerJUCEAudioProcessor::extendedScaleNames(), 1);
+    scale.onChange = [this] {
+        if (scale.getSelectedId() > 0)
+            processor.setScaleChoice(scale.getSelectedId() >= 10 ? scale.getSelectedId()
+                                                                 : scale.getSelectedId() - 1);
+    };
+    scale.setTooltip("The main scale guides generation. Extra scales keep the original Scale automation "
+                     "range and are stored separately.");
+    addAndMakeVisible(bars);
+    bars.addItemList({"1 bar", "2 bars", "3 bars", "4 bars", "6 bars", "8 bars", "12 bars", "16 bars"}, 1);
+    bars.onChange = [this] {
+        constexpr int values[]{1, 2, 3, 4, 6, 8, 12, 16};
+        const int id = bars.getSelectedId();
+        if (id >= 1 && id <= 8)
+            processor.setPhraseBarCount(values[id - 1]);
+    };
+    bars.setTooltip("Phrase length for the next melody. 3, 6, 12 and 16 bars keep the original Length "
+                    "automation on 1, 2, 4 and 8.");
     attach(grid, "grid");
     addAndMakeVisible(meter);
     meter.setEditableText(true);
@@ -1111,6 +1147,9 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     attach(high, "high");
     attach(swing, "swing");
     attach(gate, "gate");
+    attach(humanize, "humanize");
+    humanize.setTooltip("Small timing and velocity variation during playback and export. The piano roll "
+                        "keeps the original notes. Zero leaves the performance unchanged.");
     attach(tempo, "tempo");
     attach(volume, "volume");
     low.textFromValueFunction = [](double v) { return noteName(int(v)); };
@@ -1134,6 +1173,9 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     attach(withChords, "auditionChords");
     withChords.setTooltip("Play the melody and the active chord sequence together through the internal "
                           "sounds. Melody MIDI and chord MIDI remain separate exports.");
+    attach(chordMidi, "chordMidiOut");
+    chordMidi.setTooltip("While With chords is playing, also send the chord voices as MIDI notes on channel 16. "
+                         "Turned off while MPE uses channels 2-16.");
     attach(lockRhythm, "lockRhythm");
     attach(follow, "follow");
     attach(monitor, "monitor");
@@ -1151,7 +1193,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     preset.setTextWhenNothingSelected("Starting points...");
     addAndMakeVisible(preset);
     preset.onChange = [this] { processor.applyPreset(preset.getSelectedId() - 1); };
-    for (auto* b : {&generate, &evolve, &panic, &undo, &redo, &save, &load, &import, &exportFile, &help})
+    for (auto* b : {&generate, &evolve, &panic, &undo, &redo, &save, &load, &import, &exportBoth, &exportFile,
+                    &help})
         addAndMakeVisible(*b);
     addAndMakeVisible(play);
     addAndMakeVisible(drag);
@@ -1197,6 +1240,9 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     save.onClick = [this] { chooseFile(2); };
     load.onClick = [this] { chooseFile(3); };
     import.onClick = [this] { chooseFile(0); };
+    exportBoth.onClick = [this] { chooseFile(7); };
+    exportBoth.setTooltip("Export a type 1 MIDI file. Track 1 is the melody, including swing, gate, Fit to "
+                          "scale, humanize and MPE. Track 2 is the exact chord voicing on channel 1.");
     exportFile.onClick = [this] { chooseFile(1); };
     drag.onClick = [this] { chooseFile(1); };
     drag.onDrag = [this] { startMidiDrag(); };
@@ -1420,10 +1466,96 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     for (auto& tab : workflowTabs)
         tab.getProperties().set("segment", true);
     evolve.setColour(juce::TextButton::textColourOffId, violet);
+    addAndMakeVisible(interfaceLanguageButton);
+    interfaceLanguageButton.onClick = [this] {
+        storeInterfaceLanguage(processor.interfaceLanguageIndex() == 1 ? 0 : 1);
+    };
+    interfaceLanguageButton.setTooltip("Interface language for this editor. Automation names stay in English.");
+    if (juce::SystemStats::getEnvironmentVariable("COMPOSER_DISABLE_UI_PREFS", {}).isEmpty()) {
+        juce::PropertiesFile::Options options;
+        options.applicationName = "GeneticComposer";
+        options.filenameSuffix = ".settings";
+        options.osxLibrarySubFolder = "Preferences";
+        options.folderName = "Genetic Composer";
+        options.storageFormat = juce::PropertiesFile::storeAsXML;
+        preferences = std::make_unique<juce::PropertiesFile>(options);
+        storeInterfaceLanguage(preferences->getIntValue("language", 0));
+    } else
+        applyInterfaceLanguage();
     setSize(1240, 900);
     updateMainPage();
     timerCallback();
     startTimerHz(60);
+}
+juce::String Editor::tr(const juce::String& english) const {
+    return interfaceText(english, processor.interfaceLanguageIndex());
+}
+void Editor::storeInterfaceLanguage(int language) {
+    processor.setInterfaceLanguage(language);
+    if (preferences) {
+        preferences->setValue("language", processor.interfaceLanguageIndex());
+        preferences->saveIfNeeded();
+    }
+    if (guide)
+        guide->setLanguage(processor.interfaceLanguageIndex());
+    applyInterfaceLanguage();
+    repaint();
+}
+void Editor::applyInterfaceLanguage() {
+    const auto text = [this](juce::Button& button, const char* english) {
+        button.setButtonText(tr(english));
+    };
+    text(generate, "Generate melody bank");
+    text(evolve, "Evolve selected");
+    text(panic, "Stop all");
+    text(undo, "Undo");
+    text(redo, "Redo");
+    text(save, "Save bank");
+    text(load, "Open bank");
+    text(import, "Import MIDI");
+    text(exportBoth, "Melody + chords");
+    text(exportFile, "Export...");
+    text(melodyTab, "Melody");
+    text(chordsTab, "Chords");
+    text(withChords, "With chords");
+    text(chordMidi, "Chord MIDI");
+    text(snap, "Fit to scale");
+    text(lockRhythm, "Keep rhythm");
+    text(follow, "Follow DAW");
+    text(monitor, "Internal sound");
+    text(microEnabled, "Micro");
+    text(quantiseSwitch, "Switch at loop");
+    text(editNotes, "Edit notes");
+    text(motion, "Motion");
+    text(allTime, "Whole phrase");
+    text(exportRange, "Export range...");
+    text(simplify, "Simplify");
+    text(movement, "More movement");
+    text(answer, "Answer");
+    text(resolve, "Resolve");
+    text(applyHarmony, "Apply chords");
+    text(clearHarmony, "Clear");
+    text(importHarmony, "Import harmony MIDI");
+    text(chordComposer, "Chord composer...");
+    text(importGroove, "Import groove MIDI");
+    text(captureGroove, "Use selected");
+    text(applyGroove, "Apply groove");
+    text(arrange, "Preview arrangement");
+    text(combine, "Preview combination");
+    text(applyDraft, "Keep preview");
+    text(discardDraft, "Discard");
+    text(captureA, "Capture A");
+    text(clearA, "Clear A");
+    const char* tabs[]{"Edit region", "Chord text", "Groove", "Arrange", "Combine", "Micro", "Search"};
+    for (int i = 0; i < 7; ++i)
+        workflowTabs[i].setButtonText(tr(tabs[i]));
+    interfaceLanguageButton.setButtonText(processor.interfaceLanguageIndex() == 1 ? "PL" : "EN");
+    preset.setTextWhenNothingSelected(tr("Starting points..."));
+    searchDetails.setButtonText(tr("Search settings..."));
+    shownLanguage = processor.interfaceLanguageIndex();
+    shownSearchSerial = ~uint64_t{0};
+    shownStatusSerial = 0;
+    roll.setInterfaceLanguage(shownLanguage);
 }
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor() {
     stopTimer();
@@ -1436,7 +1568,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcesso
 void Editor::label(juce::Graphics& g, const juce::String& s, juce::Rectangle<int> r, bool heading) {
     g.setColour(heading ? text : muted);
     g.setFont(font(heading ? 11 : 12, heading));
-    g.drawText(s, r, juce::Justification::centredLeft);
+    g.drawText(tr(s), r, juce::Justification::centredLeft);
 }
 void Editor::paint(juce::Graphics& g) {
     g.fillAll(background);
@@ -1491,7 +1623,7 @@ void Editor::paint(juce::Graphics& g) {
     }
     label(g, "COMPOSITION", {36, 105, 220, 18}, true);
     label(g, "Root", {36, 131, 62, 16});
-    label(g, "Scale", {108, 131, 158, 16});
+    label(g, "Scale", {108, 131, 168, 16});
     label(g, "Length", {36, 188, 74, 16});
     label(g, "Grid", {118, 188, 66, 16});
     label(g, "Meter", {192, 188, 74, 16});
@@ -1505,7 +1637,7 @@ void Editor::paint(juce::Graphics& g) {
     for (int i = 0; i < int(knobs.size()); ++i) {
         g.setFont(font(10));
         g.setColour(muted);
-        g.drawText(names[i], 36 + (i % 3) * 79, 456 + (i / 3) * 76, 72, 16, juce::Justification::centred);
+        g.drawText(tr(names[i]), 36 + (i % 3) * 79, 456 + (i / 3) * 76, 72, 16, juce::Justification::centred);
     }
     label(g, "Low note", {36, 628, 104, 16});
     label(g, "High note", {158, 628, 108, 16});
@@ -1514,7 +1646,8 @@ void Editor::paint(juce::Graphics& g) {
     g.setColour(line);
     g.drawRoundedRectangle(float(mainX) - 0.5f, 173.5f, float(mainW) + 1, 271, 5, 1);
     label(g, "Swing", {mainX + 236, 498, 42, 24});
-    label(g, "Gate", {mainX + 426, 498, 32, 24});
+    label(g, "Gate", {mainX + 390, 498, 32, 24});
+    label(g, "Humanize", {mainX + 530, 498, 64, 24});
     panelSurface({float(mainX), 570, float(mainW), 102});
     if (workflowPage == 2) {
         label(g, "Timing", {mainX + 12, 638, 46, 26});
@@ -1529,7 +1662,7 @@ void Editor::paint(juce::Graphics& g) {
             g.fillRoundedRectangle(cell.toFloat(), 4);
             g.setColour(i == 0 ? accent : text);
             g.setFont(font(12, true));
-            g.drawText(parts[i], cell, juce::Justification::centred);
+            g.drawText(tr(parts[i]), cell, juce::Justification::centred);
         }
     }
     if (workflowPage == 4) {
@@ -1549,7 +1682,7 @@ void Editor::paint(juce::Graphics& g) {
     label(g, "VARIATIONS", {mainX, 682, 150, 20}, true);
     g.setColour(muted);
     g.setFont(font(11));
-    g.drawText("Select  /  Double-click to play  /  + to pin", mainX + 145, 682, mainW - 145, 20,
+    g.drawText(tr("Select  /  Double-click to play  /  + to pin"), mainX + 145, 682, mainW - 145, 20,
                juce::Justification::centredRight);
     label(g, "BPM", {650, h - 53, 34, 22});
     label(g, "Level", {784, h - 53, 34, 22});
@@ -1572,8 +1705,9 @@ void Editor::resized() {
     load.setBounds(w - 224, 25, 82, 30);
     save.setBounds(w - 136, 25, 82, 30);
     help.setBounds(w - 44, 25, 24, 30);
+    interfaceLanguageButton.setBounds(210, 28, 42, 28);
     root.setBounds(36, 151, 62, 30);
-    scale.setBounds(108, 151, 158, 30);
+    scale.setBounds(108, 151, 168, 30);
     bars.setBounds(36, 208, 74, 30);
     grid.setBounds(118, 208, 66, 30);
     meter.setBounds(192, 208, 74, 30);
@@ -1589,7 +1723,7 @@ void Editor::resized() {
     evolve.setBounds(36, 762, 230, 34);
     searchDetails.setBounds(36, 804, 230, 24);
     lockRhythm.setBounds(x + 106, 498, 118, 26);
-    editNotes.setBounds(x + 370, 456, 112, 30);
+    editNotes.setBounds(x + 418, 456, 100, 30);
     phraseTitle.setBounds(x, 96, 320, 32);
     phraseInfo.setBounds(x + 330, 100, mw - 330, 26);
     applyDraft.setBounds(w - 240, 98, 132, 28);
@@ -1600,15 +1734,18 @@ void Editor::resized() {
     quantiseSwitch.setBounds(x + 268, 134, 136, 30);
     playbackInfo.setBounds(x + 414, 135, mw - 414, 28);
     roll.setBounds(x, 174, mw, 270);
-    play.setBounds(x, 456, 84, 30);
-    withChords.setBounds(x + 94, 456, 126, 30);
-    snap.setBounds(x + 230, 456, 130, 30);
+    play.setBounds(x, 456, 72, 30);
+    withChords.setBounds(x + 76, 456, 108, 30);
+    chordMidi.setBounds(x + 188, 456, 108, 30);
+    snap.setBounds(x + 300, 456, 112, 30);
     import.setBounds(x, 498, 96, 26);
-    exportFile.setBounds(w - 250, 456, 92, 30);
-    drag.setBounds(w - 150, 456, 130, 30);
-    swing.setBounds(x + 278, 498, 134, 24);
-    gate.setBounds(x + 464, 498, 130, 24);
-    tempoInfo.setBounds(x + 616, 498, mw - 616, 24);
+    exportBoth.setBounds(w - 350, 456, 132, 30);
+    exportFile.setBounds(w - 210, 456, 72, 30);
+    drag.setBounds(w - 130, 456, 110, 30);
+    swing.setBounds(x + 278, 498, 108, 24);
+    gate.setBounds(x + 424, 498, 100, 24);
+    humanize.setBounds(x + 596, 498, 110, 24);
+    tempoInfo.setBounds(x + 716, 498, mw - 716, 24);
     const int tabWidth = (mw - 6 * 6) / 7;
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setBounds(x + i * (tabWidth + 6), 538, tabWidth, 28);
@@ -1686,8 +1823,10 @@ void Editor::showGuide() {
             guide->setVisible(false);
             grabKeyboardFocus();
         };
+        guide->onLanguage = [this](int language) { storeInterfaceLanguage(language); };
         addChildComponent(*guide);
     }
+    guide->setLanguage(processor.interfaceLanguageIndex());
     guide->setVisible(true);
     guide->toFront(true);
     resized();
@@ -1720,7 +1859,8 @@ void Editor::updateMainPage() {
                             child == &preset || child == &undo || child == &redo || child == &load ||
                             child == &save || child == &help || child == &auditionSound ||
                             child == &monitor || child == &follow || child == &tempo || child == &volume ||
-                            child == &panic || child == &motion || child == &status;
+                            child == &panic || child == &motion || child == &interfaceLanguageButton ||
+                            child == &status;
         if (child == chordPanel.get() || child == guide.get() ||
             dynamic_cast<juce::ResizableCornerComponent*>(child) != nullptr ||
             dynamic_cast<juce::ResizableBorderComponent*>(child) != nullptr)
@@ -1770,9 +1910,9 @@ void Editor::updateWorkflow() {
         "Turn the selected motif into four sections. Audition the preview before keeping it.",
         "Choose the sources below. Notes are matched by relative phrase position.",
         "",
-        "Real genetic search: tournament selection, two elites, crossover and mutation. No artificial "
+        "Real genetic search: islands, one elite per island, crossover and adaptive mutation. No artificial "
         "delay."};
-    workflowInfo.setText(workflowPage == 5 ? microDescription() : juce::String(descriptions[workflowPage]),
+    workflowInfo.setText(workflowPage == 5 ? microDescription() : tr(descriptions[workflowPage]),
                          juce::dontSendNotification);
 }
 juce::String Editor::microDescription() const {
@@ -1784,27 +1924,55 @@ juce::String Editor::microDescription() const {
 }
 void Editor::refresh() {
     const auto meterNow = processor.timeSignature();
-    const auto meterText = juce::String(meterNow.numerator) + "/" + juce::String(meterNow.denominator);
-    if (!meter.hasKeyboardFocus(true) && meter.getText() != meterText)
-        meter.setText(meterText, juce::dontSendNotification);
+    if (!meter.hasKeyboardFocus(true) && (meterNow.numerator != shownMeterNumerator ||
+                                           meterNow.denominator != shownMeterDenominator)) {
+        meter.setText(juce::String(meterNow.numerator) + "/" + juce::String(meterNow.denominator),
+                      juce::dontSendNotification);
+        shownMeterNumerator = meterNow.numerator;
+        shownMeterDenominator = meterNow.denominator;
+    }
     const bool custom = customSearch.getToggleState();
     quality.setEnabled(!custom);
     searchPopulation.setEnabled(custom);
     searchGenerations.setEnabled(custom);
+    const bool busy = processor.isGenerating();
     const auto budget = processor.configuredSearchBudget();
-    const auto completedSearch = processor.searchSummary();
-    searchDetails.setButtonText(completedSearch.isNotEmpty()
-                                    ? completedSearch
-                                    : juce::String(budget.population) + " individuals / " +
-                                          juce::String(budget.generations) + " generations...");
-    searchDetails.setTooltip(processor.searchDescription() +
-                             "\nClick for budget and full search statistics.");
-    if (workflowPage == 6)
-        searchInfo.setText(processor.searchDescription(), juce::dontSendNotification);
-    harmony.setSelectedId(processor.customHarmonyText().isNotEmpty() ? 1000
-                                                                     : processor.progressionIndex() + 1,
-                          juce::dontSendNotification);
+    const auto searchSerial = processor.searchSerial();
+    if (searchSerial != shownSearchSerial || busy != shownSearchBusy ||
+        budget.population != shownBudgetPopulation || budget.generations != shownBudgetGenerations ||
+        workflowPage != shownSearchPage) {
+        if (searchSerial != shownSearchSerial || busy != shownSearchBusy ||
+            budget.population != shownBudgetPopulation || budget.generations != shownBudgetGenerations) {
+            const auto completedSearch = processor.searchSummary();
+            shownSearchDescription = processor.searchDescription();
+            searchDetails.setButtonText(completedSearch.isNotEmpty()
+                                            ? tr(completedSearch)
+                                            : juce::String(budget.population) + tr(" individuals / ") +
+                                                  juce::String(budget.generations) + tr(" generations..."));
+            searchDetails.setTooltip(tr(shownSearchDescription) + "\n" +
+                                     tr("Click for budget and full search statistics."));
+            shownSearchSerial = searchSerial;
+            shownSearchBusy = busy;
+            shownBudgetPopulation = budget.population;
+            shownBudgetGenerations = budget.generations;
+        }
+        if (workflowPage == 6)
+            searchInfo.setText(tr(shownSearchDescription), juce::dontSendNotification);
+        shownSearchPage = workflowPage;
+    }
     const auto version = processor.documentRevision();
+    const int progression = processor.progressionIndex();
+    if (version != shownRevision || progression != shownProgression) {
+        harmony.setSelectedId(processor.customHarmonyText().isNotEmpty() ? 1000 : progression + 1,
+                              juce::dontSendNotification);
+        shownProgression = progression;
+    }
+    const int scaleNow = processor.scaleIndex();
+    const int scaleId = scaleNow >= 10 ? scaleNow : scaleNow + 1;
+    if (!scale.isPopupActive() && scale.getSelectedId() != scaleId)
+        scale.setSelectedId(scaleId, juce::dontSendNotification);
+    if (!bars.isPopupActive() && bars.getSelectedId() != processor.phraseLengthMenuId())
+        bars.setSelectedId(processor.phraseLengthMenuId(), juce::dontSendNotification);
     const auto slot = processor.selectedIndex();
     const bool draft = processor.hasDraft();
     const int tuningNow = processor.tuningIndex(), output = processor.microtonalOutput();
@@ -1833,11 +2001,11 @@ void Editor::refresh() {
         roll.setReference(processor.comparisonClip(), processor.hasComparison());
         roll.setHarmony(processor.harmonySnapshot());
         phraseTitle.setText(draft ? (processor.draftDescription().startsWith("Arrangement")
-                                         ? "PREVIEW / Arrangement"
-                                         : "PREVIEW / Combined phrase")
-                                  : "Variation " + juce::String(slot + 1).paddedLeft('0', 2),
+                                         ? tr("PREVIEW / Arrangement")
+                                         : tr("PREVIEW / Combined phrase"))
+                                  : tr("Variation ") + juce::String(slot + 1).paddedLeft('0', 2),
                             juce::dontSendNotification);
-        phraseTitle.setTooltip(draft ? processor.draftDescription() : juce::String());
+        phraseTitle.setTooltip(draft ? tr(processor.draftDescription()) : juce::String());
         phraseTitle.setColour(juce::Label::textColourId, draft ? gold : text);
         phraseTitle.setFont(font(draft ? 17 : 20, true));
         int locked = 0, microtonalNotes = 0;
@@ -1845,10 +2013,10 @@ void Editor::refresh() {
             locked += c.notes[i].locked;
             microtonalNotes += c.notes[i].cents != 0;
         }
-        phraseInfo.setText(juce::String(c.count) + " notes   /   " +
+        phraseInfo.setText(tr(juce::String(c.count) + " notes   /   " +
                                juce::String(c.length / (c.numerator * 4.0 / c.denominator), 1) +
                                " bars   /   " + juce::String(locked) + " locked" +
-                               (microtonal ? "   /   " + juce::String(microtonalNotes) + " microtonal" : ""),
+                               (microtonal ? "   /   " + juce::String(microtonalNotes) + " microtonal" : "")),
                            juce::dontSendNotification);
         regionInfo.setText("Beats " + juce::String(roll.regionStart(), 2) + " - " +
                                juce::String(roll.regionEnd(), 2),
@@ -1868,10 +2036,19 @@ void Editor::refresh() {
     }
     const bool hasChords = processor.chordClipSnapshot().count > 0;
     withChords.setEnabled(hasChords);
+    chordMidi.setEnabled(hasChords && output != 2);
+    if (output == 2 && processor.parameters.getRawParameterValue("chordMidiOut")->load() > 0.5f) {
+        if (auto* chordMidiParameter = processor.parameters.getParameter("chordMidiOut"))
+            chordMidiParameter->setValueNotifyingHost(0.0f);
+        processor.setStatus("Chord MIDI stays off while MPE uses channels 2-16.");
+    }
     withChords.setTooltip(
-        hasChords ? "Play melody and chords together through separate internal sound layers. External MIDI "
-                    "still carries only the melody; export chord MIDI from Chords."
+        hasChords ? "Play melody and chords together through separate internal sound layers. Enable Chord MIDI "
+                    "to also send the chords on channel 16."
                   : "Create chords in the Chords tab first, then enable this to hear both parts together.");
+    chordMidi.setTooltip(output == 2 ? "MPE uses channels 2-16 for the melody, so chord MIDI on channel 16 stays off."
+                                     : "Send the sounding chord voices on MIDI channel 16 while With chords plays. "
+                                       "Internal sound does not have to be on.");
     roll.setEditable(!draft);
     applyDraft.setVisible(draft && !chordPage);
     discardDraft.setVisible(draft && !chordPage);
@@ -1885,7 +2062,7 @@ void Editor::refresh() {
 
     compare.setEnabled(processor.hasComparison());
     clearA.setEnabled(processor.hasComparison());
-    compare.setButtonText(processor.isComparing() ? "Hear B" : "Hear A");
+    compare.setButtonText(processor.isComparing() ? tr("Hear B") : tr("Hear A"));
     compare.setColour(juce::TextButton::textColourOffId, processor.isComparing() ? gold : text);
     captureGroove.setTooltip(processor.hasGrooveReference()
                                  ? "Replace the saved groove reference with the selected variation."
@@ -1981,16 +2158,22 @@ void Editor::refreshDisplay() {
         startTimerHz(timerRate);
     }
     refresh();
-    status.setText(processor.statusText(), juce::dontSendNotification);
+    const auto statusSerial = processor.statusSerial();
+    if (statusSerial != shownStatusSerial) {
+        status.setText(processor.statusText(), juce::dontSendNotification);
+        shownStatusSerial = statusSerial;
+    }
     const bool busy = processor.isGenerating();
-    generate.setButtonText(busy ? "Cancel search  " +
+    generate.setButtonText(busy ? tr("Cancel search  ") +
                                       juce::String(int(processor.generationProgress() * 100)) + "%"
-                                : "Generate melody bank");
+                                : tr("Generate melody bank"));
     evolve.setEnabled(!busy && !processor.hasDraft());
     generate.setEnabled(busy || !processor.hasDraft());
     play.setPlaying(processor.previewRequested() && !processor.isAuditioningChords());
+    play.setButtonText(tr(play.getButtonText()));
+    roll.setInterfaceLanguage(processor.interfaceLanguageIndex());
     tempoInfo.setText(juce::String(processor.tempo(), 1) + " BPM  /  " +
-                          (processor.isPlaying() ? "PLAYING" : "READY"),
+                          tr(processor.isPlaying() ? "PLAYING" : "READY"),
                       juce::dontSendNotification);
     const bool hearingChords = processor.audibleChords();
     const int audible = processor.audibleIndex(), queued = hearingChords ? -1 : processor.queuedIndex();
@@ -2007,7 +2190,7 @@ void Editor::refreshDisplay() {
             (queued >= 0 && !processor.isComparing() ? " / " + juce::String(queued + 1).paddedLeft('0', 2)
                                                      : "") +
             " next loop";
-    playbackInfo.setText(playback, juce::dontSendNotification);
+    playbackInfo.setText(tr(playback), juce::dontSendNotification);
     playbackInfo.setColour(juce::Label::textColourId, queued >= 0 || pendingCompare ? gold : muted);
     for (int i = 0; i < 12; ++i)
         variants[i]->setPlaybackState(processor.isPlaying() && !hearingChords && !hearingA &&
@@ -2074,11 +2257,12 @@ void Editor::filesDropped(const juce::StringArray& files, int, int) {
     refresh();
 }
 void Editor::chooseFile(int action) {
-    const bool saving = action == 1 || action == 2 || action == 6;
+    const bool saving = action == 1 || action == 2 || action == 6 || action == 7;
     const bool bankFile = action == 2 || action == 3;
     const juce::String title = action == 4   ? "Import harmony reference MIDI"
                                : action == 5 ? "Import groove reference MIDI"
                                : action == 6 ? "Export selected time range"
+                               : action == 7 ? "Export melody and chords"
                                : saving      ? (bankFile ? "Save phrase bank" : "Export MIDI")
                                              : (bankFile ? "Open phrase bank" : "Import MIDI");
     chooser =
@@ -2086,6 +2270,7 @@ void Editor::chooseFile(int action) {
                                             juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
                                                 .getChildFile(saving ? (bankFile      ? "My phrases.genetic"
                                                                         : action == 6 ? "Selected range.mid"
+                                                                        : action == 7 ? "Melody and chords.mid"
                                                                                       : "Variation.mid")
                                                                      : ""),
                                             bankFile ? "*.genetic" : "*.mid;*.midi");
@@ -2100,7 +2285,7 @@ void Editor::chooseFile(int action) {
         auto file = dialog.getResult();
         if (file == juce::File())
             return;
-        if (action == 1 || action == 6)
+        if (action == 1 || action == 6 || action == 7)
             file = file.withFileExtension("mid");
         if (action == 2)
             file = file.withFileExtension("genetic");
@@ -2111,11 +2296,14 @@ void Editor::chooseFile(int action) {
                       : action == 3 ? p.loadBank(file)
                       : action == 4 ? p.importHarmonyMidi(file)
                       : action == 5 ? p.importGrooveMidi(file)
+                      : action == 7 ? p.exportMelodyAndChords(file)
                                     : p.exportMidiRange(file, rangeStart, rangeEnd);
         if (result.failed())
             p.setStatus(result.getErrorMessage());
-        else if (action == 1 || action == 6)
-            p.setStatus(action == 6 ? "Selected time range exported." : "MIDI exported.");
+        else if (action == 1 || action == 6 || action == 7)
+            p.setStatus(action == 6   ? "Selected time range exported."
+                        : action == 7 ? "Melody and chords exported."
+                                      : "MIDI exported.");
         else if (action == 2 || action == 3)
             p.setStatus(action == 2 ? "Phrase bank saved." : "Phrase bank restored.");
         safe->refresh();

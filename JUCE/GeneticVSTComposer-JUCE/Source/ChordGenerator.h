@@ -7,6 +7,8 @@ struct ChordGenerationSettings {
     float originality = 0.35f;
     // One chord per two bars, per bar, or per half-bar.
     int harmonicRhythm = 1;
+    // 0 keeps equal steps. 1 groups them long-short, 2 short-long.
+    int rhythmShape = 0;
     bool resolve = true;
     uint32_t seed = 1;
 };

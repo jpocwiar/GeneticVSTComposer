@@ -7,9 +7,12 @@
 
 namespace composer {
 namespace {
-constexpr int intervals[9][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
-                              {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}};
-constexpr const char* suffixes[]{"", "m", "dim", "aug", "7", "maj7", "m7", "sus2", "sus4"};
+constexpr int intervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+                               {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
+                               {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
+                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
+constexpr const char* suffixes[]{"",    "m",   "dim", "aug", "7",   "maj7", "m7",  "sus2",
+                                 "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9"};
 constexpr const char* names[]{"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 int pc(int pitch) {
     return (pitch % 12 + 12) % 12;
@@ -28,15 +31,17 @@ struct Random {
     std::mt19937 engine;
 };
 int harmonicScale(int scale) {
-    switch (std::clamp(scale, 0, 9)) {
+    switch (scale) {
     case 4:
     case 8:
+    case 13: // Whole tone uses the major chord vocabulary.
         return 0;
     case 5:
     case 9:
+    case 14: // Hexatonic blues uses the minor chord vocabulary.
         return 1;
     default:
-        return std::clamp(scale, 0, 9);
+        return std::clamp(scale, 0, 15);
     }
 }
 ChordEvent degreeChord(const std::vector<int>& scale, int degree, int root) {
@@ -60,6 +65,9 @@ void extendChord(ChordEvent& chord, const std::vector<int>& scale, int keyRoot) 
             chord.quality = 4;
     } else if (chord.quality == 1 && belongs(chord.root + 10)) {
         chord.quality = 6;
+    } else if (chord.quality == 2 && belongs(chord.root + 10)) {
+        // iiø7 in minor: the diminished triad plus the minor seventh already in the scale.
+        chord.quality = 9;
     }
 }
 struct Voicing {
@@ -69,7 +77,7 @@ struct Voicing {
 };
 std::vector<Voicing> candidates(const ChordEvent& chord, int centre, int style) {
     std::vector<Voicing> result;
-    const auto& tones = intervals[std::clamp(chord.quality, 0, 8)];
+    const auto& tones = intervals[std::clamp(chord.quality, 0, 15)];
     const int count = tones[3] < 0 ? 3 : 4;
     for (int octave = 1; octave <= 8; ++octave) {
         for (int inversion = 0; inversion < (style == 1 ? 1 : count); ++inversion) {
@@ -143,7 +151,32 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
     const int requested = int(std::ceil(length / step - 1e-9));
     if (requested > 64)
         step *= std::ceil(requested / 64.0);
-    result.count = std::min(64, int(std::ceil(length / step - 1e-9)));
+    const int evenCount = std::min(64, int(std::ceil(length / step - 1e-9)));
+    std::vector<double> durations;
+    const int shape = std::clamp(settings.rhythmShape, 0, 2);
+    if (shape == 0) {
+        for (int i = 0; i < evenCount; ++i)
+            durations.push_back(std::min(step, length - i * step));
+    } else {
+        // Group the same grid: long-short holds two steps then one, short-long the reverse.
+        constexpr int pattern[2][2]{{2, 1}, {1, 2}};
+        double consumed = 0;
+        for (int index = 0; consumed < length - 1e-9 && durations.size() < 64; ++index) {
+            double duration = step * pattern[shape - 1][index % 2];
+            if (consumed + duration > length - 1e-9)
+                duration = length - consumed;
+            if (duration < 0.125 - 1e-9) {
+                if (!durations.empty())
+                    durations.back() += duration;
+                break;
+            }
+            durations.push_back(duration);
+            consumed += duration;
+        }
+    }
+    result.count = int(durations.size());
+    if (result.count == 0)
+        return result;
     const int key = pc(settings.root), mode = harmonicScale(settings.scale);
     const auto& scale = scaleIntervals(mode);
     const bool minor = scale[2] == 3;
@@ -158,6 +191,7 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
     const auto& templates =
         minor ? (settings.resolve ? minorClosed : minorOpen) : (settings.resolve ? majorClosed : majorOpen);
     const int pattern = random.index(3);
+    double position = 0;
     for (int i = 0; i < result.count; ++i) {
         int degree = templates[pattern][i % 4];
         if (i == result.count - 2 && settings.resolve && result.count % 4 != 0)
@@ -189,8 +223,9 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
             chord.root = pc(key + borrowed[selection][0]);
             chord.quality = borrowed[selection][1];
         }
-        chord.start = i * step;
-        chord.duration = std::min(step, length - chord.start);
+        chord.start = position;
+        chord.duration = durations[size_t(i)];
+        position += chord.duration;
         result.chords[size_t(i)] = chord;
     }
     // Work backwards so each applied chord leads to the final form of its target.
@@ -212,6 +247,13 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
             chord.root = pc(target + 7);
             chord.quality = 4;
         }
+    }
+    // Half-diminished sevenths are the minor-key ii chord. This runs after the applied-chord
+    // pass so a diminished approach is not immediately rewritten back to a plain triad.
+    if (minor && originality > 0.6f) {
+        for (int i = 1; i + 1 < result.count; ++i)
+            if (result.chords[size_t(i)].quality == 2 && random.unit() < originality)
+                result.chords[size_t(i)].quality = 9;
     }
     return result;
 }
@@ -276,7 +318,7 @@ Clip voiceHarmony(const Harmony& source, int numerator, int denominator, const V
 }
 
 std::string chordName(const ChordEvent& chord) {
-    return std::string(names[pc(chord.root)]) + suffixes[std::clamp(chord.quality, 0, 8)];
+    return std::string(names[pc(chord.root)]) + suffixes[std::clamp(chord.quality, 0, 15)];
 }
 std::string voicedChordName(const ChordEvent& chord, const Clip& clip) {
     int bass = 128;

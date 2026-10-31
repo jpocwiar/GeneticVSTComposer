@@ -6,12 +6,12 @@
       <FILE id="ctc" name="ComposerTheme.cpp" compile="1" resource="0" file="Source/ComposerTheme.cpp" />
       <FILE id="ach" name="ActivityDisplay.h" compile="0" resource="0" file="Source/ActivityDisplay.h" />
       <FILE id="acc" name="ActivityDisplay.cpp" compile="1" resource="0" file="Source/ActivityDisplay.cpp" />
-      <FILE id="W4G80r" name="notes_generator.cpp" compile="0" resource="0" file="Source/notes_generator.cpp" />
-      <FILE id="lwpaWJ" name="notes_generator.hpp" compile="0" resource="0" file="Source/notes_generator.hpp" />
-      <FILE id="iEShd7" name="mingus.cpp" compile="0" resource="0" file="Source/mingus.cpp" />
-      <FILE id="qK1CAB" name="mingus.hpp" compile="0" resource="0" file="Source/mingus.hpp" />
-      <FILE id="jtrWKL" name="genetic.cpp" compile="0" resource="0" file="Source/genetic.cpp" />
-      <FILE id="tQgZVe" name="genetic.hpp" compile="0" resource="0" file="Source/genetic.hpp" />
+      <FILE id="W4G80r" name="notes_generator.cpp" compile="0" resource="0" file="../../legacy/reference/notes_generator.cpp" />
+      <FILE id="lwpaWJ" name="notes_generator.hpp" compile="0" resource="0" file="../../legacy/reference/notes_generator.hpp" />
+      <FILE id="iEShd7" name="mingus.cpp" compile="0" resource="0" file="../../legacy/reference/mingus.cpp" />
+      <FILE id="qK1CAB" name="mingus.hpp" compile="0" resource="0" file="../../legacy/reference/mingus.hpp" />
+      <FILE id="jtrWKL" name="genetic.cpp" compile="0" resource="0" file="../../legacy/reference/genetic.cpp" />
+      <FILE id="tQgZVe" name="genetic.hpp" compile="0" resource="0" file="../../legacy/reference/genetic.hpp" />
       <FILE id="L2Uoq3" name="PluginProcessor.cpp" compile="1" resource="0" file="Source/PluginProcessor.cpp" />
       <FILE id="hD40dn" name="PluginProcessor.h" compile="0" resource="0" file="Source/PluginProcessor.h" />
       <FILE id="rv7kIS" name="PluginEditor.cpp" compile="1" resource="0" file="Source/PluginEditor.cpp" />
