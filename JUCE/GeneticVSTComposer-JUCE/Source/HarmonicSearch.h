@@ -45,12 +45,15 @@ struct HarmonicPlan {
     std::array<int, 64> key{}, mode{}, forcedRoot{}, forcedFamily{};
     int character = 0;
     double originality = 0;
+    double colour = 0.45, mood = 0.5;
     bool finalDominant = false;
 };
 HarmonicPlan planHarmony(const Harmony& timeline, const ChordGenerationSettings& settings, Random& random) {
     HarmonicPlan plan;
     plan.character = std::clamp(settings.character, 0, 4);
     plan.originality = amount(settings.originality);
+    plan.colour = amount(settings.colour);
+    plan.mood = std::isfinite(settings.mood) ? amount(settings.mood) : 0.5;
     const int key = pc(settings.root), mode = harmonicScale(settings.scale);
     plan.key.fill(key);
     plan.mode.fill(mode);
@@ -128,10 +131,20 @@ std::vector<HarmonicCandidate> harmonicCandidates(const HarmonicPlan& plan, int 
     const auto& scale = scaleIntervals(mode);
     const int character = plan.character;
     const double originality = plan.originality;
-    const double colour = std::min(1.0, originality + (character == 2 ? 0.45 : 0));
+    const double colour = plan.colour;
     std::vector<HarmonicCandidate> pool;
     auto add = [&](ChordEvent chord, double prior) {
         const bool suspension = chord.quality == 7 || chord.quality == 8;
+        // Colour is an explicit vocabulary limit, even for Jazz and chromatic harmony.
+        if ((suspension && colour <= 0.1) || (chord.quality >= 4 && !suspension && colour <= 0.1) ||
+            (chord.quality >= 13 && chord.quality <= 15 && colour <= 0.55))
+            return;
+        if (chord.quality <= 3)
+            prior += 0.45 - 1.5 * colour;
+        else if (suspension)
+            prior += -0.8 + 1.7 * colour;
+        else
+            prior += -1.4 + 2.8 * colour;
         if (character == 1)
             prior += chord.quality <= 3 ? 0.55 : chord.quality == 13 || suspension ? -0.1 : -0.85;
         else if (character == 2)
@@ -150,7 +163,7 @@ std::vector<HarmonicCandidate> harmonicCandidates(const HarmonicPlan& plan, int 
     };
     for (int degree = 0; degree < 7; ++degree) {
         auto chord = degreeChord(scale, degree, key);
-        add(chord, -0.6 * colour - (character == 2 ? 0.3 : 0));
+        add(chord, 0);
         if (colour > 0.1) {
             auto extended = chord;
             extendChord(extended, scale, key);
@@ -161,26 +174,26 @@ std::vector<HarmonicCandidate> harmonicCandidates(const HarmonicPlan& plan, int 
                 sixth.quality = chord.quality == 0 ? 11 : 12;
                 add(sixth, -1.8 + 1.6 * colour + (character == 4 ? 0.3 : 0));
             }
-            if (chord.quality == 0 && colour > 0.3) {
+            if (chord.quality == 0 && colour > 0.55) {
                 auto ninth = chord;
-                ninth.quality = character == 2 && extended.quality == 5 ? 15 : 13;
+                ninth.quality = extended.quality == 5 && (character == 2 || colour > 0.8) ? 15 : 13;
                 add(ninth, -1.7 + 1.5 * colour + (character == 4 ? 0.4 : 0));
             }
-            if (extended.quality == 4 && character == 2) {
+            if (extended.quality == 4 && colour > 0.55) {
                 extended.quality = 14;
                 add(extended, -1.3 + 1.5 * colour);
             }
         }
-        if ((character == 3 || character == 4 || originality > 0.55) && chord.quality <= 1) {
+        if (colour > 0.1 && chord.quality <= 1) {
             auto suspension = chord;
             unsigned scaleMask = 0;
             for (int interval : scale)
                 scaleMask |= 1u << pc(key + interval);
             for (int quality : {7, 8}) {
                 suspension.quality = quality;
-                if (character == 3 && originality < 0.8 && (chordMask(suspension) & ~scaleMask) != 0)
+                if (originality < 0.8 && (chordMask(suspension) & ~scaleMask) != 0)
                     continue;
-                add(suspension, -0.9 + originality * 0.7);
+                add(suspension, -0.9 + colour * 0.7);
             }
         }
     }
@@ -200,16 +213,29 @@ std::vector<HarmonicCandidate> harmonicCandidates(const HarmonicPlan& plan, int 
             }
         }
     }
-    if (originality > 0.45 || character == 2) {
+    if (originality > 0.45) {
         for (int degree = 0; degree < 7; ++degree) {
             const int target = pc(key + scale[size_t(degree)]);
-            add({0, 4, pc(target + 7), 4}, -2.0 + originality * 1.5);
+            add({0, 4, pc(target + 7), colour > 0.1 ? 4 : 0}, -2.0 + originality * 1.5);
             if (character == 2 && colour > 0.6)
                 add({0, 4, pc(target + 7), 14}, -1.8 + originality * 1.7);
             if (originality > 0.65) {
                 add({0, 4, pc(target - 1), 2}, -2.3 + originality * 1.5);
-                add({0, 4, pc(target + 1), 4}, -2.6 + originality * 1.7);
+                add({0, 4, pc(target + 1), colour > 0.1 ? 4 : 0}, -2.6 + originality * 1.7);
             }
+        }
+    }
+    if (originality > 0.7) {
+        // At the adventurous end every chromatic root is reachable. This also
+        // permits distant triads with Colour at zero, rather than equating novelty
+        // with extra chord tones. The transition score controls their placement.
+        const double adventure = (originality - 0.7) / 0.3;
+        for (int root = 0; root < 12; ++root) {
+            const double prior = -3.0 + 2.0 * adventure;
+            for (int quality : {0, 1, 2, 3})
+                add({0, 4, pc(key + root), quality}, prior - (quality >= 2 ? 0.6 : 0));
+            for (int quality : {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+                add({0, 4, pc(key + root), quality}, prior - (quality == 10 || quality == 16 ? 0.6 : 0));
         }
     }
     // Preserve the conventional major dominant in natural/harmonic minor.
@@ -241,16 +267,31 @@ double harmonicStepScore(const Harmony& path, const HarmonicCandidate& candidate
     for (int interval : scale)
         scaleMask |= 1u << pc(key + interval);
     const double outside = double(bitCount(candidate.mask & ~scaleMask)) / bitCount(candidate.mask);
-    double score = candidate.prior - outside * (2.8 - 2.0 * plan.originality);
+    double score = candidate.prior - outside * (3.2 - 3.0 * plan.originality);
+    // Mood describes brightness, not a promise of a particular listener emotion.
+    // Dissonant colour is only available when the independent Colour permits it.
+    const double brightness = chord.quality == 1 || chord.quality == 6 || chord.quality == 12 ? -1.0 :
+                              chord.quality == 2 || chord.quality == 9 || chord.quality == 10 ? -1.25 :
+                              chord.quality == 16 ? -1.35 : chord.quality == 3 ? -0.35 :
+                              chord.quality == 7 || chord.quality == 8 ? 0.0 :
+                              chord.quality == 11 || chord.quality == 13 ? 1.1 : 0.85;
+    score += (plan.mood * 2.0 - 1.0) * brightness * 1.6;
     if (position == 0)
         return score;
     const auto& previous = path.chords[size_t(path.count - 1)];
     const int delta = pc(chord.root - previous.root);
     const double corpusWeight[] = {0.70, 0.38, 0.45, 0.08, 0.20};
-    score += corpusWeight[plan.character] * (1.0 - plan.originality * 0.3) *
+    score += corpusWeight[plan.character] * (1.0 - plan.originality * 0.8) *
              std::log(learnedTransition(path, chord));
+    // Fifth distance is a useful root-motion measure, independent of voicing.
+    // A semitone is five steps away on this circle. High Originality can prefer
+    // that remote motion; low Originality softly favours familiar relationships.
+    const int fifthSteps = (delta * 7) % 12;
+    const int distance = std::min(fifthSteps, 12 - fifthSteps);
+    score += distance * (-0.14 + 0.48 * plan.originality * plan.originality);
     const auto common = bitCount(chordMask(previous) & candidate.mask);
-    score += common * (plan.character == 3 || plan.character == 4 ? 0.30 : 0.12);
+    score += common * (plan.character == 3 || plan.character == 4 ? 0.30 : 0.12) *
+             (1.0 - plan.originality * 0.65);
     if (delta == 0)
         score -= previous.quality == chord.quality ? 3.8 : 1.1;
     // Functional movement is a soft preference; modal harmony favours shared tones.

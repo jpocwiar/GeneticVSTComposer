@@ -79,6 +79,8 @@ void testDocumentAndHistory() {
     parameter(*p, "chordCentre", 36);
     parameter(*p, "chordOriginality", 0.7f);
     parameter(*p, "chordCharacter", 2);
+    parameter(*p, "chordColour", 0.81f);
+    parameter(*p, "chordMood", 0.23f);
     check(p->generateChords().wasOk(), "chord generation failed");
     const auto harmony = p->harmonySnapshot();
     const auto first = p->chordClipSnapshot();
@@ -121,6 +123,20 @@ void testDocumentAndHistory() {
           "saved document did not restore exact chord voicings and melody bank");
     check(restored->parameters.getRawParameterValue("chordCharacter")->load() == 2,
           "harmonic character did not survive state restore");
+    check(std::abs(restored->parameters.getRawParameterValue("chordColour")->load() - 0.81f) < 0.001f &&
+              std::abs(restored->parameters.getRawParameterValue("chordMood")->load() - 0.23f) < 0.001f,
+          "colour or mood did not survive state restore");
+    auto beforeAmounts = juce::ValueTree::fromXml(*xml);
+    auto oldParameters = beforeAmounts.getChildWithName("Parameters");
+    for (const char* id : {"chordColour", "chordMood"})
+        oldParameters.removeChild(oldParameters.getChildWithProperty("id", id), nullptr);
+    juce::MemoryBlock previousState;
+    juce::AudioProcessor::copyXmlToBinary(*beforeAmounts.createXml(), previousState);
+    restored->setStateInformation(previousState.getData(), int(previousState.getSize()));
+    check(std::abs(restored->parameters.getRawParameterValue("chordColour")->load() - 0.45f) < 0.001f &&
+              restored->parameters.getRawParameterValue("chordMood")->load() == 0.5f &&
+              restored->customHarmonyText() == text && sameClip(revoiced, restored->chordClipSnapshot()),
+          "previous schema-6 project failed to restore defaults and exact saved chord notes");
 
     p->clearCustomHarmony();
     check(p->harmonySnapshot().count == 0 && p->chordClipSnapshot().count == 0,
@@ -155,7 +171,8 @@ void testDocumentAndHistory() {
         auto params = legacy.getChildWithName("Parameters");
         params.getChildWithProperty("id", "snap").setProperty("value", 1.0f, nullptr);
         for (const char* id :
-             {"chordOriginality", "chordRhythm", "chordVoicing", "chordCentre", "chordResolve", "chordCharacter"})
+             {"chordOriginality", "chordRhythm", "chordVoicing", "chordCentre", "chordResolve", "chordCharacter",
+              "chordColour", "chordMood"})
             params.removeChild(params.getChildWithProperty("id", id), nullptr);
         juce::MemoryBlock oldState;
         const auto oldXml = legacy.createXml();
@@ -165,6 +182,9 @@ void testDocumentAndHistory() {
         check(sameBank(bank, restored->bankSnapshot()), "legacy state restore damaged melody notes");
         check(restored->parameters.getRawParameterValue("chordCharacter")->load() == 0,
               "a legacy state inherited a previously selected harmonic character");
+        check(std::abs(restored->parameters.getRawParameterValue("chordColour")->load() - 0.45f) < 0.001f &&
+                  restored->parameters.getRawParameterValue("chordMood")->load() == 0.5f,
+              "a legacy state inherited the previous colour/mood instead of defaults");
         check(restored->parameters.getRawParameterValue("snap")->load() == (version == 3 ? 0 : 1),
               "legacy Fit to scale migration did not preserve its effective harmony-dependent state");
         const auto oldChords = restored->chordClipSnapshot();

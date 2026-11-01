@@ -55,6 +55,29 @@ const Entry fragments[]{
     {" bars", " taktów"},
 };
 const Entry exact[]{
+    {"CHORD COLOUR", "KOLOR AKORDÓW"},
+    {"MOOD", "NASTRÓJ"},
+    {"Triads", "Trójdźwięki"},
+    {"Rich", "Bogate"},
+    {"Dark", "Ciemny"},
+    {"Bright", "Jasny"},
+    {"Controls how surprising the progression is, independently of chord colour. "
+     "Low values favour familiar tonal movement. High values allow borrowed chords, "
+     "distant roots and semitone shifts. Resolve still brings the ending home.",
+     "Reguluje zaskoczenie progresji niezależnie od koloru akordów. Niskie wartości sprzyjają znanym "
+     "przejściom tonalnym. Wysokie dopuszczają zapożyczenia, odległe podstawy i ruch o półton. "
+     "Rozwiązanie nadal sprowadza zakończenie do toniki."},
+    {"Controls chord vocabulary independently of root movement. Low values use triads. "
+     "Raise it for suspensions, sixths and sevenths; high values also allow ninths. "
+     "Voicing below controls inversions and spacing instead. Applies to new chords.",
+     "Reguluje paletę akordów niezależnie od ruchu podstaw. Niskie wartości dają trójdźwięki. "
+     "Wyższe dopuszczają susy, seksty i septymy, a wysokie również nony. Rozłożenie głosów poniżej "
+     "reguluje przewroty i odstępy między głosami. Dotyczy nowych akordów."},
+    {"Dark favours minor, diminished and tense colours; Bright favours major and warmer "
+     "colours. 50% is neutral. Key, scale, Colour and Resolve still constrain the result. "
+     "Applies to new chords.",
+     "Ciemny sprzyja akordom molowym, zmniejszonym i napięciu; Jasny durowym i cieplejszym barwom. "
+     "50% jest neutralne. Tonika, skala, Kolor i rozwiązanie nadal ograniczają wynik. Dotyczy nowych akordów."},
     {"Adapt melody", "Dopasuj melodię"},
     {"Adapt range", "Dopasuj fragment"},
     {"Adapt melody keeps its rhythm. Melody from these chords generates a new bank over the full sequence.",
@@ -80,11 +103,6 @@ const Entry exact[]{
      "movement. Each plans a complete phrase; Originality controls its adventurousness.",
      "Wybierz język harmonii: tonalny, pop, jazz, modalny lub filmowy. Każdy planuje całą frazę; "
      "Oryginalność reguluje śmiałość przebiegu."},
-    {"Controls harmonic colour and exploration within the selected character. "
-     "Higher values allow mixture, extended chords and temporary key centres. "
-     "Phrase destinations and learned transitions still guide the search.",
-     "Reguluje barwę i śmiałość wybranego charakteru. Wyższe wartości dopuszczają zapożyczenia, "
-     "rozbudowane akordy i czasowe centra tonalne. Szukanie uwzględnia cel frazy i wyuczone przejścia."},
     {"Microtones", "Mikrotony"},
     {"Palette", "Paleta"},
     {"Tuning / MIDI", "Strój / MIDI"},

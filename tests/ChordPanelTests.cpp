@@ -102,6 +102,14 @@ juce::ComboBox* findHarmonicCharacter(juce::Component& component) {
             return combo;
     return nullptr;
 }
+juce::Slider* findAmount(juce::Component& component, const juce::String& id) {
+    if (auto* slider = dynamic_cast<juce::Slider*>(&component); slider && slider->getComponentID() == id)
+        return slider;
+    for (auto* child : component.getChildren())
+        if (auto* slider = findAmount(*child, id))
+            return slider;
+    return nullptr;
+}
 void checkLayout(ChordComposerPanel& panel) {
     auto* roll = findRoll(panel);
     check(roll != nullptr, "chord panel piano roll missing");
@@ -122,6 +130,16 @@ void checkLayout(ChordComposerPanel& panel) {
     auto* character = findHarmonicCharacter(panel);
     check(character != nullptr, "harmonic character selector missing");
     visibleInside(*character);
+    std::vector<juce::Rectangle<int>> amountBounds;
+    for (const char* id : {"chordOriginality", "chordColour", "chordMood"}) {
+        auto* slider = findAmount(panel, id);
+        check(slider != nullptr, "primary harmony amount slider missing");
+        visibleInside(*slider);
+        const auto bounds = panel.getLocalArea(slider, slider->getLocalBounds());
+        for (const auto& prior : amountBounds)
+            check(!prior.intersects(bounds), "primary harmony controls overlap");
+        amountBounds.push_back(bounds);
+    }
     for (const char* name : {"New chords only", "Adapt melody", "Melody from these chords", "New chords + melody", "Revoice",
                              "Play", "Play together", "Drag chord MIDI", "Export..."}) {
         auto* button = findButton(panel, name);
@@ -181,6 +199,13 @@ void runChordPanelTests() {
     character->setSelectedId(3, juce::sendNotificationSync);
     check(processor->parameters.getRawParameterValue("chordCharacter")->load() == 2,
           "harmonic character selector is not attached to its parameter");
+    findAmount(panel, "chordColour")->setValue(0.81, juce::sendNotificationSync);
+    findAmount(panel, "chordMood")->setValue(0.23, juce::sendNotificationSync);
+    check(std::abs(processor->parameters.getRawParameterValue("chordColour")->load() - 0.81f) < 0.001f &&
+              std::abs(processor->parameters.getRawParameterValue("chordMood")->load() - 0.23f) < 0.001f,
+          "colour or mood slider is not attached to its independent parameter");
+    check(sameNotes(melody, processor->selectedClip()) && processor->harmonySnapshot().count == 0,
+          "changing a generation control changed existing notes");
 
     auto* generate = findButton(panel, "New chords only");
     check(generate->isEnabled() && bool(generate->onClick), "chord generation action is unavailable");

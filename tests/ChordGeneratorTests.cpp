@@ -14,10 +14,11 @@ void check(bool ok, const char* message) {
     if (!ok)
         throw std::runtime_error(message);
 }
-constexpr int intervals[16][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
+constexpr int intervals[17][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
                                {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
                                {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
-                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}};
+                               {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14},
+                               {0, 3, 7, 11}};
 int pc(int pitch) {
     return (pitch % 12 + 12) % 12;
 }
@@ -38,7 +39,7 @@ void validateHarmony(const Harmony& harmony) {
     double position = 0;
     for (int i = 0; i < harmony.count; ++i) {
         const auto& chord = harmony.chords[size_t(i)];
-        check(chord.root >= 0 && chord.root < 12 && chord.quality >= 0 && chord.quality < 16,
+        check(chord.root >= 0 && chord.root < 12 && chord.quality >= 0 && chord.quality < 17,
               "chord generator: invalid root or quality");
         check(std::abs(chord.start - position) < 1e-8 && chord.duration >= 0.125,
               "chord generator: gap, overlap or tiny duration");
@@ -91,7 +92,6 @@ double novelty(const Harmony& harmony) {
     double score = 0;
     for (int i = 0; i < harmony.count; ++i) {
         const auto& chord = harmony.chords[size_t(i)];
-        score += chord.quality >= 4 ? 0.25 : 0;
         for (int interval : intervals[chord.quality])
             if (interval >= 0 &&
                 std::find(scale.begin(), scale.end(), pc(chord.root + interval)) == scale.end())
@@ -105,10 +105,102 @@ double triadMovement(const Clip& clip) {
         total += std::abs(clip.notes[size_t(i)].pitch - clip.notes[size_t(i - 3)].pitch);
     return total;
 }
+void testIndependentHarmonyControls() {
+    // Test audible trends over the same seeds, rather than an exact favourite phrase.
+    std::array<double, 3> colourCounts{}, moodFamilies{}, chromatic{}, fifthDistance{}, semitones{};
+    constexpr std::array<float, 3> levels{0, 0.5f, 1};
+    for (int character = 0; character < 5; ++character)
+        for (uint32_t seed = 1; seed <= 48; ++seed)
+            for (int level = 0; level < 3; ++level) {
+                ChordGenerationSettings s;
+                s.bars = 8;
+                s.scale = 0;
+                s.character = character;
+                s.seed = seed;
+                s.colour = levels[size_t(level)];
+                s.originality = seed % 2 ? 0 : 1;
+                const auto coloured = generateHarmony(s);
+                validateHarmony(coloured);
+                for (int i = 0; i < coloured.count; ++i) {
+                    const int q = coloured.chords[size_t(i)].quality;
+                    colourCounts[size_t(level)] += q >= 4;
+                    if (level == 0)
+                        check(q <= 3, "zero Colour produced an extension or suspension");
+                }
+                s.colour = 0.7f;
+                s.originality = 0.65f;
+                s.mood = levels[size_t(level)];
+                const auto mood = generateHarmony(s);
+                validateHarmony(mood);
+                check(same(mood, generateHarmony(s)), "mood/colour search is not deterministic");
+                for (int i = 0; i < mood.count; ++i) {
+                    const int q = mood.chords[size_t(i)].quality;
+                    moodFamilies[size_t(level)] += q == 1 || q == 2 || q == 6 || q == 9 || q == 10 || q == 12 || q == 16;
+                }
+                s.colour = 0;
+                s.mood = 0.5f;
+                s.originality = levels[size_t(level)];
+                const auto adventurous = generateHarmony(s);
+                validateHarmony(adventurous);
+                chromatic[size_t(level)] += novelty(adventurous);
+                for (int i = 1; i < adventurous.count; ++i) {
+                    const int delta = pc(adventurous.chords[size_t(i)].root - adventurous.chords[size_t(i - 1)].root);
+                    const int fifths = (delta * 7) % 12;
+                    fifthDistance[size_t(level)] += std::min(fifths, 12 - fifths);
+                    semitones[size_t(level)] += delta == 1 || delta == 11;
+                }
+            }
+    std::cout << "Harmony controls (low/mid/high) Colour: " << colourCounts[0] << '/' << colourCounts[1] << '/' << colourCounts[2]
+              << "; dark families: " << moodFamilies[0] << '/' << moodFamilies[1] << '/' << moodFamilies[2]
+              << "; chromatic: " << chromatic[0] << '/' << chromatic[1] << '/' << chromatic[2]
+              << "; fifth distance: " << fifthDistance[0] << '/' << fifthDistance[1] << '/' << fifthDistance[2]
+              << "; semitones: " << semitones[0] << '/' << semitones[1] << '/' << semitones[2] << '\n';
+    check(colourCounts[0] == 0 && colourCounts[2] > colourCounts[1] && colourCounts[1] > 100,
+          "Colour does not independently increase the richer vocabulary");
+    check(moodFamilies[0] > moodFamilies[1] + 100 && moodFamilies[1] > moodFamilies[2] + 100,
+          "Mood does not independently shift dark/bright chord families");
+    check(chromatic[2] > chromatic[1] && chromatic[1] > chromatic[0] &&
+              fifthDistance[2] > fifthDistance[0] * 1.15 && semitones[2] > semitones[0] * 1.5,
+          "Originality does not create chromatic, distant and semitone movement with plain triads");
+
+    // Constraints must remain feasible at all corners, even with short cadences,
+    // exotic modes, Jazz at zero Colour, and a dark tonic in a major key.
+    for (int character = 0; character < 5; ++character)
+        for (int scale = 0; scale < 16; ++scale)
+            for (int count : {1, 2, 3, 8})
+                for (int corner = 0; corner < 8; ++corner) {
+                    ChordGenerationSettings s;
+                    s.character = character;
+                    s.scale = scale;
+                    s.numerator = 1;
+                    s.bars = count;
+                    s.colour = float(corner & 1);
+                    s.mood = float((corner >> 1) & 1);
+                    s.originality = float((corner >> 2) & 1);
+                    s.seed = uint32_t(count * 31 + corner);
+                    const auto h = generateHarmony(s);
+                    validateHarmony(h);
+                    check(h.count == count && h.chords[size_t(h.count - 1)].root == 0,
+                          "control extremes broke the timeline or requested tonic resolution");
+                    if (count == 8) {
+                        s.root = 5;
+                        const auto transposed = generateHarmony(s);
+                        for (int i = 0; i < count; ++i)
+                            check(transposed.chords[size_t(i)].root == pc(h.chords[size_t(i)].root + 5) &&
+                                      transposed.chords[size_t(i)].quality == h.chords[size_t(i)].quality,
+                                  "new controls broke transposition invariance");
+                    }
+                }
+    ChordGenerationSettings invalid;
+    invalid.colour = std::numeric_limits<float>::quiet_NaN();
+    invalid.mood = std::numeric_limits<float>::infinity();
+    validateHarmony(generateHarmony(invalid));
+}
 } // namespace
 
 void runChordGeneratorTests() {
     using namespace composer;
+    testIndependentHarmonyControls();
     const auto model = harmonyModelInfo();
     check(model.sourceEvents == 5665 && model.sourceSequences == 60 && model.transitions == 2890 &&
               model.validationSequences == 9 && model.validationTransitions == 421,
@@ -160,6 +252,7 @@ void runChordGeneratorTests() {
             s.bars = 8;
             s.scale = 0;
             s.originality = 0.65f;
+            s.colour = 0.7f;
             s.seed = seed;
             const auto harmony = generateHarmony(s);
             validateHarmony(harmony);
@@ -171,7 +264,7 @@ void runChordGeneratorTests() {
                 signature += std::to_string(chord.root) + ":" + std::to_string(chord.quality) + ",";
                 extended[size_t(character)] += chord.quality >= 4;
                 suspensions[size_t(character)] += chord.quality == 7 || chord.quality == 8;
-                ninthCount[size_t(character)] += chord.quality >= 13;
+                ninthCount[size_t(character)] += chord.quality >= 13 && chord.quality <= 15;
                 if (i >= 4 && chord.root != harmony.chords[size_t(i - 4)].root)
                     repeated = false;
                 if (i >= 2)
@@ -282,7 +375,7 @@ void runChordGeneratorTests() {
         }
     }
     check(varied, "chord generator: different seeds never vary harmony");
-    check(scores[0] == 0 && scores[1] > scores[0] && scores[2] > scores[1] && scores[3] > scores[2] &&
+    check(scores[1] > scores[0] && scores[2] > scores[1] && scores[3] > scores[2] &&
               scores[3] / 256.0 > 0.25,
           "chord generator: originality does not increase harmonic novelty across seeds");
 
@@ -373,6 +466,7 @@ void runChordGeneratorTests() {
     ChordGenerationSettings minor;
     minor.scale = 1;
     minor.originality = 1;
+    minor.colour = 1;
     minor.bars = 8;
     minor.resolve = false;
     for (uint32_t seed = 1; seed <= 80 && !halfDiminished; ++seed) {

@@ -4,22 +4,39 @@
 
 // Chord-only listening examples use the same instrument and tempo, fixed seeds,
 // and no melody. These are illustrative examples, not a listening-quality test.
-void renderHarmonyExamples(const juce::File& directory) {
+void renderHarmonyExamples(const juce::File& directory, bool controls) {
     if (directory.createDirectory().failed())
         throw std::runtime_error("cannot create harmony example directory");
     const char* names[]{"01-balanced", "02-pop", "03-jazz", "04-modal", "05-cinematic"};
-    juce::String notes("Chord generator examples: seed 41, 8 bars, one chord per bar, Originality 65%, 110 BPM.\n"
-                       "Balanced/Pop/Jazz: C major. Modal: D Dorian. Cinematic: A minor, open voicings.\n"
-                       "Identical internal sound and monitor settings; no melody.\n"
+    const char* amountNames[]{"01-originality-0", "02-originality-50", "03-originality-100",
+                              "04-colour-0", "05-colour-50", "06-colour-100",
+                              "07-mood-dark", "08-mood-neutral", "09-mood-bright"};
+    juce::String notes(controls ?
+                       "Chord controls: Balanced, C major, seed 41, 8 bars, one chord per bar, 110 BPM.\n"
+                       "Baseline: Originality 65%, Colour 70%, Mood 50%. Each group changes one control only.\n" :
+                       "Chord generator examples: seed 41, 8 bars, one chord per bar, Originality 65%, Colour 45%, Mood 50%, 110 BPM.\n"
+                       "Balanced/Pop/Jazz: C major. Modal: D Dorian. Cinematic: A minor, open voicings.\n");
+    notes += "Identical internal sound and monitor settings; no melody.\n"
                        "Transition prior: Radicioni & Esposito (2014), Bach Choral Harmony, UCI, CC BY 4.0.\n"
-                       "https://doi.org/10.24432/C5B61F | https://creativecommons.org/licenses/by/4.0/\n\n");
-    for (int character = 0; character < 5; ++character) {
+                       "https://doi.org/10.24432/C5B61F | https://creativecommons.org/licenses/by/4.0/\n\n";
+    for (int example = 0; example < (controls ? 9 : 5); ++example) {
+        const int character = controls ? 0 : example;
         composer::ChordGenerationSettings settings;
         settings.character = character;
         settings.scale = character == 3 ? 2 : character == 4 ? 1 : 0;
         settings.root = character == 3 ? 2 : character == 4 ? 9 : 0;
         settings.bars = 8;
         settings.originality = 0.65f;
+        if (controls) {
+            settings.colour = 0.7f;
+            const float amount = float(example % 3) / 2.0f;
+            if (example < 3)
+                settings.originality = amount;
+            else if (example < 6)
+                settings.colour = amount;
+            else
+                settings.mood = amount;
+        }
         settings.seed = 41;
         const auto harmony = composer::generateHarmony(settings);
         if (harmony.count != 8)
@@ -56,7 +73,7 @@ void renderHarmonyExamples(const juce::File& directory) {
         const float peak = rendered.getMagnitude(0, rendered.getNumSamples());
         if (peak < 0.01f || peak >= 1.0f)
             throw std::runtime_error("silent or clipped harmony example");
-        const auto stem = juce::String(names[character]);
+        const auto stem = juce::String(controls ? amountNames[example] : names[character]);
         const auto file = directory.getChildFile(stem + ".wav");
         file.deleteFile();
         std::unique_ptr<juce::OutputStream> output = file.createOutputStream();
@@ -66,8 +83,10 @@ void renderHarmonyExamples(const juce::File& directory) {
         if (!writer || !writer->writeFromAudioSampleBuffer(rendered, 0, rendered.getNumSamples()) ||
             processor->exportChordMidi(directory.getChildFile(stem + ".mid")).failed())
             throw std::runtime_error("cannot save harmony listening example");
-        notes += stem + ": " + text + "\n";
-        std::cout << names[character] << ": " << text << ", peak " << peak << '\n';
+        notes += stem + " (Originality " + juce::String(settings.originality, 2) +
+                 ", Colour " + juce::String(settings.colour, 2) + ", Mood " + juce::String(settings.mood, 2) +
+                 "): " + text + "\n";
+        std::cout << stem << ": " << text << ", peak " << peak << '\n';
     }
     if (!directory.getChildFile("README.txt").replaceWithText(notes))
         throw std::runtime_error("cannot save listening example settings");

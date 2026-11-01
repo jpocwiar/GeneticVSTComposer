@@ -183,6 +183,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     toggle("evolveEachLoop", "Evolve each loop", false);
     number("auditionReverb", "Audition reverb", 0, 1, 0.15f);
     choice("chordCharacter", "Harmonic character", {"Balanced", "Pop", "Jazz", "Modal", "Cinematic"}, 0);
+    number("chordColour", "Chord colour", 0, 1, 0.45f);
+    number("chordMood", "Chord mood", 0, 1, 0.5f);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -489,6 +491,8 @@ juce::Result Processor::generateChords() {
     s.harmonicRhythm = int(param("chordRhythm"));
     s.rhythmShape = int(param("chordRhythmShape"));
     s.character = int(param("chordCharacter"));
+    s.colour = param("chordColour");
+    s.mood = param("chordMood");
     s.resolve = param("chordResolve") > 0.5f;
     s.seed = uint32_t(seedGenerator.nextInt());
     const auto harmony = composer::generateHarmony(s);

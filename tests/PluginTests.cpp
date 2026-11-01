@@ -36,7 +36,7 @@ void runChordPanelTests();
 void runPlaybackArchitectureTests();
 void runRealtimeTests();
 void renderMusicalExamples(const juce::File&);
-void renderHarmonyExamples(const juce::File&);
+void renderHarmonyExamples(const juce::File&, bool controls);
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
 #if JUCE_WINDOWS
@@ -45,9 +45,9 @@ int main(int argc, char** argv) {
     setenv("COMPOSER_DISABLE_UI_PREFS", "1", 1);
 #endif
     const std::string requested = argc > 1 ? argv[1] : "all";
-    if (requested == "render-harmony") {
-        require(argc == 3, "render-harmony requires an output directory");
-        renderHarmonyExamples(juce::File(argv[2]));
+    if (requested == "render-harmony" || requested == "render-harmony-controls") {
+        require(argc == 3, "harmony rendering requires an output directory");
+        renderHarmonyExamples(juce::File(argv[2]), requested == "render-harmony-controls");
         return 0;
     }
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
@@ -441,6 +441,7 @@ int main(int argc, char** argv) {
                 chordPage->showChordComposer();
                 auto chordSnapshot = [&](const char* name, int width, int height) {
                     chordEditor->setSize(width, height);
+                    chordPage->showChordComposer(); // Refresh child labels without relying on a timer tick.
                     chordPage->refreshDisplay();
                     auto image = chordEditor->createComponentSnapshot(chordEditor->getLocalBounds());
                     juce::FileOutputStream output{juce::File(argv[1]).getSiblingFile(name)};
@@ -451,6 +452,9 @@ int main(int argc, char** argv) {
                 };
                 chordSnapshot("ui-chords.png", 1180, 900);
                 chordSnapshot("ui-chords-compact.png", 870, 630);
+                chordDemo->setInterfaceLanguage(1);
+                chordSnapshot("ui-chords-pl.png", 1180, 900);
+                chordSnapshot("ui-chords-pl-compact.png", 870, 630);
                 chordDemo->setPreview(false);
             }
             demo->setCustomHarmony("Cm:4 Fm:2 G7:2");

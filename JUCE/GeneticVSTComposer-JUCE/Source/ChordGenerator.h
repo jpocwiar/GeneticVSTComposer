@@ -13,6 +13,10 @@ struct ChordGenerationSettings {
     uint32_t seed = 1;
     // Balanced tonal / pop / jazz / modal / cinematic. Independent of originality.
     int character = 0;
+    // Chord vocabulary, independent of root movement: triads -> sus/sevenths/ninths.
+    float colour = 0.45f;
+    // Dark -> neutral -> bright. Biases chord families, without changing the key/scale.
+    float mood = 0.5f;
 };
 struct VoicingSettings {
     int centre = 60;

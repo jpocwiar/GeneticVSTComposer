@@ -88,7 +88,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
     GeneticVSTComposerJUCEAudioProcessor& processor;
     ComposerLookAndFeel look;
     juce::TooltipWindow tooltips{this, 600};
-    juce::Slider originality, centre;
+    juce::Slider originality, colour, mood, centre;
     juce::ComboBox rhythm, rhythmShape, voicing, length, key, scale, character;
     juce::ToggleButton resolve{"Resolve to tonic"};
     juce::TextButton generateChords{"New chords only"}, generateMelody{"Melody from these chords"},
@@ -114,7 +114,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
         setLookAndFeel(&look);
         setOpaque(true);
         for (auto* component : std::initializer_list<juce::Component*>{
-                 &originality,    &centre,       &rhythm,         &rhythmShape,     &voicing, &length,
+                 &originality, &colour, &mood, &centre, &rhythm, &rhythmShape, &voicing, &length,
                  &key, &character,
                  &scale,          &resolve,      &generateChords, &generateMelody,  &newPair, &revoice,
                  &melodySettings, &adaptMelody,  &audition,     &together,       &exportFile,      &help,    &drag,
@@ -127,21 +127,30 @@ struct ChordComposerPanel::Impl : public juce::Component {
         }
         context.setJustificationType(juce::Justification::centredRight);
         status.setFont(chordFont(11.5f));
-        for (auto* slider : {&originality, &centre}) {
+        for (auto* slider : {&originality, &colour, &mood, &centre}) {
             slider->setSliderStyle(juce::Slider::LinearHorizontal);
             slider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 51, 22);
             slider->setColour(juce::Slider::thumbColourId, palette::teal);
             slider->setColour(juce::Slider::trackColourId, palette::teal);
         }
-        sliderAttachments.push_back(
-            std::make_unique<SliderAttachment>(processor.parameters, "chordOriginality", originality));
-        originality.textFromValueFunction = [](double v) {
-            return juce::String(int(std::lround(v * 100.0))) + "%";
+        auto attachAmount = [&](juce::Slider& slider, const char* id) {
+            slider.setComponentID(id);
+            slider.setName(processor.parameters.getParameter(id)->getName(64));
+            sliderAttachments.push_back(
+                std::make_unique<SliderAttachment>(processor.parameters, id, slider));
+            slider.textFromValueFunction = [](double v) {
+                return juce::String(int(std::lround(v * 100.0))) + "%";
+            };
+            slider.valueFromTextFunction = [](const juce::String& value) {
+                return value.getDoubleValue() / 100.0;
+            };
+            slider.updateText();
         };
-        originality.valueFromTextFunction = [](const juce::String& value) {
-            return value.getDoubleValue() / 100.0;
-        };
-        originality.updateText();
+        attachAmount(originality, "chordOriginality");
+        attachAmount(colour, "chordColour");
+        attachAmount(mood, "chordMood");
+        mood.setColour(juce::Slider::thumbColourId, palette::accent);
+        mood.setColour(juce::Slider::trackColourId, palette::accent);
         sliderAttachments.push_back(
             std::make_unique<SliderAttachment>(processor.parameters, "chordCentre", centre));
         centre.textFromValueFunction = [](double value) { return pitchName(int(std::lround(value))); };
@@ -182,9 +191,15 @@ struct ChordComposerPanel::Impl : public juce::Component {
         scale.setTooltip(
             "Shared scale for new chords and melodies. Existing notes are unchanged until generation.");
         resolveAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "chordResolve", resolve);
-        originality.setTooltip("Controls harmonic colour and exploration within the selected character. "
-                               "Higher values allow mixture, extended chords and temporary key centres. "
-                               "Phrase destinations and learned transitions still guide the search.");
+        originality.setTooltip("Controls how surprising the progression is, independently of chord colour. "
+                               "Low values favour familiar tonal movement. High values allow borrowed chords, "
+                               "distant roots and semitone shifts. Resolve still brings the ending home.");
+        colour.setTooltip("Controls chord vocabulary independently of root movement. Low values use triads. "
+                          "Raise it for suspensions, sixths and sevenths; high values also allow ninths. "
+                          "Voicing below controls inversions and spacing instead. Applies to new chords.");
+        mood.setTooltip("Dark favours minor, diminished and tense colours; Bright favours major and warmer "
+                        "colours. 50% is neutral. Key, scale, Colour and Resolve still constrain the result. "
+                        "Applies to new chords.");
         rhythm.setTooltip("How often the harmony changes, in bars of the main plugin's meter. Applies "
                           "to the next chord generation.");
         voicing.setTooltip("Smooth inversions minimise voice movement across the sequence. Root position "
@@ -300,7 +315,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
                     juce::MessageBoxIconType::InfoIcon, "Chord Composer",
                     "1. Set key, scale and Length here; set Meter on Melody. Chord Length defaults to 4 "
                     "bars.\n\n"
-                    "2. Choose Originality and harmonic rhythm, then New chords only. The new harmony "
+                    "2. Choose character, Originality, Chord colour, Mood and harmonic rhythm, then New chords only. The new harmony "
                     "is active immediately. Existing melodies are unchanged.\n\n"
                     "3. Press Play below the chord piano roll. Choose a voicing and centre, then Revoice to "
                     "change their "
@@ -458,26 +473,29 @@ struct ChordComposerPanel::Impl : public juce::Component {
 
     void resized() override {
         const int w = getWidth(), h = getHeight();
-        const int split = int(w * 0.43f), right = split + 36, rightWidth = w - right - 36;
-        context.setBounds(w - 400, 20, 376, 25);
-        help.setBounds(w - 52, 52, 28, 24);
+        context.setBounds(w - 600, 20, 380, 25);
+        help.setBounds(w - 52, 20, 28, 24);
         key.setBounds(20, 69, 70, 28);
-        scale.setBounds(100, 69, 210, 28);
-        length.setBounds(322, 69, 120, 28);
-        rhythmShape.setBounds(452, 69, 150, 28);
-        character.setBounds(202, 172, split - 222, 29);
-        originality.setBounds(34, 117, split - 24, 35);
-        const int rhythmWidth = int(rightWidth * 0.4f);
-        rhythm.setBounds(right, 119, rhythmWidth - 10, 30);
-        voicing.setBounds(right + rhythmWidth, 119, rightWidth - rhythmWidth, 30);
-        centre.setBounds(right, 176, rhythmWidth - 10, 29);
-        resolve.setBounds(right + rhythmWidth, 176, rightWidth - rhythmWidth, 29);
+        scale.setBounds(100, 69, 180, 28);
+        length.setBounds(292, 69, 110, 28);
+        character.setBounds(414, 69, 145, 28);
+        rhythmShape.setBounds(571, 69, 140, 28);
+        rhythm.setBounds(723, 69, w - 743, 28);
+        const int column = (w - 80) / 3;
+        int x = 34;
+        for (auto* slider : {&originality, &colour, &mood}) {
+            slider->setBounds(x, 130, column, 32);
+            x += column + 14;
+        }
+        voicing.setBounds(158, 183, 186, 27);
+        centre.setBounds(474, 183, w - 750, 27);
+        resolve.setBounds(w - 256, 183, 228, 27);
         generateChords.setBounds(20, 232, 160, 35);
         adaptMelody.setBounds(190, 232, 166, 35);
         generateMelody.setBounds(366, 232, 196, 35);
         newPair.setBounds(572, 232, 196, 35);
         revoice.setBounds(w - 124, 232, 104, 35);
-        melodySettings.setBounds(w - 188, 52, 126, 25);
+        melodySettings.setBounds(w - 204, 20, 142, 25);
         cardViewport.setBounds(20, 302, w - 40, 82);
         const int cardWidth = std::max(w - 40, cards.sequenceCount() * 137);
         cards.setSize(cardWidth, 72);
@@ -499,27 +517,32 @@ struct ChordComposerPanel::Impl : public juce::Component {
         g.fillAll();
         caption(g, text("CHORDS"), {20, 17, 370, 30}, palette::text, 24, true);
         caption(g, text("KEY / SCALE"), {20, 48, 290, 19}, palette::muted, 11);
-        caption(g, text("SEQUENCE LENGTH"), {322, 48, 140, 19}, palette::muted, 11);
-        caption(g, text("RHYTHM SHAPE"), {452, 48, 150, 19}, palette::muted, 11);
+        caption(g, text("SEQUENCE LENGTH"), {292, 48, 110, 19}, palette::muted, 11);
+        caption(g, text("HARMONIC CHARACTER"), {414, 48, 145, 19}, palette::muted, 11);
+        caption(g, text("RHYTHM SHAPE"), {571, 48, 140, 19}, palette::muted, 11);
+        caption(g, text("HARMONIC RHYTHM"), {723, 48, w - 743, 19}, palette::muted, 11);
         const juce::Rectangle<float> controls(20, 107, float(w - 40), 109);
         g.setGradientFill(juce::ColourGradient(palette::panel.brighter(0.045f), controls.getTopLeft(),
                                                palette::panel, controls.getBottomRight(), false));
         g.fillRoundedRectangle(controls, 12);
         g.setColour(palette::line.withAlpha(0.7f));
         g.drawRoundedRectangle(controls.reduced(0.5f), 12, 1);
-        const int split = int(w * 0.43f), right = split + 36, rightWidth = w - right - 36;
-        const int rhythmWidth = int(rightWidth * 0.4f);
-        caption(g, text("HARMONIC CHARACTER"), {36, 176, 160, 20}, palette::muted, 11);
-        caption(g, text("ORIGINALITY"), {36, 97, split - 36, 19}, palette::teal, 11.5f, true);
-        caption(g, text("Familiar"), {38, 150, 150, 20}, palette::muted, 11);
-        g.setColour(palette::muted);
-        g.setFont(chordFont(11));
-        g.drawText(text("Adventurous"), juce::Rectangle<int>(split - 144, 150, 100, 20),
-                   juce::Justification::centredRight);
-        caption(g, text("HARMONIC RHYTHM"), {right, 97, rhythmWidth - 10, 18}, palette::muted, 11, true);
-        caption(g, text("VOICING"), {right + rhythmWidth, 97, rightWidth - rhythmWidth, 18}, palette::muted, 11,
-                true);
-        caption(g, text("VOICE CENTRE"), {right, 156, rhythmWidth - 10, 18}, palette::muted, 11, true);
+        const int column = (w - 80) / 3;
+        const char* headings[]{"ORIGINALITY", "CHORD COLOUR", "MOOD"};
+        const char* low[]{"Familiar", "Triads", "Dark"};
+        const char* high[]{"Adventurous", "Rich", "Bright"};
+        for (int i = 0; i < 3; ++i) {
+            const int x = 36 + i * (column + 14);
+            caption(g, text(headings[i]), {x, 111, column, 19},
+                    i == 2 ? palette::accent : palette::teal, 11.5f, true);
+            caption(g, text(low[i]), {x, 161, column / 2, 18}, palette::muted, 11);
+            g.setColour(palette::muted);
+            g.setFont(chordFont(11));
+            g.drawText(text(high[i]), juce::Rectangle<int>{x + column / 2, 161, column / 2 - 8, 18},
+                       juce::Justification::centredRight);
+        }
+        caption(g, text("VOICING"), {36, 185, 118, 20}, palette::muted, 11);
+        caption(g, text("VOICE CENTRE"), {360, 185, 110, 20}, palette::muted, 11);
         caption(g,
                 text("Adapt melody keeps its rhythm. Melody from these chords generates a new bank over the full sequence."),
                 {20, 274, w - 40, 20}, palette::muted, 12);
