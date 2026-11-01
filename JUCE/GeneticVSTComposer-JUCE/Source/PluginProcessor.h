@@ -69,6 +69,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     double chordPlayPosition() const { return chordBeat.load(); }
     juce::Result generateChords();
     juce::Result revoiceChords();
+    juce::Result adaptMelodyToChords();
+    bool canAdaptMelodyToChords() const;
     composer::Clip chordClipSnapshot() const;
     juce::Result exportChordMidi(const juce::File&) const;
     juce::Result setTimeSignature(const juce::String&);

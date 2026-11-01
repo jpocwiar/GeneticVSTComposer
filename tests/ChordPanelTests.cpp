@@ -93,6 +93,15 @@ bool sameNotes(const composer::Clip& a, const composer::Clip& b) {
     }
     return true;
 }
+juce::ComboBox* findHarmonicCharacter(juce::Component& component) {
+    if (auto* combo = dynamic_cast<juce::ComboBox*>(&component))
+        if (combo->getNumItems() == 5 && combo->getItemText(2) == "Jazz")
+            return combo;
+    for (auto* child : component.getChildren())
+        if (auto* combo = findHarmonicCharacter(*child))
+            return combo;
+    return nullptr;
+}
 void checkLayout(ChordComposerPanel& panel) {
     auto* roll = findRoll(panel);
     check(roll != nullptr, "chord panel piano roll missing");
@@ -110,7 +119,10 @@ void checkLayout(ChordComposerPanel& panel) {
               "chord panel scaled control falls outside its window");
     };
     visibleInside(*roll);
-    for (const char* name : {"New chords only", "Melody from these chords", "New chords + melody", "Revoice",
+    auto* character = findHarmonicCharacter(panel);
+    check(character != nullptr, "harmonic character selector missing");
+    visibleInside(*character);
+    for (const char* name : {"New chords only", "Adapt melody", "Melody from these chords", "New chords + melody", "Revoice",
                              "Play", "Play together", "Drag chord MIDI", "Export..."}) {
         auto* button = findButton(panel, name);
         check(button != nullptr, "chord panel primary action missing");
@@ -123,6 +135,30 @@ void checkLayout(ChordComposerPanel& panel) {
 } // namespace
 
 void runChordPanelTests() {
+    {
+        Processor scoped;
+        composer::Clip melody;
+        melody.length = 4;
+        melody.count = 4;
+        for (int i = 0; i < melody.count; ++i)
+            melody.notes[size_t(i)] = {double(i), 0.75, 60, 90, false, 0};
+        scoped.setClip(0, melody);
+        ChordComposerPanel panel(scoped);
+        panel.setVisible(true);
+        panel.refreshDisplay();
+        auto* adapt = findButton(panel, "Adapt melody");
+        check(adapt && !adapt->isEnabled(), "adaptation is enabled without chords");
+        check(scoped.setCustomHarmony("F#m:4").wasOk(), "adaptation panel harmony setup");
+        scoped.setPlaybackRegion(1, 3, true);
+        panel.refreshDisplay();
+        adapt = findButton(panel, "Adapt range");
+        check(adapt && adapt->isEnabled() && bool(adapt->onClick), "contextual adaptation action missing");
+        adapt->onClick();
+        const auto changed = scoped.selectedClip();
+        check(changed.notes[0].pitch == 60 && changed.notes[3].pitch == 60 &&
+                  changed.notes[1].pitch != 60 && changed.notes[2].pitch != 60 && changed.count == melody.count,
+              "adaptation button did not preserve the melody's selected scope");
+    }
     auto processor = std::make_unique<Processor>();
     processor->prepareToPlay(48000, 512);
     composer::Clip melody;
@@ -141,6 +177,10 @@ void runChordPanelTests() {
     panel.setSize(760, 540);
     panel.refreshDisplay();
     checkLayout(panel);
+    auto* character = findHarmonicCharacter(panel);
+    character->setSelectedId(3, juce::sendNotificationSync);
+    check(processor->parameters.getRawParameterValue("chordCharacter")->load() == 2,
+          "harmonic character selector is not attached to its parameter");
 
     auto* generate = findButton(panel, "New chords only");
     check(generate->isEnabled() && bool(generate->onClick), "chord generation action is unavailable");

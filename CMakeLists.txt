@@ -9,13 +9,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/GeneticVSTComposer-JUCE/Source")
 add_library(composer_engine STATIC "${SOURCE_DIR}/ComposerEngine.cpp"
-    "${SOURCE_DIR}/ChordGenerator.cpp" "${SOURCE_DIR}/ChordGenerator.h")
+    "${SOURCE_DIR}/ChordGenerator.cpp" "${SOURCE_DIR}/ChordGenerator.h"
+    "${SOURCE_DIR}/MelodyAdaptation.cpp"
+    "${SOURCE_DIR}/HarmonicSearch.h" "${SOURCE_DIR}/HarmonyModelData.h")
 target_include_directories(composer_engine PUBLIC "${SOURCE_DIR}")
 set_target_properties(composer_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 find_package(Threads REQUIRED)
 target_link_libraries(composer_engine PUBLIC Threads::Threads)
 if(BUILD_TESTING)
-    add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp tests/MusicalArchitectureTests.cpp)
+    add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp
+        tests/MusicalArchitectureTests.cpp tests/MelodyAdaptationTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
     # Tests keep Clips/Banks and whole Processors on the main-thread stack; match the
     # 8 MB macOS default instead of the 1 MB Windows one.

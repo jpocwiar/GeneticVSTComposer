@@ -1078,6 +1078,16 @@ Repetition repetitionAt(const Clip& clip, double lag, double begin = -1) {
     return result;
 }
 } // namespace
+std::array<int, 4> chordPitchClasses(const ChordEvent& chord) {
+    std::array<int, 4> result;
+    const auto& intervals = chordIntervals[std::clamp(chord.quality, 0, 16)];
+    for (int i = 0; i < 4; ++i)
+        result[size_t(i)] = intervals[i] < 0 ? -1 : ((chord.root + intervals[i]) % 12 + 12) % 12;
+    return result;
+}
+bool isValidMicrotonalPassing(const Clip& clip, int index, const Settings& settings) {
+    return index >= 0 && index < clip.count && clip.count <= maxNotes && validPassing(clip, index, settings);
+}
 PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
     auto clip = source;
     sanitise(clip);

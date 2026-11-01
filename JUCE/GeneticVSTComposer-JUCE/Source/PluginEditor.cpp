@@ -434,7 +434,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     };
     for (auto* button : {&captureA,     &compare,       &clearA,        &allTime,      &exportRange,
                          &simplify,     &movement,      &answer,        &resolve,      &applyHarmony,
-                         &clearHarmony, &importHarmony, &chordComposer, &importGroove, &captureGroove,
+                         &clearHarmony, &importHarmony, &chordComposer, &adaptMelody, &importGroove, &captureGroove,
                          &applyGroove,  &arrange,       &combine,       &applyDraft,   &discardDraft})
         addAndMakeVisible(*button);
     for (auto* value : {&playbackInfo, &workflowInfo, &regionInfo}) {
@@ -498,6 +498,11 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     chordText.setTooltip("Chord:duration, separated by spaces. Durations are quarter-note beats, not bars.");
     chordText.onReturnKey = [this] { report(processor.setCustomHarmony(chordText.getText())); };
     applyHarmony.onClick = [this] { report(processor.setCustomHarmony(chordText.getText())); };
+    adaptMelody.onClick = [this] { report(processor.adaptMelodyToChords()); };
+    adaptMelody.setColour(juce::TextButton::textColourOffId, teal);
+    adaptMelody.setTooltip("Adapt the selected melody to these exact chords, keeping its rhythm, dynamics "
+                           "and contour as far as possible. A melody time selection limits the edit. "
+                           "Locked notes and other variations stay unchanged. Undo restores the melody.");
     clearHarmony.onClick = [this] {
         processor.clearCustomHarmony();
         chordText.clear();
@@ -715,6 +720,7 @@ void Editor::applyInterfaceLanguage() {
     text(clearHarmony, "Clear");
     text(importHarmony, "Import harmony MIDI");
     text(chordComposer, "Chord composer...");
+    text(adaptMelody, "Adapt melody");
     text(importGroove, "Import groove MIDI");
     text(captureGroove, "Use selected");
     text(applyGroove, "Apply groove");
@@ -964,7 +970,8 @@ void Editor::resized() {
     applyHarmony.setBounds(x + 12, 638, 118, 28);
     clearHarmony.setBounds(x + 138, 638, 66, 28);
     importHarmony.setBounds(x + 212, 638, 188, 28);
-    chordComposer.setBounds(x + 412, 638, mw - 424, 28);
+    adaptMelody.setBounds(x + 408, 638, 208, 28);
+    chordComposer.setBounds(x + 624, 638, mw - 636, 28);
     importGroove.setBounds(x + 12, 602, 174, 28);
     captureGroove.setBounds(x + 194, 602, 124, 28);
     grooveTiming.setBounds(x + 60, 638, 174, 26);
@@ -1101,7 +1108,7 @@ void Editor::updateWorkflow() {
     for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &simplify, &movement, &answer, &resolve})
         component->setVisible(!chordPage && workflowPage == 0);
     for (auto* component : std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony,
-                                                                   &importHarmony, &chordComposer})
+                                                                   &importHarmony, &chordComposer, &adaptMelody})
         component->setVisible(!chordPage && workflowPage == 1);
     for (auto* component : std::initializer_list<juce::Component*>{
              &importGroove, &captureGroove, &grooveTiming, &grooveVelocity, &applyGroove})
@@ -1307,6 +1314,8 @@ void Editor::refresh() {
     for (auto* action : {&simplify, &movement, &answer, &resolve})
         action->setEnabled(!draft && !processor.isGenerating());
     applyGroove.setEnabled(!draft && processor.hasGrooveReference() && !processor.isGenerating());
+    adaptMelody.setEnabled(!processor.isGenerating() && processor.canAdaptMelodyToChords());
+    adaptMelody.setButtonText(tr(roll.hasTimeSelection() ? "Adapt range" : "Adapt melody"));
     microOutput.setEnabled(microtonal);
     tuning.setEnabled(microtonal);
     bendRange.setEnabled(output == 1);

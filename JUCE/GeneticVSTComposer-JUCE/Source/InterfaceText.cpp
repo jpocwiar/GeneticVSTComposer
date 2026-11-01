@@ -7,6 +7,11 @@ struct Entry {
 };
 // Longer fragments first so a short token does not rewrite part of a longer one.
 const Entry fragments[]{
+    {"Melody adapted to chords: ", "Melodia dopasowana do akordów: "},
+    {" notes adjusted. Rhythm and locked notes are preserved. Undo restores the melody.",
+     " nut zmienionych. Rytm i blokady zostają zachowane. Cofnij przywraca melodię."},
+    {" Fit to scale is on; disable it to hear borrowed chord tones.",
+     " Dopasowanie do skali jest włączone; wyłącz je, aby usłyszeć dźwięki zapożyczonych akordów."},
     {"Loop: beats ", "Pętla: uderzenia "},
     {" individuals. Audition a phrase; drag its piano roll to your DAW.",
      " osobników. Odsłuchaj frazę i przeciągnij jej piano roll do DAW."},
@@ -50,6 +55,36 @@ const Entry fragments[]{
     {" bars", " taktów"},
 };
 const Entry exact[]{
+    {"Adapt melody", "Dopasuj melodię"},
+    {"Adapt range", "Dopasuj fragment"},
+    {"Adapt melody keeps its rhythm. Melody from these chords generates a new bank over the full sequence.",
+     "Dopasuj melodię zachowuje rytm. Melodia z tych akordów generuje nowy bank na całą sekwencję."},
+    {"Adapt the selected melody to these exact chords, keeping its rhythm, dynamics "
+     "and contour as far as possible. A melody time selection limits the edit. "
+     "Locked notes and other variations stay unchanged. Undo restores the melody.",
+     "Dopasuj wybraną melodię do tych akordów, zachowując rytm, dynamikę i możliwie wierny kontur. "
+     "Zaznaczenie czasu ogranicza zmianę. Zablokowane nuty i inne warianty zostają. Cofnij przywraca melodię."},
+    {"Apply or discard the preview before adapting the melody.", "Zastosuj albo odrzuć podgląd przed dopasowaniem melodii."},
+    {"Create or enter chords before adapting the melody.", "Utwórz albo wpisz akordy przed dopasowaniem melodii."},
+    {"Select a melody with notes to adapt.", "Wybierz melodię z nutami do dopasowania."},
+    {"Melody unchanged: its pitches already fit or its notes are protected.",
+     "Melodia bez zmian: wysokości już pasują albo nuty są chronione."},
+    {"New chords are active. Adapt the existing melody or generate a new one.",
+     "Nowe akordy są aktywne. Dopasuj istniejącą melodię albo wygeneruj nową."},
+    {"Custom chords set. Adapt the existing melody or generate a new one.",
+     "Akordy ustawione. Dopasuj istniejącą melodię albo wygeneruj nową."},
+    {"HARMONIC CHARACTER", "CHARAKTER HARMONII"},
+    {"Cinematic", "Filmowy"},
+    {"Modal", "Modalny"},
+    {"Choose the harmonic language: tonal balance, pop, jazz, modal colour or cinematic "
+     "movement. Each plans a complete phrase; Originality controls its adventurousness.",
+     "Wybierz język harmonii: tonalny, pop, jazz, modalny lub filmowy. Każdy planuje całą frazę; "
+     "Oryginalność reguluje śmiałość przebiegu."},
+    {"Controls harmonic colour and exploration within the selected character. "
+     "Higher values allow mixture, extended chords and temporary key centres. "
+     "Phrase destinations and learned transitions still guide the search.",
+     "Reguluje barwę i śmiałość wybranego charakteru. Wyższe wartości dopuszczają zapożyczenia, "
+     "rozbudowane akordy i czasowe centra tonalne. Szukanie uwzględnia cel frazy i wyuczone przejścia."},
     {"Microtones", "Mikrotony"},
     {"Palette", "Paleta"},
     {"Tuning / MIDI", "Strój / MIDI"},

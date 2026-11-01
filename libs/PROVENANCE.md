@@ -1,3 +1,5 @@
 # Provenance
 
 `reverb-core` (`Fdn.hpp`, `Fdn.cpp`) and the two `dsp-kit` headers it needs (`DelayLine.hpp`, `Filters.hpp`) are copies from the Echoviard repository, revision `1e521ddfcdb20bdd1a72c1915c0d966b7f54ae50` (2026-10-31). They are not a shared module: Genetic Composer builds and changes its own copy. The FDN feeds only the internal audition monitor and never touches outgoing MIDI.
+
+`Source/HarmonyModelData.h` contains aggregate counts adapted from **Bach Choral Harmony**, Daniele P. Radicioni and Roberto Esposito (2014), UCI Machine Learning Repository, https://doi.org/10.24432/C5B61F, licensed **CC BY 4.0**, https://creativecommons.org/licenses/by/4.0/. The original source, checksums, transformation, reproducible trainer and validation are described in [`data/harmony/README.md`](../data/harmony/README.md). The derived model data retain CC BY 4.0; original generator code is MIT. Attribution is also present in the plugin's Polish/English guide. No other investigated chord corpus is bundled or used for training.

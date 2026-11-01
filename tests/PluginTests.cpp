@@ -36,6 +36,7 @@ void runChordPanelTests();
 void runPlaybackArchitectureTests();
 void runRealtimeTests();
 void renderMusicalExamples(const juce::File&);
+void renderHarmonyExamples(const juce::File&);
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
 #if JUCE_WINDOWS
@@ -44,6 +45,11 @@ int main(int argc, char** argv) {
     setenv("COMPOSER_DISABLE_UI_PREFS", "1", 1);
 #endif
     const std::string requested = argc > 1 ? argv[1] : "all";
+    if (requested == "render-harmony") {
+        require(argc == 3, "render-harmony requires an output directory");
+        renderHarmonyExamples(juce::File(argv[2]));
+        return 0;
+    }
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
                            requested == "realtime";
     const std::string suite = suiteMode ? requested : "all";

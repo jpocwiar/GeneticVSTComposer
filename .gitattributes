@@ -1,0 +1,4 @@
+# Preserve checksum-pinned upstream data exactly, including original line endings.
+data/harmony/uci-bach/* -text
+# The reproducible trainer emits a platform-independent generated header.
+JUCE/GeneticVSTComposer-JUCE/Source/HarmonyModelData.h text eol=lf

@@ -141,6 +141,13 @@ std::string harmonyText(const Harmony& harmony);
 // Operates on unlocked note onsets in [start, end), preserving all other events.
 Clip transformRegion(const Clip& clip, double start, double end, RegionAction action,
                      const Settings& settings);
+// Retarget pitches to actual chord events, keeping timing, velocity, note count,
+// locks and clip metadata. Only unlocked onsets in [start, end) are editable.
+// Uses minimal pitch movement and contour costs; short passing notes may remain.
+Clip adaptToHarmony(const Clip&, double start, double end, const Settings&);
+// Pitch classes of the stored chord vocabulary; unused entries are -1.
+std::array<int, 4> chordPitchClasses(const ChordEvent&);
+bool isValidMicrotonalPassing(const Clip&, int index, const Settings&);
 Clip applyGroove(const Clip& target, const Clip& reference, float timingAmount, float velocityAmount);
 Clip combineParts(const Clip& rhythm, const Clip& pitches, const Clip& accents);
 Bank makeInitialBank();

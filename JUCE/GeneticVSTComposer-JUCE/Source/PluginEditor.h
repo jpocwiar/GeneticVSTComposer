@@ -123,7 +123,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
         movement{"More movement"}, answer{"Answer"}, resolve{"Resolve"};
     juce::TextEditor chordText;
     juce::TextButton applyHarmony{"Apply chords"}, clearHarmony{"Clear"},
-        importHarmony{"Import harmony MIDI"}, chordComposer{"Chord composer..."};
+        importHarmony{"Import harmony MIDI"}, chordComposer{"Chord composer..."}, adaptMelody{"Adapt melody"};
     juce::TextButton importGroove{"Import groove MIDI"}, captureGroove{"Use selected"},
         applyGroove{"Apply groove"};
     juce::Slider grooveTiming, grooveVelocity;

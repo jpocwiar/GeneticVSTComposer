@@ -78,6 +78,7 @@ void testDocumentAndHistory() {
     parameter(*p, "chordRhythm", 1);
     parameter(*p, "chordCentre", 36);
     parameter(*p, "chordOriginality", 0.7f);
+    parameter(*p, "chordCharacter", 2);
     check(p->generateChords().wasOk(), "chord generation failed");
     const auto harmony = p->harmonySnapshot();
     const auto first = p->chordClipSnapshot();
@@ -118,6 +119,8 @@ void testDocumentAndHistory() {
     check(restored->customHarmonyText() == text && sameClip(revoiced, restored->chordClipSnapshot()) &&
               sameBank(bank, restored->bankSnapshot()),
           "saved document did not restore exact chord voicings and melody bank");
+    check(restored->parameters.getRawParameterValue("chordCharacter")->load() == 2,
+          "harmonic character did not survive state restore");
 
     p->clearCustomHarmony();
     check(p->harmonySnapshot().count == 0 && p->chordClipSnapshot().count == 0,
@@ -152,7 +155,7 @@ void testDocumentAndHistory() {
         auto params = legacy.getChildWithName("Parameters");
         params.getChildWithProperty("id", "snap").setProperty("value", 1.0f, nullptr);
         for (const char* id :
-             {"chordOriginality", "chordRhythm", "chordVoicing", "chordCentre", "chordResolve"})
+             {"chordOriginality", "chordRhythm", "chordVoicing", "chordCentre", "chordResolve", "chordCharacter"})
             params.removeChild(params.getChildWithProperty("id", id), nullptr);
         juce::MemoryBlock oldState;
         const auto oldXml = legacy.createXml();
@@ -160,6 +163,8 @@ void testDocumentAndHistory() {
         restored->setStateInformation(state.getData(), int(state.getSize()));
         restored->setStateInformation(oldState.getData(), int(oldState.getSize()));
         check(sameBank(bank, restored->bankSnapshot()), "legacy state restore damaged melody notes");
+        check(restored->parameters.getRawParameterValue("chordCharacter")->load() == 0,
+              "a legacy state inherited a previously selected harmonic character");
         check(restored->parameters.getRawParameterValue("snap")->load() == (version == 3 ? 0 : 1),
               "legacy Fit to scale migration did not preserve its effective harmony-dependent state");
         const auto oldChords = restored->chordClipSnapshot();
@@ -278,9 +283,12 @@ void testGeneratedHarmonyConditionsMelodies() {
     check(!p->isGenerating(), "melody conditioned on generated chords timed out");
     check(p->customHarmonyText() == text && sameClip(voicing, p->chordClipSnapshot()),
           "melody generation replaced the generated harmonic sequence");
-    // Intervals define the nine supported chord qualities, independently of register/inversion.
-    const int intervals[9][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
-                              {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}};
+    // Include the full vocabulary: generated colour chords now exercise the
+    // sixths/ninths that were previously reachable only through typed harmony.
+    const int intervals[17][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1}, {0, 4, 8, -1}, {0, 4, 7, 10},
+                               {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1}, {0, 3, 6, 10},
+                               {0, 3, 6, 9}, {0, 4, 7, 9}, {0, 3, 7, 9}, {0, 4, 7, 14}, {0, 4, 10, 14},
+                               {0, 4, 11, 14}, {0, 3, 7, 11}};
     for (const auto& clip : p->bankSnapshot()) {
         check(clip.count > 0, "conditioned melody bank contains an empty phrase");
         for (int i = 0; i < clip.count; ++i) {
@@ -293,7 +301,7 @@ void testGeneratedHarmonyConditionsMelodies() {
             const int pitchClass = (note.pitch - chord.root + 120) % 12;
             bool belongs = false;
             for (int interval : intervals[chord.quality])
-                belongs |= interval >= 0 && interval == pitchClass;
+                belongs |= interval >= 0 && interval % 12 == pitchClass;
             check(belongs, "zero-tension melody ignored an actual generated chord at its onset");
         }
     }
@@ -490,9 +498,93 @@ void testChordPlaybackAndReturningToMelody() {
     p->panic();
     render(*p, 1, elapsed);
 }
+void testAdaptExistingMelody() {
+    auto p = std::make_unique<Processor>();
+    composer::Clip clip;
+    clip.count = 8;
+    clip.length = 8;
+    clip.seed = 123;
+    clip.favourite = true;
+    for (int i = 0; i < clip.count; ++i)
+        clip.notes[size_t(i)] = {double(i), 0.75, 60 + i, 70 + i, i == 1, i == 1 ? 25 : 0};
+    p->setClip(3, clip);
+    p->selectClip(3);
+    check(!p->canAdaptMelodyToChords() && p->adaptMelodyToChords().failed(),
+          "melody adaptation accepted a missing harmony");
+    check(p->setCustomHarmony("C:8").wasOk(), "old adaptation harmony setup");
+    const auto original = p->bankSnapshot();
+    check(p->setCustomHarmony("F#m:4 B7:4").wasOk() && sameBank(original, p->bankSnapshot()),
+          "changing harmony automatically rewrote the melody without an adaptation request");
+    const auto harmony = p->customHarmonyText();
+    const auto chords = p->chordClipSnapshot();
+    p->setPlaybackRegion(2, 6, true);
+    p->captureComparison();
+    p->toggleComparison();
+    check(p->canAdaptMelodyToChords() && p->adaptMelodyToChords().wasOk(), "existing melody adaptation failed");
+    const auto adapted = p->bankSnapshot();
+    check(!sameClip(adapted[3], original[3]) && adapted[3].count == clip.count &&
+              adapted[3].seed == clip.seed && adapted[3].favourite == clip.favourite,
+          "adaptation regenerated the phrase instead of retuning the selected variation");
+    check(p->customHarmonyText() == harmony && sameClip(chords, p->chordClipSnapshot()) && !p->isComparing(),
+          "adaptation changed the chords or left A reference audible");
+    for (int slot = 0; slot < composer::slotCount; ++slot)
+        if (slot != 3)
+            check(sameClip(original[size_t(slot)], adapted[size_t(slot)]), "adaptation modified another bank slot");
+    for (int i = 0; i < clip.count; ++i) {
+        const auto& a = clip.notes[size_t(i)];
+        const auto& b = adapted[3].notes[size_t(i)];
+        check(a.start == b.start && a.duration == b.duration && a.velocity == b.velocity && a.locked == b.locked,
+              "adaptation rewrote note rhythm or dynamics");
+        if (a.start < 2 || a.start >= 6 || a.locked)
+            check(a.pitch == b.pitch && a.cents == b.cents, "adaptation changed a protected pitch");
+    }
+    p->undo();
+    check(sameBank(original, p->bankSnapshot()) && p->customHarmonyText() == harmony,
+          "adaptation undo did not restore the old melody over the new harmony");
+    p->redo();
+    check(sameBank(adapted, p->bankSnapshot()), "adaptation redo lost its exact result");
+    const auto revision = p->documentRevision();
+    check(p->adaptMelodyToChords().wasOk() && p->documentRevision() == revision,
+          "an already adapted melody created another document edit");
+    TemporaryMidi exported;
+    check(p->exportMidi(exported.file).wasOk(), "adapted melody MIDI export failed");
+    juce::FileInputStream input(exported.file);
+    juce::MidiFile midi;
+    check(midi.readFrom(input), "adapted melody MIDI could not be read");
+    std::vector<int> pitches;
+    for (int track = 0; track < midi.getNumTracks(); ++track)
+        for (int i = 0; i < midi.getTrack(track)->getNumEvents(); ++i) {
+            const auto& m = midi.getTrack(track)->getEventPointer(i)->message;
+            if (m.isNoteOn())
+                pitches.push_back(m.getNoteNumber());
+        }
+    check(pitches.size() == size_t(clip.count), "adapted melody export lost notes");
+    for (int i = 0; i < clip.count; ++i)
+        check(pitches[size_t(i)] == adapted[3].notes[size_t(i)].pitch, "export retained pre-adaptation pitches");
+    juce::MemoryBlock state;
+    p->getStateInformation(state);
+    auto restored = std::make_unique<Processor>();
+    restored->setStateInformation(state.getData(), int(state.getSize()));
+    check(sameBank(adapted, restored->bankSnapshot()) && restored->customHarmonyText() == harmony,
+          "adapted melody did not survive project restore");
+    check(p->previewCombination(0, 1, 2).wasOk(), "adaptation draft fixture");
+    const auto draftRevision = p->documentRevision();
+    check(!p->canAdaptMelodyToChords() && p->adaptMelodyToChords().failed() &&
+              p->documentRevision() == draftRevision && sameBank(adapted, p->bankSnapshot()),
+          "adapting an unaccepted preview mutated the document");
+    p->discardDraft();
+    for (int i = 0; i < clip.count; ++i)
+        clip.notes[size_t(i)].locked = true;
+    p->setClip(3, clip);
+    const auto lockedRevision = p->documentRevision();
+    check(!p->canAdaptMelodyToChords() && p->adaptMelodyToChords().wasOk() &&
+              p->documentRevision() == lockedRevision && sameClip(clip, p->selectedClip()),
+          "adapting a fully locked selection rewrote notes or history");
+}
 } // namespace
 
 void runChordPluginTests() {
+    testAdaptExistingMelody();
     {
         auto p = std::make_unique<Processor>();
         parameter(*p, "bars", 0); // A one-bar riff must not force a one-chord progression.

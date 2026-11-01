@@ -471,6 +471,7 @@ void testMetricGrouping() {
 }
 void runSearchTests();
 void runChordGeneratorTests();
+void runMelodyAdaptationTests();
 void runMusicalArchitectureTests();
 int main(int argc, char** argv) {
     const std::string suite = argc > 1 ? argv[1] : "all";
@@ -485,6 +486,7 @@ int main(int argc, char** argv) {
             runSearchTests();
         if (want("harmony")) {
             runChordGeneratorTests();
+            runMelodyAdaptationTests();
             testHarmony();
         }
         if (want("architecture"))

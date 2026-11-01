@@ -4,6 +4,8 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <set>
+#include <iostream>
 #include <vector>
 
 namespace {
@@ -107,6 +109,102 @@ double triadMovement(const Clip& clip) {
 
 void runChordGeneratorTests() {
     using namespace composer;
+    const auto model = harmonyModelInfo();
+    check(model.sourceEvents == 5665 && model.sourceSequences == 60 && model.transitions == 2890 &&
+              model.validationSequences == 9 && model.validationTransitions == 421,
+          "embedded harmony model provenance differs from the verified source");
+    check(model.contextPerplexity < model.firstOrderPerplexity && model.firstOrderPerplexity < 36,
+          "learned harmonic context did not improve held-out transition prediction");
+    std::set<std::string> simpleRootPaths;
+    for (uint32_t seed = 1; seed <= 64; ++seed) {
+        ChordGenerationSettings plain;
+        plain.bars = 8;
+        plain.scale = 0;
+        plain.originality = 0;
+        plain.seed = seed;
+        const auto harmony = generateHarmony(plain);
+        validateHarmony(harmony);
+        std::string roots;
+        for (int i = 0; i < harmony.count; ++i)
+            roots += std::to_string(harmony.chords[size_t(i)].root) + ",";
+        simpleRootPaths.insert(roots);
+    }
+    check(simpleRootPaths.size() >= 24, "uncoloured harmonic structure still comes from a few root templates");
+    // Every supported mode/profile and short/long form must have a feasible plan,
+    // including two-chord minor cadences and tiny/maximum-length timelines.
+    for (int character = 0; character < 5; ++character)
+        for (int scale = 0; scale < 16; ++scale)
+            for (int positions : {1, 2, 3, 5, 8, 16, 64}) {
+                ChordGenerationSettings s;
+                s.character = character;
+                s.scale = scale;
+                s.root = 6;
+                s.numerator = 1;
+                s.bars = positions;
+                s.originality = positions % 3 == 0 ? 0.0f : positions % 2 == 0 ? 1.0f : 0.35f;
+                s.resolve = scale % 2 == 0;
+                s.seed = uint32_t(positions * 17 + scale);
+                const auto harmony = generateHarmony(s);
+                if (!harmony.count)
+                    throw std::runtime_error("Infeasible harmonic plan: character " + std::to_string(character) +
+                                             ", scale " + std::to_string(scale) + ", count " + std::to_string(positions));
+                validateHarmony(harmony);
+                check(harmony.count == positions, "harmonic constraints made a valid timeline infeasible");
+            }
+    std::array<std::set<std::string>, 5> vocabulary;
+    std::array<int, 5> extended{}, suspensions{}, ninthCount{}, repeatedCells{};
+    for (int character = 0; character < 5; ++character)
+        for (uint32_t seed = 1; seed <= 64; ++seed) {
+            ChordGenerationSettings s;
+            s.character = character;
+            s.bars = 8;
+            s.scale = 0;
+            s.originality = 0.65f;
+            s.seed = seed;
+            const auto harmony = generateHarmony(s);
+            validateHarmony(harmony);
+            check(same(harmony, generateHarmony(s)), "character search is not seeded and deterministic");
+            std::string signature;
+            bool repeated = true;
+            for (int i = 0; i < harmony.count; ++i) {
+                const auto& chord = harmony.chords[size_t(i)];
+                signature += std::to_string(chord.root) + ":" + std::to_string(chord.quality) + ",";
+                extended[size_t(character)] += chord.quality >= 4;
+                suspensions[size_t(character)] += chord.quality == 7 || chord.quality == 8;
+                ninthCount[size_t(character)] += chord.quality >= 13;
+                if (i >= 4 && chord.root != harmony.chords[size_t(i - 4)].root)
+                    repeated = false;
+                if (i >= 2)
+                    check(!(chord.root == harmony.chords[size_t(i - 1)].root &&
+                            chord.root == harmony.chords[size_t(i - 2)].root &&
+                            chord.quality == harmony.chords[size_t(i - 1)].quality &&
+                            chord.quality == harmony.chords[size_t(i - 2)].quality),
+                          "harmonic search repeated the identical chord three times");
+            }
+            repeatedCells[size_t(character)] += repeated;
+            vocabulary[size_t(character)].insert(signature);
+            const auto& ending = harmony.chords[size_t(harmony.count - 1)];
+            check(ending.root == 0 && ending.quality != 4 && ending.quality != 14,
+                  "resolved major phrase ended on a tonic-root dominant");
+            validateVoicing(harmony, voiceHarmony(harmony, 4, 4, {60, character == 4 ? 2 : 0}),
+                            character == 4 ? 2 : 0);
+        }
+    for (int character = 0; character < 5; ++character) {
+        check(vocabulary[size_t(character)].size() >= 48, "harmonic character collapsed to a few fixed templates");
+        check(repeatedCells[size_t(character)] < 8, "long progressions still mostly repeat one four-chord cell");
+    }
+    std::cout << "Character vocabulary (extensions / suspensions / ninths):";
+    for (int i = 0; i < 5; ++i)
+        std::cout << ' ' << extended[size_t(i)] << '/' << suspensions[size_t(i)] << '/' << ninthCount[size_t(i)];
+    std::cout << '\n';
+    check(extended[2] > extended[1] + 30 && ninthCount[2] > ninthCount[1] + 15,
+          "Jazz character does not produce a distinctly richer chord vocabulary than Pop");
+    check(suspensions[3] > suspensions[0] + 20, "Modal character does not favour suspended colours");
+    std::cout << "Harmony model: held-out perplexity " << model.firstOrderPerplexity << " -> "
+              << model.contextPerplexity << "; distinct phrases across 64 seeds:";
+    for (const auto& phrases : vocabulary)
+        std::cout << ' ' << phrases.size();
+    std::cout << "; uncoloured root paths " << simpleRootPaths.size() << '\n';
     for (int scale = 0; scale < 10; ++scale)
         for (uint32_t seed = 1; seed <= 32; ++seed) {
             ChordGenerationSettings shortSequence;

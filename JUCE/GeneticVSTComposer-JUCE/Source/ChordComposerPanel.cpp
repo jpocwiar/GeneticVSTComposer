@@ -89,17 +89,17 @@ struct ChordComposerPanel::Impl : public juce::Component {
     ComposerLookAndFeel look;
     juce::TooltipWindow tooltips{this, 600};
     juce::Slider originality, centre;
-    juce::ComboBox rhythm, rhythmShape, voicing, length, key, scale;
+    juce::ComboBox rhythm, rhythmShape, voicing, length, key, scale, character;
     juce::ToggleButton resolve{"Resolve to tonic"};
     juce::TextButton generateChords{"New chords only"}, generateMelody{"Melody from these chords"},
         newPair{"New chords + melody"}, revoice{"Revoice"}, melodySettings{"Melody settings"},
-        exportFile{"Export..."}, help{"?"};
+        exportFile{"Export..."}, help{"?"}, adaptMelody{"Adapt melody"};
     TransportButton audition, together;
     MidiDragButton drag;
     PianoRoll roll;
     ChordCards cards;
     juce::Viewport cardViewport;
-    juce::Label context, originalityInfo, status;
+    juce::Label context, status;
     std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<ComboAttachment>> comboAttachments;
     std::unique_ptr<ButtonAttachment> resolveAttachment;
@@ -115,12 +115,12 @@ struct ChordComposerPanel::Impl : public juce::Component {
         setOpaque(true);
         for (auto* component : std::initializer_list<juce::Component*>{
                  &originality,    &centre,       &rhythm,         &rhythmShape,     &voicing, &length,
-                 &key,
+                 &key, &character,
                  &scale,          &resolve,      &generateChords, &generateMelody,  &newPair, &revoice,
-                 &melodySettings, &audition,     &together,       &exportFile,      &help,    &drag,
-                 &roll,           &cardViewport, &context,        &originalityInfo, &status})
+                 &melodySettings, &adaptMelody,  &audition,     &together,       &exportFile,      &help,    &drag,
+                 &roll,           &cardViewport, &context,        &status})
             addAndMakeVisible(component);
-        for (auto* label : {&context, &originalityInfo, &status}) {
+        for (auto* label : {&context, &status}) {
             label->setFont(chordFont(12));
             label->setColour(juce::Label::textColourId, palette::muted);
             label->setMinimumHorizontalScale(1.0f);
@@ -154,6 +154,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
             comboAttachments.push_back(std::make_unique<ComboAttachment>(processor.parameters, id, combo));
         };
         attachChoice(rhythm, "chordRhythm");
+        attachChoice(character, "chordCharacter");
+        character.setTooltip("Choose the harmonic language: tonal balance, pop, jazz, modal colour or cinematic "
+                             "movement. Each plans a complete phrase; Originality controls its adventurousness.");
         attachChoice(rhythmShape, "chordRhythmShape");
         rhythmShape.setTooltip("Even keeps one chord per harmonic-rhythm step. Long-short and short-long "
                                "join neighbouring steps of that same grid.");
@@ -179,9 +182,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
         scale.setTooltip(
             "Shared scale for new chords and melodies. Existing notes are unchanged until generation.");
         resolveAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "chordResolve", resolve);
-        originality.setTooltip("Low: familiar functional progressions. Higher: substitutions, extensions, "
-                               "borrowed chords and secondary dominants. Tonal context and voice leading "
-                               "still guide the result. Applies to the next chord generation.");
+        originality.setTooltip("Controls harmonic colour and exploration within the selected character. "
+                               "Higher values allow mixture, extended chords and temporary key centres. "
+                               "Phrase destinations and learned transitions still guide the search.");
         rhythm.setTooltip("How often the harmony changes, in bars of the main plugin's meter. Applies "
                           "to the next chord generation.");
         voicing.setTooltip("Smooth inversions minimise voice movement across the sequence. Root position "
@@ -194,8 +197,16 @@ struct ChordComposerPanel::Impl : public juce::Component {
         generateChords.setColour(juce::TextButton::buttonColourId, palette::teal);
         generateChords.setColour(juce::TextButton::textColourOffId, palette::background);
         generateMelody.setColour(juce::TextButton::textColourOffId, palette::accent);
+        adaptMelody.setColour(juce::TextButton::textColourOffId, palette::teal);
+        adaptMelody.setTooltip("Adapt the selected melody to these exact chords, keeping its rhythm, dynamics "
+                               "and contour as far as possible. A melody time selection limits the edit. "
+                               "Locked notes and other variations stay unchanged. Undo restores the melody.");
+        adaptMelody.onClick = [this] {
+            report(processor.adaptMelodyToChords());
+            refresh();
+        };
         generateChords.setTooltip("Create and activate a new chord sequence. The existing melodies stay "
-                                  "as they are until you generate or evolve them.");
+                                  "as they are until you adapt them or generate new ones.");
         generateMelody.setTooltip(
             "Run the genetic melody search over the active chord sequence, using "
             "its full duration and meter. Keeps these exact chords; replaces unpinned melody variations.");
@@ -360,13 +371,12 @@ struct ChordComposerPanel::Impl : public juce::Component {
         context.setTooltip("This describes the active sequence. Controls above the actions configure the "
                            "next generation. Meter: " +
                            juce::String(meter.numerator) + "/" + juce::String(meter.denominator));
-        const float value = parameter("chordOriginality");
-        originalityInfo.setText(text(value < 0.3f   ? "Familiar movement, clear tonal direction."
-                                      : value < 0.7f ? "Fresh substitutions with a recognisable tonal centre."
-                                                     : "Borrowed colours, richer chords, unexpected turns."),
-                                juce::dontSendNotification);
+        const char* characters[]{"Balanced", "Pop", "Jazz", "Modal", "Cinematic"};
+        for (int i = 0; i < 5; ++i)
+            character.changeItemText(i + 1, text(characters[i]));
         busy = processor.isGenerating();
         generateChords.setEnabled(!busy);
+        adaptMelody.setEnabled(!busy && processor.canAdaptMelodyToChords());
         newPair.setEnabled(!busy);
         revoice.setEnabled(!busy && chordCount > 0);
         generateMelody.setEnabled(busy || chordCount > 0);
@@ -384,6 +394,9 @@ struct ChordComposerPanel::Impl : public juce::Component {
         together.setPlaying(playingTogether);
         together.setButtonText(text(playingTogether ? "Stop mix" : "Play together"));
         generateChords.setButtonText(text("New chords only"));
+        const auto region = processor.playbackRegion();
+        adaptMelody.setButtonText(text(region.enabled && region.slot == processor.selectedIndex()
+                                          ? "Adapt range" : "Adapt melody"));
         newPair.setButtonText(text("New chords + melody"));
         revoice.setButtonText(text("Revoice"));
         melodySettings.setButtonText(text("Melody settings"));
@@ -452,16 +465,17 @@ struct ChordComposerPanel::Impl : public juce::Component {
         scale.setBounds(100, 69, 210, 28);
         length.setBounds(322, 69, 120, 28);
         rhythmShape.setBounds(452, 69, 150, 28);
+        character.setBounds(202, 172, split - 222, 29);
         originality.setBounds(34, 117, split - 24, 35);
-        originalityInfo.setBounds(34, 172, split - 24, 25);
         const int rhythmWidth = int(rightWidth * 0.4f);
         rhythm.setBounds(right, 119, rhythmWidth - 10, 30);
         voicing.setBounds(right + rhythmWidth, 119, rightWidth - rhythmWidth, 30);
         centre.setBounds(right, 176, rhythmWidth - 10, 29);
         resolve.setBounds(right + rhythmWidth, 176, rightWidth - rhythmWidth, 29);
         generateChords.setBounds(20, 232, 160, 35);
-        generateMelody.setBounds(190, 232, 216, 35);
-        newPair.setBounds(416, 232, 196, 35);
+        adaptMelody.setBounds(190, 232, 166, 35);
+        generateMelody.setBounds(366, 232, 196, 35);
+        newPair.setBounds(572, 232, 196, 35);
         revoice.setBounds(w - 124, 232, 104, 35);
         melodySettings.setBounds(w - 188, 52, 126, 25);
         cardViewport.setBounds(20, 302, w - 40, 82);
@@ -495,6 +509,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
         g.drawRoundedRectangle(controls.reduced(0.5f), 12, 1);
         const int split = int(w * 0.43f), right = split + 36, rightWidth = w - right - 36;
         const int rhythmWidth = int(rightWidth * 0.4f);
+        caption(g, text("HARMONIC CHARACTER"), {36, 176, 160, 20}, palette::muted, 11);
         caption(g, text("ORIGINALITY"), {36, 97, split - 36, 19}, palette::teal, 11.5f, true);
         caption(g, text("Familiar"), {38, 150, 150, 20}, palette::muted, 11);
         g.setColour(palette::muted);
@@ -506,8 +521,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
                 true);
         caption(g, text("VOICE CENTRE"), {right, 156, rhythmWidth - 10, 18}, palette::muted, 11, true);
         caption(g,
-                text("New chords only keeps your melodies. Melody from these chords rewrites the unpinned "
-                     "melodies to this full sequence."),
+                text("Adapt melody keeps its rhythm. Melody from these chords generates a new bank over the full sequence."),
                 {20, 274, w - 40, 20}, palette::muted, 12);
         caption(g, text("VOICED CHORDS"), {20, 396, 270, 25}, palette::teal, 12, true);
         caption(

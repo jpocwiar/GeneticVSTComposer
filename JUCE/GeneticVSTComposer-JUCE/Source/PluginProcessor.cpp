@@ -182,6 +182,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     toggle("capturePhrase", "Capture phrase", false);
     toggle("evolveEachLoop", "Evolve each loop", false);
     number("auditionReverb", "Audition reverb", 0, 1, 0.15f);
+    choice("chordCharacter", "Harmonic character", {"Balanced", "Pop", "Jazz", "Modal", "Cinematic"}, 0);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -487,6 +488,7 @@ juce::Result Processor::generateChords() {
     s.originality = param("chordOriginality");
     s.harmonicRhythm = int(param("chordRhythm"));
     s.rhythmShape = int(param("chordRhythmShape"));
+    s.character = int(param("chordCharacter"));
     s.resolve = param("chordResolve") > 0.5f;
     s.seed = uint32_t(seedGenerator.nextInt());
     const auto harmony = composer::generateHarmony(s);
@@ -502,8 +504,7 @@ juce::Result Processor::generateChords() {
     chordClip = voiced;
     customHarmonyEnabled.store(true);
     publishLocked();
-    assignStatusLocked("New chords are active. Generate or evolve a melody to follow them; existing variations are "
-                       "retained.");
+    assignStatusLocked("New chords are active. Adapt the existing melody or generate a new one.");
     return juce::Result::ok();
 }
 juce::Result Processor::revoiceChords() {
@@ -517,6 +518,51 @@ juce::Result Processor::revoiceChords() {
     chordClip = voiced;
     publishLocked();
     assignStatusLocked("Chord voicings updated. The harmonic sequence and melody notes are unchanged.");
+    return juce::Result::ok();
+}
+bool Processor::canAdaptMelodyToChords() const {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    if (customHarmony.count == 0 || draftActive)
+        return false;
+    const int slot = selected.load();
+    const auto& clip = bank[size_t(slot)];
+    const bool scoped = pendingRegion.enabled && pendingRegion.slot == slot;
+    return std::any_of(clip.notes.begin(), clip.notes.begin() + clip.count, [&](const composer::Note& note) {
+        return !note.locked && (!scoped || (note.start >= pendingRegion.start && note.start < pendingRegion.end));
+    });
+}
+juce::Result Processor::adaptMelodyToChords() {
+    auto s = settings();
+    std::lock_guard<std::mutex> lock(documentMutex);
+    if (draftActive)
+        return juce::Result::fail("Apply or discard the preview before adapting the melody.");
+    if (!customHarmony.count)
+        return juce::Result::fail("Create or enter chords before adapting the melody.");
+    const int slot = selected.load();
+    const auto& source = bank[size_t(slot)];
+    if (!source.count)
+        return juce::Result::fail("Select a melody with notes to adapt.");
+    const bool scoped = pendingRegion.enabled && pendingRegion.slot == slot;
+    const double start = scoped ? pendingRegion.start : 0.0;
+    const double end = scoped ? std::min(pendingRegion.end, source.length) : source.length;
+    s.harmony = customHarmony;
+    cancelled.store(true);
+    const auto adapted = composer::adaptToHarmony(source, start, end, s);
+    int changed = 0;
+    for (int i = 0; i < source.count; ++i)
+        changed += source.notes[size_t(i)].pitch != adapted.notes[size_t(i)].pitch ||
+                   source.notes[size_t(i)].cents != adapted.notes[size_t(i)].cents;
+    if (!changed) {
+        assignStatusLocked("Melody unchanged: its pitches already fit or its notes are protected.");
+        return juce::Result::ok();
+    }
+    pushHistoryLocked();
+    bank[size_t(slot)] = adapted;
+    compareRequested.store(false);
+    publishLocked();
+    assignStatusLocked("Melody adapted to chords: " + juce::String(changed) +
+                       " notes adjusted. Rhythm and locked notes are preserved. Undo restores the melody." +
+                       (param("snap") > 0.5f ? " Fit to scale is on; disable it to hear borrowed chord tones." : ""));
     return juce::Result::ok();
 }
 composer::TimeSignature Processor::timeSignature() const {
@@ -1051,7 +1097,7 @@ juce::Result Processor::setCustomHarmony(const juce::String& text) {
         preview.store(false);
     customHarmonyEnabled.store(parsed.count > 0);
     publishLocked();
-    assignStatusLocked("Custom chords set. Generate or evolve to use them; playback scale snap is bypassed.");
+    assignStatusLocked("Custom chords set. Adapt the existing melody or generate a new one.");
     return juce::Result::ok();
 }
 void Processor::clearCustomHarmony() {

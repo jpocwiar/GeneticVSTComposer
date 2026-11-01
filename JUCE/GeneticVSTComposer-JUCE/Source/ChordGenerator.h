@@ -11,18 +11,25 @@ struct ChordGenerationSettings {
     int rhythmShape = 0;
     bool resolve = true;
     uint32_t seed = 1;
+    // Balanced tonal / pop / jazz / modal / cinematic. Independent of originality.
+    int character = 0;
 };
 struct VoicingSettings {
     int centre = 60;
     // Smooth inversions, root position, or open smooth voicings.
     int style = 0;
 };
-// Seeded functional templates become less familiar through diatonic substitutions,
-// extensions, modal borrowing and applied dominants as originality increases.
+// A seeded phrase planner and bounded stochastic beam search combine a learned
+// interval-context prior with functional, modal, cadence and repetition constraints.
 // Phrases longer than 128 quarter-note beats are rejected with an empty Harmony.
 // Pentatonic/chromatic scales use their parent major/minor harmonic vocabulary;
 // the Saba tuning uses a minor vocabulary for these conventional 12-TET chords.
 Harmony generateHarmony(const ChordGenerationSettings&);
+struct HarmonyModelInfo {
+    int sourceEvents, sourceSequences, transitions, validationSequences, validationTransitions;
+    double firstOrderPerplexity, contextPerplexity;
+};
+HarmonyModelInfo harmonyModelInfo();
 // Chooses registers and inversions across the entire progression. Every chord
 // tone appears once, with conventional 12-TET pitches and no microtonal offsets.
 Clip voiceHarmony(const Harmony&, int numerator, int denominator, const VoicingSettings&);
