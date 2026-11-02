@@ -53,15 +53,31 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         microtonal::Settings settings;
         microtonal::Clip clip;
         microtonal::Stats stats;
+        microtonal::Bank variations;
+        int selected = 0;
+        microtonal::ChordSettings chordSettings;
+        microtonal::Clip chords;
+        microtonal::Stats chordStats;
     };
     MicrotonalWorkspace microtonalSnapshot() const;
     juce::Result setMicrotonalSettings(const microtonal::Settings&);
     void generateMicrotonal(bool evolve);
+    void generateMicrotonalChords(bool withMelody = false);
+    void generateMicrotonalFromChords();
+    juce::Result setMicrotonalChordSettings(const microtonal::ChordSettings&);
+    juce::Result revoiceMicrotonalChords();
+    void selectMicrotonalVariation(int);
+    void pinMicrotonalVariation(int);
+    void undoMicrotonal();
+    void redoMicrotonal();
+    bool canUndoMicrotonal() const;
+    bool canRedoMicrotonal() const;
+    void setMicrotonalClip(microtonal::Clip);
     void setMicrotonalMode(bool);
     bool isMicrotonalMode() const { return microtonalMode.load(); }
-    void startMicrotonalAudition();
+    void startMicrotonalAudition(int source = 0);
     void stopMicrotonalAudition();
-    juce::Result exportMicrotonalMidi(const juce::File&) const;
+    juce::Result exportMicrotonalMidi(const juce::File&, int source = 0) const;
     uint64_t microtonalRevision() const { return microRevision.load(); }
     void evolveRegion(double start, double end);
     struct PlaybackRegion {
@@ -213,6 +229,9 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         bool independentMicrotonal = false;
         microtonal::Settings microSettings;
         microtonal::Clip microParent;
+        microtonal::Clip microHarmony;
+        microtonal::ChordSettings microChords;
+        int microAction = 0;
         composer::Settings settings;
         composer::Clip parent;
         std::vector<composer::Clip> mates;
@@ -229,6 +248,9 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     juce::ValueTree microtonalStateLocked() const;
     static bool readMicrotonalState(const juce::ValueTree&, MicrotonalWorkspace&);
     void processMicrotonalBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&);
+    void beginMicrotonalSearch(bool evolve, int action);
+    void pushMicrotonalHistoryLocked();
+    microtonal::Clip microtonalPlaybackClipLocked(int source) const;
     void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
     void publishLocked();
@@ -256,8 +278,15 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     MicrotonalWorkspace microWorkspace;
     std::atomic<bool> microtonalMode{false};
     std::atomic<bool> microSearchActive{false};
+    std::atomic<bool> microEvolveRequested{false};
     std::atomic<uint64_t> microRevision{1};
-    MicrotonalWorkspace pendingMicro, audioMicro;
+    struct MicroPlaybackSnapshot {
+        microtonal::Settings settings;
+        microtonal::Clip clip;
+    };
+    MicroPlaybackSnapshot pendingMicro, audioMicro;
+    int microPlaybackSource = 0;
+    std::deque<MicrotonalWorkspace> microUndo, microRedo;
     uint64_t pendingMicroRevision = 0, audioMicroRevision = 0;
     bool audioMicrotonalMode = false;
     double microPhase = 0, microExpectedPpq = 0;
@@ -338,6 +367,16 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         int sourceIndex = -1, channel = 1;
         double remaining = 0, phase = 0, gain = 0, target = 0, increment = 0;
     };
+    struct MicroVoice {
+        Voice sound;
+        int key = 0;
+    };
+    std::array<MicroVoice, 15> microVoices{};
+    int microChannel = 0;
+    void allMicroOff(int sample, juce::MidiBuffer&);
+    void releaseMicroVoice(int index, int sample, juce::MidiBuffer&);
+    void startMicroVoice(const microtonal::Clip&, const microtonal::Event&, int sourceIndex, int sample,
+                         juce::MidiBuffer&);
     std::array<Voice, 128> voices{};
     // Internal accompaniment has independent voices: melody pitch bend/MPE can never detune it.
     std::array<Voice, 128> chordVoices{};

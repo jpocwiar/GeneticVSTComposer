@@ -225,6 +225,9 @@ bool Processor::restore(const void* data, int size) {
         std::lock_guard<std::mutex> lock(documentMutex);
         restoreDocumentLocked(restored);
         microWorkspace = restoredMicro;
+        microUndo.clear();
+        microRedo.clear();
+        microPlaybackSource = 0;
         microtonalMode.store(bool(microState.getProperty("active", false)));
         publishMicrotonalLocked();
         comparison = restoredComparison;

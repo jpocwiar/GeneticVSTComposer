@@ -88,7 +88,7 @@ State schema **5** stores the new parameters and the existing exact document, in
 
 ## Independent microtonal workspace
 
-The third main tab uses `MicrotonalEngine` and `ProcessorMicrotonal`, with its own pitch domain, sequence, fitness, settings and state extension. It does not use the conventional melody/chord generators. See [representation, fitness, transport and validation](MICROTONAL_LAB.md). CTest adds `microtonal_engine` and `microtonal_lab` to the existing suites.
+The third main tab has Melody/Chords views, its own twelve-slot bank, chord sequence, pitch domain, fitness and Undo/Redo. It reuses the conventional rhythm search and shared meter/grouping helpers while evolving microtonal degrees and generating polyphonic chords with separate objectives. Extension version 2 reads version 1 laboratory sessions. See [representation, fitness, transport and validation](MICROTONAL_LAB.md). CTest adds `microtonal_engine` and `microtonal_lab` to the existing suites, covering odd meters, rhythm locks, polyphony with shared MIDI keys, bank pins, chord workflows and isolation from conventional parameters/data.
 
 ## Tests
 

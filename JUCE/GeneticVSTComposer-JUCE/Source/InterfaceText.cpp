@@ -55,6 +55,17 @@ const Entry fragments[]{
     {" bars", " taktów"},
 };
 const Entry exact[]{
+    {"Microtonal chords ready.", "Akordy mikrotonowe gotowe."},
+    {"Microtonal melody bank ready.", "Bank melodii mikrotonowych gotowy."},
+    {"Invalid microtonal settings.", "Nieprawidłowe ustawienia mikrotonowe."},
+    {"Invalid microtonal chord settings.", "Nieprawidłowe ustawienia akordów mikrotonowych."},
+    {"Generate compatible microtonal material before playback.",
+     "Przed odtwarzaniem wygeneruj zgodny materiał mikrotonowy."},
+    {"Generate chords first, or choose a wider register.",
+     "Najpierw wygeneruj akordy lub wybierz szerszy rejestr."},
+    {"Generate a valid microtonal chord sequence. Use fewer bars or a slower harmonic rhythm.",
+     "Wygeneruj poprawną sekwencję akordów mikrotonowych. Użyj mniejszej liczby taktów lub wolniejszego "
+     "rytmu harmonicznego."},
     {"CHORD COLOUR", "KOLOR AKORDÓW"},
     {"MOOD", "NASTRÓJ"},
     {"Triads", "Trójdźwięki"},
@@ -77,7 +88,8 @@ const Entry exact[]{
      "colours. 50% is neutral. Key, scale, Colour and Resolve still constrain the result. "
      "Applies to new chords.",
      "Ciemny sprzyja akordom molowym, zmniejszonym i napięciu; Jasny durowym i cieplejszym barwom. "
-     "50% jest neutralne. Tonika, skala, Kolor i rozwiązanie nadal ograniczają wynik. Dotyczy nowych akordów."},
+     "50% jest neutralne. Tonika, skala, Kolor i rozwiązanie nadal ograniczają wynik. Dotyczy nowych "
+     "akordów."},
     {"Adapt melody", "Dopasuj melodię"},
     {"Adapt range", "Dopasuj fragment"},
     {"Adapt melody keeps its rhythm. Melody from these chords generates a new bank over the full sequence.",
@@ -86,9 +98,12 @@ const Entry exact[]{
      "and contour as far as possible. A melody time selection limits the edit. "
      "Locked notes and other variations stay unchanged. Undo restores the melody.",
      "Dopasuj wybraną melodię do tych akordów, zachowując rytm, dynamikę i możliwie wierny kontur. "
-     "Zaznaczenie czasu ogranicza zmianę. Zablokowane nuty i inne warianty zostają. Cofnij przywraca melodię."},
-    {"Apply or discard the preview before adapting the melody.", "Zastosuj albo odrzuć podgląd przed dopasowaniem melodii."},
-    {"Create or enter chords before adapting the melody.", "Utwórz albo wpisz akordy przed dopasowaniem melodii."},
+     "Zaznaczenie czasu ogranicza zmianę. Zablokowane nuty i inne warianty zostają. Cofnij przywraca "
+     "melodię."},
+    {"Apply or discard the preview before adapting the melody.",
+     "Zastosuj albo odrzuć podgląd przed dopasowaniem melodii."},
+    {"Create or enter chords before adapting the melody.",
+     "Utwórz albo wpisz akordy przed dopasowaniem melodii."},
     {"Select a melody with notes to adapt.", "Wybierz melodię z nutami do dopasowania."},
     {"Melody unchanged: its pitches already fit or its notes are protected.",
      "Melodia bez zmian: wysokości już pasują albo nuty są chronione."},
@@ -107,17 +122,22 @@ const Entry exact[]{
     {"Palette", "Paleta"},
     {"Tuning / MIDI", "Strój / MIDI"},
     {"Scope: whole phrase", "Zakres: cała fraza"},
-    {"Internal preview needs no MIDI setup. For an external instrument, match Pitch bend or MPE and the bend range.",
-     "Odsłuch wewnętrzny nie wymaga ustawiania MIDI. Dla instrumentu zewnętrznego dopasuj Pitch bend lub MPE i zakres strojenia."},
+    {"Internal preview needs no MIDI setup. For an external instrument, match Pitch bend or MPE and the bend "
+     "range.",
+     "Odsłuch wewnętrzny nie wymaga ustawiania MIDI. Dla instrumentu zewnętrznego dopasuj Pitch bend lub MPE "
+     "i zakres strojenia."},
     {"Microtones ON: the next search may add passing notes. Set their palette and MIDI output below.",
-     "Mikrotony włączone: kolejne szukanie może dodać nuty przejściowe. Poniżej ustawisz paletę i wyjście MIDI."},
+     "Mikrotony włączone: kolejne szukanie może dodać nuty przejściowe. Poniżej ustawisz paletę i wyjście "
+     "MIDI."},
     {"Microtones OFF: plain 12-tone playback. Enable Microtones in Composition.",
      "Mikrotony wyłączone: zwykły odsłuch 12-tonowy. Włącz Mikrotony w panelu Kompozycja."},
     {"Drag the bar ruler to loop and edit a section. Double-click the ruler to return to the whole phrase.",
-     "Zaznacz fragment na linijce: odsłuch i optymalizacja obejmą ten zakres. Podwójne kliknięcie przywraca całość."},
+     "Zaznacz fragment na linijce: odsłuch i optymalizacja obejmą ten zakres. Podwójne kliknięcie przywraca "
+     "całość."},
     {"Clear the time selection and return to the whole phrase. You can also double-click the bar ruler.",
      "Usuń zaznaczenie i wróć do całej frazy. Możesz też kliknąć dwukrotnie linijkę taktów."},
-    {"Evolve the selected phrase into new variations. Select time on the ruler to optimise only that section.",
+    {"Evolve the selected phrase into new variations. Select time on the ruler to optimise only that "
+     "section.",
      "Rozwiń wybraną frazę w nowe warianty. Zaznacz czas na linijce, aby optymalizować tylko ten fragment."},
     {"Evolve at each loop with the current Evolution amount. A time selection limits "
      "changes to that range; otherwise select the best new variation.",
@@ -126,8 +146,10 @@ const Entry exact[]{
     {"Configure the microtonal palette and MIDI output. Enable Microtones in the Composition panel.",
      "Ustaw paletę mikrotonów i wyjście MIDI. Mikrotony włączysz w panelu Kompozycja."},
     {"Optimise range", "Optymalizuj fragment"},
-    {"Select a valid time range on the bar ruler first.", "Najpierw zaznacz poprawny fragment na linijce taktów."},
-    {"The selected range has no unlocked notes to evolve.", "Zaznaczony fragment nie zawiera odblokowanych nut do optymalizacji."},
+    {"Select a valid time range on the bar ruler first.",
+     "Najpierw zaznacz poprawny fragment na linijce taktów."},
+    {"The selected range has no unlocked notes to evolve.",
+     "Zaznaczony fragment nie zawiera odblokowanych nut do optymalizacji."},
     {"Optimising the selected range...", "Optymalizowanie zaznaczonego fragmentu..."},
     {"Range optimised. The remaining notes and other variations are unchanged.",
      "Fragment zoptymalizowany. Pozostałe nuty i inne warianty pozostają bez zmian."},
@@ -159,8 +181,7 @@ const Entry exact[]{
     {"Generate or enter chords first.", "Najpierw wygeneruj albo wpisz akordy."},
     {"Chord voicings updated. The harmonic sequence and melody notes are unchanged.",
      "Przewroty zaktualizowane. Sekwencja harmoniczna i nuty melodii bez zmian."},
-    {"Apply or discard the preview before generating.",
-     "Zastosuj albo odrzuć podgląd, zanim wygenerujesz."},
+    {"Apply or discard the preview before generating.", "Zastosuj albo odrzuć podgląd, zanim wygenerujesz."},
     {"Create or enter a chord sequence first.", "Najpierw utwórz albo wpisz sekwencję akordów."},
     {"This meter and bar count exceed 128 quarter-note beats. Choose fewer bars.",
      "To metrum i liczba taktów przekraczają 128 ćwierćnut. Wybierz mniej taktów."},
@@ -173,7 +194,8 @@ const Entry exact[]{
     {"Starting point loaded. Generate to create a new bank.",
      "Punkt startowy wczytany. Generate tworzy nowy bank."},
     {"Custom chords set. Generate or evolve to use them; playback scale snap is bypassed.",
-     "Własne akordy ustawione. Wygeneruj albo rozwiń frazę; dopasowanie do skali przy odsłuchu jest wyłączone."},
+     "Własne akordy ustawione. Wygeneruj albo rozwiń frazę; dopasowanie do skali przy odsłuchu jest "
+     "wyłączone."},
     {"Custom harmony cleared. The scale and progression controls apply again.",
      "Własna harmonia wyczyszczona. Znów działają skala i progresja."},
     {"No chords could be recognised. Import block chords or enter them manually.",
@@ -186,8 +208,7 @@ const Entry exact[]{
      "Groove zaimportowany; referencja ograniczona do 512 nut i 128 uderzeń."},
     {"Groove reference loaded. Adjust Timing and Velocity, then apply.",
      "Referencja groove wczytana. Ustaw Timing i Velocity, potem zastosuj."},
-    {"Choose a non-empty phrase as the groove reference.",
-     "Wybierz niepustą frazę jako referencję groove."},
+    {"Choose a non-empty phrase as the groove reference.", "Wybierz niepustą frazę jako referencję groove."},
     {"Groove captured. Select a target phrase, then apply timing and velocity.",
      "Groove zapisany. Wybierz frazę docelową, potem zastosuj timing i velocity."},
     {"Apply or discard the preview first.", "Najpierw zastosuj albo odrzuć podgląd."},
@@ -366,8 +387,7 @@ const Entry exact[]{
     {"Probability", "Prawdopodobieństwo"},
     {"BPM", "BPM"},
     {"Level", "Poziom"},
-    {"Select  /  Double-click to play  /  + to pin",
-     "Wybierz  /  Podwójne kliknięcie gra  /  + przypina"},
+    {"Select  /  Double-click to play  /  + to pin", "Wybierz  /  Podwójne kliknięcie gra  /  + przypina"},
     {"PREVIEW / Arrangement", "PODGLĄD / Układ"},
     {"PREVIEW / Combined phrase", "PODGLĄD / Połączona fraza"},
     {"Variation ", "Wariant "},

@@ -1561,7 +1561,7 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
         else if (processor.previewRequested())
             processor.setPreview(false);
         else if (microPage)
-            processor.startMicrotonalAudition();
+            microPanel->togglePlayback();
         else if (chordPage)
             processor.startChordAudition();
         else
@@ -1570,8 +1570,14 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
     }
     if (k.getModifiers().isCommandDown() &&
         (k.getTextCharacter() == 'z' || k.getTextCharacter() == 'Z' || k.getKeyCode() == 'Z')) {
-        if (microPage)
+        if (microPage) {
+            if (k.getModifiers().isShiftDown())
+                processor.redoMicrotonal();
+            else
+                processor.undoMicrotonal();
+            microPanel->refreshDisplay();
             return true;
+        }
         if (k.getModifiers().isShiftDown())
             processor.redo();
         else

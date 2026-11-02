@@ -8,6 +8,7 @@ class MicrotonalComposerPanel : public juce::Component {
     explicit MicrotonalComposerPanel(GeneticVSTComposerJUCEAudioProcessor&);
     ~MicrotonalComposerPanel() override;
     void refreshDisplay();
+    void togglePlayback();
     void resized() override;
     void paint(juce::Graphics&) override;
 

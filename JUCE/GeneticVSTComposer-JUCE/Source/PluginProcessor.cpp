@@ -209,6 +209,8 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& layout) const {
 void Processor::prepareToPlay(double sampleRate, int) {
     rate = sampleRate;
     voices = {};
+    microVoices = {};
+    microChannel = 0;
     chordVoices = {};
     chordLayerPlaying = false;
     nextChordNote = 0;
@@ -721,8 +723,24 @@ void Processor::timerCallback() {
     serviceMessageThread();
 }
 void Processor::serviceMessageThread() {
-    if (microtonalMode.load())
+    if (microtonalMode.load()) {
+        auto s = microtonalSnapshot().settings;
+        const int numerator = hostNumerator.load(), denominator = hostDenominator.load();
+        if (s.hostMeter && numerator > 0 && denominator > 0 &&
+            (s.numerator != numerator || s.denominator != denominator)) {
+            s.numerator = numerator;
+            s.denominator = denominator;
+            s.groupCount = 0;
+            s.groupUnit = denominator;
+            if (microtonal::valid(s))
+                setMicrotonalSettings(s);
+        }
+        if (s.evolveEachLoop && microEvolveRequested.load() && !busy.load()) {
+            microEvolveRequested.store(false);
+            generateMicrotonal(true);
+        }
         return;
+    }
     const bool capture = cached.capturePhrase->load() > 0.5f;
     if (capture && !captureWasOn)
         captureWasOn = true;
@@ -1000,6 +1018,15 @@ void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, doub
     searchThread->submit(std::move(job));
 }
 void Processor::generateMicrotonal(bool evolve) {
+    beginMicrotonalSearch(evolve, 0);
+}
+void Processor::generateMicrotonalChords(bool withMelody) {
+    beginMicrotonalSearch(false, withMelody ? 2 : 1);
+}
+void Processor::generateMicrotonalFromChords() {
+    beginMicrotonalSearch(false, 3);
+}
+void Processor::beginMicrotonalSearch(bool evolve, int action) {
     if (busy.exchange(true))
         return;
     microSearchActive.store(true);
@@ -1008,13 +1035,19 @@ void Processor::generateMicrotonal(bool evolve) {
     SearchJob job;
     job.independentMicrotonal = true;
     job.evolve = evolve;
+    job.microAction = action;
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         job.microSettings = microWorkspace.settings;
         job.microSettings.seed = uint32_t(seedGenerator.nextInt());
         job.microParent = microWorkspace.clip;
+        job.microHarmony = microWorkspace.chords;
+        job.microChords = microWorkspace.chordSettings;
         job.startRevision = microRevision.load();
-        microWorkspace.stats = {};
+        if (action == 1 || action == 2)
+            microWorkspace.chordStats = {};
+        if (action != 1)
+            microWorkspace.stats = {};
     }
     searchThread->submit(std::move(job));
 }

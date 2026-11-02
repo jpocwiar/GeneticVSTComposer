@@ -50,6 +50,7 @@ void Processor::allOff(int sample, juce::MidiBuffer& midi) {
     for (int p = 0; p < 128; ++p)
         if (voices[p].on)
             releaseVoice(p, sample, midi);
+    allMicroOff(sample, midi);
 }
 // Centres the bends the current output used; leaving MPE also clears its zone, so a receiver
 // returns to ordinary channel-1 playback.
@@ -70,6 +71,7 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     } else
         chordMidiSounding = {};
     voices = {};
+    microVoices = {};
     chordVoices = {};
     chordLayerPlaying = false;
     channelNotes = {};
@@ -234,6 +236,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
         allOff(0, outputMidi);
         resetOutput(0, outputMidi);
         voices = {};
+        microVoices = {};
         channelNotes = {};
         outputMode = 0;
         outputConfigured = false;
