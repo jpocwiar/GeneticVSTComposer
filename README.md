@@ -8,7 +8,7 @@ Version **2.7.0** searches in islands, with one unchanged elite on each island. 
 
 Version **2.6.0** restores rhythmic insertion, rests, onset shifts and fragment copying inside the GA; exposes **Density**; and separates chord-only, melody-over-chords and combined generation. See the [reference comparison and reproducible measurements](docs/REFERENCE_AUDIT_2.6.md).
 
-The interface puts **Melody** and **Chords** on two main tabs inside one interface. Both piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
+The interface has **Melody**, **Chords** and an independent **Microtonal** tab. Both conventional piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
 
 Choose **Riff**, **Motif** or **Melody**, shape the search with the original musical control names, and optionally enable **Micro** for genetically chosen microtonal passing notes. **Fit to scale** is an independent live switch, off by default. Chord originality, inversions, A/B comparison, local edits, groove references, arrangements and the actual search budget remain available. Existing parameter IDs and the original meter/progression automation ranges are retained.
 
@@ -129,6 +129,19 @@ Built-in harmony degrees are interpreted in the selected scale (minor modes prod
 Incoming MIDI notes **48–59** hold-trigger the twelve variations. Notes **60–127** transpose the phrase, with 60 as the untransposed reference. Octave names differ between DAWs; these numeric note values are authoritative. Releasing one trigger does not stop another still-held trigger. Follow DAW takes precedence over key-triggered or manual transport. **Stop all / Esc** releases generated notes; turn Follow DAW off to keep playback stopped while the host continues running.
 
 Shortcuts: **Space** play/stop, **Cmd/Ctrl+Z** undo, **Cmd/Ctrl+Shift+Z** redo, **Esc** stop all. Hover over controls for hints or open **? Help** for the chapter-based guide. These are local, built-in instructions and do not require a browser or network connection.
+
+## Independent microtonal laboratory
+
+Open **Microtonal** (**Mikrotonowe** in Polish) to compose outside the conventional melody and chord systems. This workspace has its own sequence, settings, genetic search and fitness. Root, Scale, Fit, conventional harmony, keyboard triggers and semitone transposition do not apply here. Switching tabs stops the previous audition; the melody bank and chord sequence retain their stored data.
+
+- Choose **7-EDO**, **8-EDO** or another preset, or set **Equal divisions per octave** to any integer from 2 to 72. Degree `d` in `N`-EDO has frequency `baseHz * 2^(d/N)`. Even divisions smaller than twelve are valid; no semitone quantization is applied.
+- For just intonation, enter increasing **Ratios**, for example `1/1 9/8 7/6 5/4 4/3 3/2 7/4`, and press **Apply ratios**. Supply 2-72 fractions, starting at `1/1` and below `2/1`; the octave repeats automatically. Ratios retain their exact rational definition.
+- Set the base frequency in Hz, range in octaves, length in quarter-note beats and the independent search budget. **Generate sequence** searches a new monophonic sequence. **Evolve sequence** retains the existing rhythm and evolves its degrees/velocities; it requires a compatible tuning, base, length and range.
+- Click an event in the degree roll to inspect its `degree\\EDO` notation or exact fraction and octave, cents from the base, frequency and a simple-ratio approximation. Each saved sequence owns its tuning, so changing settings does not relabel or retune previous results.
+- **Simple ratio preference** rewards proximity to low-integer frequency ratios. Degree diversity, movement, loop closure and repeated-note penalties keep this from reducing to a single repeated tone. This is a heuristic for harmonic sounds; timbre and listening context also affect consonance. See [the objective and its limits](docs/MICROTONAL_LAB.md).
+- **Play**, tempo, **Internal sound** and **Follow DAW** belong to this workspace. **Export MIDI** and **Drag MIDI** encode the exact generated pitches using channel-1 pitch bends at +/-2 semitones, or MPE at +/-48 semitones. Match that range on the receiving instrument. Internal playback uses double-precision frequencies; MIDI has the usual 14-bit bend resolution.
+
+The workspace and active mode are saved inside the DAW project and **Save bank** files. Older sessions open with an empty independent workspace and their original mode. Conventional Undo/Redo remains scoped to the melody/chord document.
 
 ## Microtonal riffs (optional)
 

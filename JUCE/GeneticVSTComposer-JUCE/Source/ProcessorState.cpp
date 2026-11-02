@@ -114,6 +114,7 @@ void Processor::getStateInformation(juce::MemoryBlock& dest) {
     state.addChild(parameters.copyState(), -1, nullptr);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
+        state.addChild(microtonalStateLocked(), -1, nullptr);
         state.setProperty("selected", selected.load(), nullptr);
         state.setProperty("harmony", juce::String(composer::harmonyText(customHarmony)), nullptr);
         state.setProperty("arrangementForm", arrangementForm, nullptr);
@@ -152,6 +153,10 @@ bool Processor::restore(const void* data, int size) {
     if ((version < 2 || version > 6) || !state.getChildWithName("Parameters").isValid())
         return false;
     Document restored;
+    MicrotonalWorkspace restoredMicro;
+    const auto microState = state.getChildWithName("MicrotonalWorkspace");
+    if (!readMicrotonalState(microState, restoredMicro))
+        return false;
     int index = 0;
     for (const auto& child : state)
         if (child.hasType("Clip")) {
@@ -219,6 +224,9 @@ bool Processor::restore(const void* data, int size) {
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         restoreDocumentLocked(restored);
+        microWorkspace = restoredMicro;
+        microtonalMode.store(bool(microState.getProperty("active", false)));
+        publishMicrotonalLocked();
         comparison = restoredComparison;
         comparisonAvailable.store(hasA);
         compareRequested.store(false);

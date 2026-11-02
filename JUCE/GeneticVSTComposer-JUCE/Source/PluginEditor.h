@@ -52,6 +52,7 @@ class MidiDragButton : public juce::TextButton {
 };
 class ComposerGuide;
 class ChordComposerPanel;
+class MicrotonalComposerPanel;
 class TransportButton : public juce::TextButton {
   public:
     TransportButton() : TextButton("Play") {}
@@ -75,6 +76,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     void showGuide();
     void showChordComposer();
     void showMelodyComposer();
+    void showMicrotonalComposer();
     void refreshDisplay();
     void showWorkflowPage(int page);
 
@@ -94,8 +96,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::array<std::unique_ptr<VariationButton>, 12> variants;
     juce::ComboBox preset, root, scale, bars, grid, meter, grouping, mode, phraseType, harmony, quality,
         auditionSound, arrangementForm;
-    juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"};
-    bool chordPage = false;
+    juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"}, microtonalTab{"Microtonal"};
+    bool chordPage = false, microPage = false;
     juce::ToggleButton editNotes{"Edit notes"}, customSearch{"Custom budget"};
     juce::Slider searchPopulation, searchGenerations, crossover;
     juce::TextButton searchDetails{"Search settings..."};
@@ -135,6 +137,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::Label microInfo;
     std::unique_ptr<ComposerGuide> guide;
     std::unique_ptr<ChordComposerPanel> chordPanel;
+    std::unique_ptr<MicrotonalComposerPanel> microPanel;
     std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<ComboAttachment>> comboAttachments;
     std::vector<std::unique_ptr<ButtonAttachment>> buttonAttachments;

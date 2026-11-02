@@ -86,6 +86,10 @@ State schema **5** stores the new parameters and the existing exact document, in
 - For schemas before 5 with custom harmony, restore `snap` as OFF to preserve the former audible behavior, which silently bypassed Fit. Sessions without custom harmony retain their saved Fit setting.
 - Missing parameters receive defaults instead of retaining values from the previously open session. Schema 3 harmony receives a reconstructed voicing; schemas 4–5 restore exact saved voicings. Schema 2 has no custom harmony.
 
+## Independent microtonal workspace
+
+The third main tab uses `MicrotonalEngine` and `ProcessorMicrotonal`, with its own pitch domain, sequence, fitness, settings and state extension. It does not use the conventional melody/chord generators. See [representation, fitness, transport and validation](MICROTONAL_LAB.md). CTest adds `microtonal_engine` and `microtonal_lab` to the existing suites.
+
 ## Tests
 
 Run the configured suites with:

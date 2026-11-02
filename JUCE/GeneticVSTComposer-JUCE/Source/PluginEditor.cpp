@@ -1,9 +1,10 @@
 #include "PluginEditor.h"
-#include "EditorFormat.h"
-#include "ComposerGuide.h"
-#include "InterfaceText.h"
 #include "ChordComposerPanel.h"
 #include "ChordGenerator.h"
+#include "ComposerGuide.h"
+#include "EditorFormat.h"
+#include "InterfaceText.h"
+#include "MicrotonalComposerPanel.h"
 #include <cmath>
 using namespace palette;
 VariationButton::VariationButton(int i) : juce::Button("Variation " + juce::String(i + 1)), slot(i) {
@@ -228,6 +229,10 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
                           "Melody: a longer phrase with development and an ending.");
     addAndMakeVisible(melodyTab);
     addAndMakeVisible(chordsTab);
+    addAndMakeVisible(microtonalTab);
+    microtonalTab.getProperties().set("segment", true);
+    microtonalTab.onClick = [this] { showMicrotonalComposer(); };
+    microtonalTab.setTooltip("Independent EDO and ratio-based generation, with its own pitches and fitness.");
     melodyTab.getProperties().set("segment", true);
     chordsTab.getProperties().set("segment", true);
     melodyTab.onClick = [this] { showMelodyComposer(); };
@@ -377,7 +382,12 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     };
     play.setTooltip("Audition the phrase with the built-in sound. Enables Internal sound and turns Follow "
                     "DAW off. Click again to stop.");
-    panic.onClick = [this] { processor.panic(); };
+    panic.onClick = [this] {
+        if (microPage)
+            processor.stopMicrotonalAudition();
+        else
+            processor.panic();
+    };
     undo.onClick = [this] {
         processor.undo();
         refresh();
@@ -700,6 +710,7 @@ void Editor::applyInterfaceLanguage() {
     text(exportFile, "Export...");
     text(melodyTab, "Melody");
     text(chordsTab, "Chords");
+    microtonalTab.setButtonText(processor.interfaceLanguageIndex() == 1 ? "Mikrotonowe" : "Microtonal");
     text(withChords, "With chords");
     text(chordMidi, "Chord MIDI");
     text(snap, "Fit to scale");
@@ -755,6 +766,7 @@ void Editor::applyInterfaceLanguage() {
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor() {
     stopTimer();
     chordPanel.reset();
+    microPanel.reset();
     chooser.reset();
     setLookAndFeel(nullptr);
     for (auto& file : dragFiles)
@@ -787,7 +799,7 @@ void Editor::paint(juce::Graphics& g) {
         g.setColour(juce::Colours::white.withAlpha(0.025f));
         g.drawLine(bounds.getX() + 13, bounds.getY() + 1, bounds.getRight() - 13, bounds.getY() + 1);
     };
-    if (!chordPage) {
+    if ((!chordPage && !microPage)) {
         panelSurface({20, 92, 262, 300});
         panelSurface({20, 404, 262, float(h - 446)});
         panelSurface({296, 92, float(w - 308), 438});
@@ -811,7 +823,9 @@ void Editor::paint(juce::Graphics& g) {
     g.setFont(font(10));
     g.setColour(muted);
     g.drawText("M I D I   C O M P O S E R", 72, 45, 200, 16, juce::Justification::centredLeft);
-    if (chordPage) {
+    if (chordPage || microPage) {
+        if (microPage)
+            return;
         label(g, "Reverb", {592, h - 53, 48, 22});
         label(g, "BPM", {730, h - 53, 34, 22});
         label(g, "Level", {844, h - 53, 34, 22});
@@ -897,8 +911,9 @@ void Editor::resized() {
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom), x = 304, mw = w - x - 20;
     melodyTab.setBounds(304, 23, 110, 32);
     chordsTab.setBounds(420, 23, 110, 32);
+    microtonalTab.setBounds(536, 23, 106, 32);
     activity.setBounds(20, h - 58, 224, 34);
-    preset.setBounds(w - 550, 25, 188, 30);
+    preset.setBounds(w - 532, 25, 170, 30);
     undo.setBounds(w - 350, 25, 54, 30);
     redo.setBounds(w - 290, 25, 54, 30);
     load.setBounds(w - 224, 25, 82, 30);
@@ -1008,6 +1023,8 @@ void Editor::resized() {
     status.setBounds(20, h - 22, w - 40, 19);
     if (chordPanel)
         chordPanel->setBounds(20, 84, w - 40, h - 154);
+    if (microPanel)
+        microPanel->setBounds(20, 84, w - 40, h - 154);
     if (guide)
         guide->setBounds(0, 0, w, h);
     for (auto* child : getChildren())
@@ -1031,7 +1048,7 @@ void Editor::report(const juce::Result& result) {
     refresh();
 }
 void Editor::showWorkflowPage(int page) {
-    if (chordPage)
+    if (chordPage || microPage)
         showMelodyComposer();
     workflowPage = juce::jlimit(0, 6, page);
     refresh();
@@ -1054,6 +1071,8 @@ void Editor::showGuide() {
     resized();
 }
 void Editor::showChordComposer() {
+    microPage = false;
+    processor.setMicrotonalMode(false);
     chordPage = true;
     if (!chordPanel) {
         chordPanel = std::make_unique<ChordComposerPanel>(processor);
@@ -1070,32 +1089,57 @@ void Editor::showChordComposer() {
     repaint();
 }
 void Editor::showMelodyComposer() {
+    microPage = false;
+    processor.setMicrotonalMode(false);
     chordPage = false;
+    updateMainPage();
+    resized();
+    repaint();
+}
+void Editor::showMicrotonalComposer() {
+    chordPage = false;
+    microPage = true;
+    processor.setMicrotonalMode(true);
+    if (!microPanel) {
+        microPanel = std::make_unique<MicrotonalComposerPanel>(processor);
+        addChildComponent(*microPanel);
+    }
+    microPanel->refreshDisplay();
     updateMainPage();
     resized();
     repaint();
 }
 void Editor::updateMainPage() {
     for (auto* child : getChildren()) {
-        const bool global = child == &melodyTab || child == &chordsTab || child == &activity ||
-                            child == &preset || child == &undo || child == &redo || child == &load ||
-                            child == &save || child == &help || child == &auditionSound ||
+        const bool global = child == &melodyTab || child == &chordsTab || child == &microtonalTab ||
+                            child == &activity || child == &preset || child == &undo || child == &redo ||
+                            child == &load || child == &save || child == &help || child == &auditionSound ||
                             child == &monitor || child == &follow || child == &tempo || child == &volume ||
                             child == &panic || child == &motion || child == &interfaceLanguageButton ||
                             child == &status;
-        if (child == chordPanel.get() || child == guide.get() ||
+        if (child == chordPanel.get() || child == microPanel.get() || child == guide.get() ||
             dynamic_cast<juce::ResizableCornerComponent*>(child) != nullptr ||
             dynamic_cast<juce::ResizableBorderComponent*>(child) != nullptr)
             continue;
-        child->setVisible(global || !chordPage);
+        const bool sharedWithMicro = child == &melodyTab || child == &chordsTab || child == &microtonalTab ||
+                                     child == &activity || child == &load || child == &save ||
+                                     child == &help || child == &panic || child == &motion ||
+                                     child == &interfaceLanguageButton || child == &status;
+        child->setVisible(microPage ? sharedWithMicro : (global || (!chordPage && !microPage)));
     }
     if (chordPanel)
         chordPanel->setVisible(chordPage);
-    melodyTab.setColour(juce::TextButton::buttonColourId, chordPage ? palette::surface : palette::teal);
-    melodyTab.setColour(juce::TextButton::textColourOffId, chordPage ? palette::muted : palette::background);
+    if (microPanel)
+        microPanel->setVisible(microPage);
+    microtonalTab.setColour(juce::TextButton::buttonColourId, microPage ? palette::violet : palette::surface);
+    microtonalTab.setColour(juce::TextButton::textColourOffId,
+                            microPage ? palette::background : palette::muted);
+    const bool melodyPage = !chordPage && !microPage;
+    melodyTab.setColour(juce::TextButton::buttonColourId, melodyPage ? palette::teal : palette::surface);
+    melodyTab.setColour(juce::TextButton::textColourOffId, melodyPage ? palette::background : palette::muted);
     chordsTab.setColour(juce::TextButton::buttonColourId, chordPage ? palette::teal : palette::surface);
     chordsTab.setColour(juce::TextButton::textColourOffId, chordPage ? palette::background : palette::muted);
-    if (!chordPage) {
+    if ((!chordPage && !microPage)) {
         updateWorkflow();
         refresh();
     }
@@ -1106,25 +1150,25 @@ void Editor::updateWorkflow() {
         workflowTabs[i].setColour(juce::TextButton::textColourOffId, i == workflowPage ? background : muted);
     }
     for (auto* component : std::initializer_list<juce::Component*>{&regionInfo, &simplify, &movement, &answer, &resolve})
-        component->setVisible(!chordPage && workflowPage == 0);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 0);
     for (auto* component : std::initializer_list<juce::Component*>{&chordText, &applyHarmony, &clearHarmony,
                                                                    &importHarmony, &chordComposer, &adaptMelody})
-        component->setVisible(!chordPage && workflowPage == 1);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 1);
     for (auto* component : std::initializer_list<juce::Component*>{
              &importGroove, &captureGroove, &grooveTiming, &grooveVelocity, &applyGroove})
-        component->setVisible(!chordPage && workflowPage == 2);
-    arrange.setVisible(!chordPage && workflowPage == 3);
-    arrangementForm.setVisible(!chordPage && workflowPage == 3);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 2);
+    arrange.setVisible((!chordPage && !microPage) && workflowPage == 3);
+    arrangementForm.setVisible((!chordPage && !microPage) && workflowPage == 3);
     for (auto* component :
          std::initializer_list<juce::Component*>{&rhythmSource, &pitchSource, &accentSource, &combine})
-        component->setVisible(!chordPage && workflowPage == 4);
-    microEnabled.setVisible(!chordPage);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 4);
+    microEnabled.setVisible((!chordPage && !microPage));
     for (auto* component : std::initializer_list<juce::Component*>{&tuning, &microOutput,
                                                                    &bendRange, &microInfo})
-        component->setVisible(!chordPage && workflowPage == 5);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 5);
     for (auto* component : std::initializer_list<juce::Component*>{
              &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo})
-        component->setVisible(!chordPage && workflowPage == 6);
+        component->setVisible((!chordPage && !microPage) && workflowPage == 6);
     const char* descriptions[]{
         "Drag the bar ruler to loop and edit a section. Double-click the ruler to return to the whole phrase.",
         "Enter chord:beats, e.g. Cm:4 Fm:2 G7:2, or open Chord composer to generate and export voiced "
@@ -1146,9 +1190,9 @@ void Editor::updateSelectionControls() {
                             ? "Optimise unlocked notes in the selected range of this variation. Other notes and "
                               "variations stay unchanged. Undo restores the previous phrase."
                             : "Evolve the selected phrase into new variations. Select time on the ruler to optimise only that section."));
-    allTime.setVisible(!chordPage && scoped);
-    tempoInfo.setVisible(!chordPage && !scoped);
-    exportRange.setVisible(!chordPage && workflowPage == 0 && scoped);
+    allTime.setVisible((!chordPage && !microPage) && scoped);
+    tempoInfo.setVisible((!chordPage && !microPage) && !scoped);
+    exportRange.setVisible((!chordPage && !microPage) && workflowPage == 0 && scoped);
     regionInfo.setColour(juce::Label::textColourId, scoped ? teal : muted);
     regionInfo.setText(scoped ? tr("Loop: beats ") + juce::String(roll.regionStart(), 2) + " - " +
                                    juce::String(roll.regionEnd(), 2)
@@ -1308,9 +1352,9 @@ void Editor::refresh() {
                                      : "Send the sounding chord voices on MIDI channel 16 while With chords plays. "
                                        "Internal sound does not have to be on.");
     roll.setEditable(!draft);
-    applyDraft.setVisible(draft && !chordPage);
-    discardDraft.setVisible(draft && !chordPage);
-    phraseInfo.setVisible(!draft && !chordPage);
+    applyDraft.setVisible(draft && (!chordPage && !microPage));
+    discardDraft.setVisible(draft && (!chordPage && !microPage));
+    phraseInfo.setVisible(!draft && (!chordPage && !microPage));
     for (auto* action : {&simplify, &movement, &answer, &resolve})
         action->setEnabled(!draft && !processor.isGenerating());
     applyGroove.setEnabled(!draft && processor.hasGrooveReference() && !processor.isGenerating());
@@ -1327,9 +1371,9 @@ void Editor::refresh() {
         toolsChanged |= tool.isVisible() != visible;
         tool.setVisible(visible);
     };
-    showTool(compare, !chordPage && processor.hasComparison());
-    showTool(clearA, !chordPage && processor.hasComparison());
-    showTool(finishCapture, !chordPage && capturePhrase.getToggleState());
+    showTool(compare, (!chordPage && !microPage) && processor.hasComparison());
+    showTool(clearA, (!chordPage && !microPage) && processor.hasComparison());
+    showTool(finishCapture, (!chordPage && !microPage) && capturePhrase.getToggleState());
     if (toolsChanged)
         resized();
     compare.setButtonText(processor.isComparing() ? tr("Hear B") : tr("Hear A"));
@@ -1422,6 +1466,20 @@ void Editor::timerCallback() {
     refreshDisplay();
 }
 void Editor::refreshDisplay() {
+    if (processor.isMicrotonalMode() != microPage) {
+        if (processor.isMicrotonalMode())
+            showMicrotonalComposer();
+        else
+            showMelodyComposer();
+    }
+    if (microPage) {
+        if (shownLanguage != processor.interfaceLanguageIndex())
+            applyInterfaceLanguage();
+        microPanel->refreshDisplay();
+        status.setText(processor.statusText(), juce::dontSendNotification);
+        advanceVisuals();
+        return;
+    }
     const int desiredRate = motion.getToggleState() && !(guide && guide->isVisible()) ? 60 : 30;
     if (timerRate != desiredRate) {
         timerRate = desiredRate;
@@ -1491,12 +1549,19 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
             break;
     }
     if (k.getKeyCode() == juce::KeyPress::escapeKey) {
-        processor.panic();
+        if (microPage)
+            processor.stopMicrotonalAudition();
+        else
+            processor.panic();
         return true;
     }
     if (k.getKeyCode() == juce::KeyPress::spaceKey) {
-        if (processor.previewRequested())
+        if (microPage && (processor.previewRequested() || processor.isPlaying()))
+            processor.stopMicrotonalAudition();
+        else if (processor.previewRequested())
             processor.setPreview(false);
+        else if (microPage)
+            processor.startMicrotonalAudition();
         else if (chordPage)
             processor.startChordAudition();
         else
@@ -1505,6 +1570,8 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
     }
     if (k.getModifiers().isCommandDown() &&
         (k.getTextCharacter() == 'z' || k.getTextCharacter() == 'Z' || k.getKeyCode() == 'Z')) {
+        if (microPage)
+            return true;
         if (k.getModifiers().isShiftDown())
             processor.redo();
         else
@@ -1515,6 +1582,8 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
     return false;
 }
 bool Editor::isInterestedInFileDrag(const juce::StringArray& files) {
+    if (microPage)
+        return files.size() == 1 && files[0].endsWithIgnoreCase(".genetic");
     return files.size() == 1 &&
            (files[0].endsWithIgnoreCase(".mid") || files[0].endsWithIgnoreCase(".midi") ||
             files[0].endsWithIgnoreCase(".genetic"));

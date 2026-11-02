@@ -227,6 +227,7 @@ void Processor::prepareToPlay(double sampleRate, int) {
     phase = 0;
     nextNote = 0;
     wasPlaying = wasHostPlaying = false;
+    audioMicrotonalMode = microWasRunning = microWasHostPlaying = false;
     trigger = -1;
     transpose = 0;
     heldTriggers = {};
@@ -246,6 +247,7 @@ void Processor::prepareToPlay(double sampleRate, int) {
     reverbMix.setCurrentAndTargetValue(cached.auditionReverb->load());
 }
 void Processor::releaseResources() {
+    microWasRunning = microWasHostPlaying = false;
     playing.store(false);
     preview.store(false);
     chordPreview.store(false);
@@ -719,6 +721,8 @@ void Processor::timerCallback() {
     serviceMessageThread();
 }
 void Processor::serviceMessageThread() {
+    if (microtonalMode.load())
+        return;
     const bool capture = cached.capturePhrase->load() > 0.5f;
     if (capture && !captureWasOn)
         captureWasOn = true;
@@ -995,7 +999,30 @@ void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, doub
                 job.mates.push_back(clip);
     searchThread->submit(std::move(job));
 }
+void Processor::generateMicrotonal(bool evolve) {
+    if (busy.exchange(true))
+        return;
+    microSearchActive.store(true);
+    cancelled.store(false);
+    progress.store(0);
+    SearchJob job;
+    job.independentMicrotonal = true;
+    job.evolve = evolve;
+    {
+        std::lock_guard<std::mutex> lock(documentMutex);
+        job.microSettings = microWorkspace.settings;
+        job.microSettings.seed = uint32_t(seedGenerator.nextInt());
+        job.microParent = microWorkspace.clip;
+        job.startRevision = microRevision.load();
+        microWorkspace.stats = {};
+    }
+    searchThread->submit(std::move(job));
+}
 void Processor::performSearch(SearchJob job) {
+    if (job.independentMicrotonal) {
+        performMicrotonalSearch(job);
+        return;
+    }
     const auto& s = job.settings;
     try {
         const auto startTime = juce::Time::getMillisecondCounterHiRes();

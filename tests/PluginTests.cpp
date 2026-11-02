@@ -35,6 +35,7 @@ void runChordPluginTests();
 void runChordPanelTests();
 void runPlaybackArchitectureTests();
 void runRealtimeTests();
+void runMicrotonalLabTests(const juce::File& screenshots = {});
 void renderMusicalExamples(const juce::File&);
 void renderHarmonyExamples(const juce::File&, bool controls);
 int main(int argc, char** argv) {
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
-                           requested == "realtime";
+                           requested == "realtime" || requested == "microtonal-lab";
     const std::string suite = suiteMode ? requested : "all";
     const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
@@ -391,6 +392,8 @@ int main(int argc, char** argv) {
             runPlaybackArchitectureTests();
         if (want("realtime"))
             runRealtimeTests();
+        if (want("microtonal-lab"))
+            runMicrotonalLabTests(suiteMode && argc > 2 ? juce::File(argv[2]) : juce::File());
         if (!suiteMode && argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());

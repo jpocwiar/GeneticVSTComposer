@@ -11,12 +11,16 @@ set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/GeneticVSTComposer-JUCE/Source"
 add_library(composer_engine STATIC "${SOURCE_DIR}/ComposerEngine.cpp"
     "${SOURCE_DIR}/ChordGenerator.cpp" "${SOURCE_DIR}/ChordGenerator.h"
     "${SOURCE_DIR}/MelodyAdaptation.cpp"
+    "${SOURCE_DIR}/MicrotonalEngine.cpp" "${SOURCE_DIR}/MicrotonalEngine.h"
     "${SOURCE_DIR}/HarmonicSearch.h" "${SOURCE_DIR}/HarmonyModelData.h")
 target_include_directories(composer_engine PUBLIC "${SOURCE_DIR}")
 set_target_properties(composer_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 find_package(Threads REQUIRED)
 target_link_libraries(composer_engine PUBLIC Threads::Threads)
 if(BUILD_TESTING)
+    add_executable(microtonal_engine_tests tests/MicrotonalEngineTests.cpp)
+    target_link_libraries(microtonal_engine_tests PRIVATE composer_engine)
+    add_test(NAME microtonal_engine COMMAND microtonal_engine_tests)
     add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp
         tests/MusicalArchitectureTests.cpp tests/MelodyAdaptationTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
@@ -69,11 +73,13 @@ juce_generate_juce_header(GeneticComposer)
 target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginProcessor.cpp" "${SOURCE_DIR}/PluginProcessor.h"
     "${SOURCE_DIR}/ProcessorPlayback.cpp" "${SOURCE_DIR}/ProcessorState.cpp"
+    "${SOURCE_DIR}/ProcessorMicrotonal.cpp"
     "${SOURCE_DIR}/PluginEditor.cpp" "${SOURCE_DIR}/PluginEditor.h"
     "${SOURCE_DIR}/PianoRoll.cpp" "${SOURCE_DIR}/PianoRoll.h"
     "${SOURCE_DIR}/ComposerGuide.cpp" "${SOURCE_DIR}/ComposerGuide.h"
     "${SOURCE_DIR}/ComposerTheme.cpp" "${SOURCE_DIR}/ComposerTheme.h"
     "${SOURCE_DIR}/ChordComposerPanel.cpp" "${SOURCE_DIR}/ChordComposerPanel.h"
+    "${SOURCE_DIR}/MicrotonalComposerPanel.cpp" "${SOURCE_DIR}/MicrotonalComposerPanel.h"
     "${SOURCE_DIR}/ActivityDisplay.cpp" "${SOURCE_DIR}/ActivityDisplay.h"
     "${SOURCE_DIR}/InterfaceText.cpp" "${SOURCE_DIR}/InterfaceText.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/src/Fdn.cpp")
@@ -99,6 +105,7 @@ if(BUILD_TESTING)
     add_executable(plugin_tests)
     set_target_properties(plugin_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugin_tests_artefacts/$<CONFIG>")
     target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp
+        tests/MicrotonalLabTests.cpp
         tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp
         tests/RealtimeTests.cpp tests/AllocationGuard.cpp)
     target_link_libraries(plugin_tests PRIVATE GeneticComposer juce::juce_audio_utils)
@@ -112,4 +119,5 @@ if(BUILD_TESTING)
     add_test(NAME midi COMMAND plugin_tests midi)
     add_test(NAME playback COMMAND plugin_tests playback)
     add_test(NAME realtime COMMAND plugin_tests realtime)
+    add_test(NAME microtonal_lab COMMAND plugin_tests microtonal-lab)
 endif()

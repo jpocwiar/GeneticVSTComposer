@@ -1,8 +1,9 @@
 #pragma once
 #include "ChordGenerator.h"
 #include "ComposerEngine.h"
-#include <JuceHeader.h>
+#include "MicrotonalEngine.h"
 #include "reverbcore/Fdn.hpp"
+#include <JuceHeader.h>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -48,6 +49,20 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     bool canUndo() const;
     bool canRedo() const;
     void generate(bool evolve, bool overHarmony = false);
+    struct MicrotonalWorkspace {
+        microtonal::Settings settings;
+        microtonal::Clip clip;
+        microtonal::Stats stats;
+    };
+    MicrotonalWorkspace microtonalSnapshot() const;
+    juce::Result setMicrotonalSettings(const microtonal::Settings&);
+    void generateMicrotonal(bool evolve);
+    void setMicrotonalMode(bool);
+    bool isMicrotonalMode() const { return microtonalMode.load(); }
+    void startMicrotonalAudition();
+    void stopMicrotonalAudition();
+    juce::Result exportMicrotonalMidi(const juce::File&) const;
+    uint64_t microtonalRevision() const { return microRevision.load(); }
     void evolveRegion(double start, double end);
     struct PlaybackRegion {
         double start = 0, end = 0;
@@ -195,6 +210,9 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     CachedParameters cached;
     void cacheAudioParameters();
     struct SearchJob {
+        bool independentMicrotonal = false;
+        microtonal::Settings microSettings;
+        microtonal::Clip microParent;
         composer::Settings settings;
         composer::Clip parent;
         std::vector<composer::Clip> mates;
@@ -206,6 +224,11 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     };
     void beginSearch(bool evolve, bool overHarmony, bool regionOnly, double start = 0, double end = 0);
     void performSearch(SearchJob);
+    void performMicrotonalSearch(const SearchJob&);
+    void publishMicrotonalLocked();
+    juce::ValueTree microtonalStateLocked() const;
+    static bool readMicrotonalState(const juce::ValueTree&, MicrotonalWorkspace&);
+    void processMicrotonalBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&);
     void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
     void publishLocked();
@@ -230,6 +253,16 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
                             bool plainMidi = false) const;
     composer::VoicingSettings voicingSettings() const;
     mutable std::mutex documentMutex;
+    MicrotonalWorkspace microWorkspace;
+    std::atomic<bool> microtonalMode{false};
+    std::atomic<bool> microSearchActive{false};
+    std::atomic<uint64_t> microRevision{1};
+    MicrotonalWorkspace pendingMicro, audioMicro;
+    uint64_t pendingMicroRevision = 0, audioMicroRevision = 0;
+    bool audioMicrotonalMode = false;
+    double microPhase = 0, microExpectedPpq = 0;
+    int nextMicroNote = 0;
+    bool microWasRunning = false, microWasHostPlaying = false;
     composer::Bank bank;
     composer::Harmony customHarmony;
     composer::Clip grooveReference, comparison, draft, chordClip;
@@ -347,5 +380,6 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     void allOff(int sample, juce::MidiBuffer&);
     void releaseVoice(int pitch, int sample, juce::MidiBuffer&);
     void noteOn(const composer::Note&, int sourceIndex, int sample, juce::MidiBuffer&);
+    void noteOnTuned(const composer::Note&, double cents, int sourceIndex, int sample, juce::MidiBuffer&);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GeneticVSTComposerJUCEAudioProcessor)
 };

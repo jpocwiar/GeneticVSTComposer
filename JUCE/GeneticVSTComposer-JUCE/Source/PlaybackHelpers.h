@@ -25,7 +25,7 @@ bool samePlayback(const composer::Clip& a, const composer::Clip& b) {
 }
 constexpr int mpeBendRange = 48;
 // 14-bit pitch-wheel position for an offset in cents at a bend range in semitones.
-int bendPosition(int cents, int range) {
+int bendPosition(double cents, int range) {
     return juce::jlimit(0, 16383, 8192 + int(std::lround(cents * 8192.0 / (range * 100.0))));
 }
 template <typename Add> void addRpn(Add&& add, int channel, int number, int value) {

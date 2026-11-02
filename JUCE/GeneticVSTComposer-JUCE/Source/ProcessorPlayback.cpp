@@ -80,6 +80,7 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     transpose = 0;
     wasPlaying = false;
     wasHostPlaying = false;
+    microWasRunning = microWasHostPlaying = false;
     preview.store(false);
     chordPreview.store(false);
     heardChordPreview.store(false);
@@ -89,6 +90,10 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     clearVisualState();
 }
 void Processor::noteOn(const composer::Note& n, int sourceIndex, int sample, juce::MidiBuffer& midi) {
+    noteOnTuned(n, n.cents, sourceIndex, sample, midi);
+}
+void Processor::noteOnTuned(const composer::Note& n, double cents, int sourceIndex, int sample,
+                            juce::MidiBuffer& midi) {
     auto& v = voices[n.pitch];
     if (v.on)
         releaseVoice(n.pitch, sample, midi);
@@ -105,14 +110,14 @@ void Processor::noteOn(const composer::Note& n, int sourceIndex, int sample, juc
     channelUse[size_t(channel)] = ++channelClock;
     if (outputMode != 0)
         midi.addEvent(juce::MidiMessage::pitchWheel(
-                          channel, bendPosition(n.cents, outputMode == 2 ? mpeBendRange : outputBendRange)),
+                          channel, bendPosition(cents, outputMode == 2 ? mpeBendRange : outputBendRange)),
                       sample);
     v.on = true;
     v.channel = channel;
     v.sourceIndex = sourceIndex;
     v.remaining = n.duration;
     v.target = n.velocity / 127.0;
-    v.increment = phaseIncrements[size_t(n.pitch)] * std::exp2(n.cents / 1200.0);
+    v.increment = phaseIncrements[size_t(n.pitch)] * std::exp2(cents / 1200.0);
     midi.addEvent(juce::MidiMessage::noteOn(channel, n.pitch, juce::uint8(n.velocity)), sample);
     ++audioNoteOnSerial;
 }
@@ -221,6 +226,22 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const int samples = audio.getNumSamples();
     if (samples <= 0)
         return;
+    if (microtonalMode.load()) {
+        processMicrotonalBlock(audio, midi);
+        return;
+    }
+    if (audioMicrotonalMode) {
+        allOff(0, outputMidi);
+        resetOutput(0, outputMidi);
+        voices = {};
+        channelNotes = {};
+        outputMode = 0;
+        outputConfigured = false;
+        wasPlaying = false;
+        audioSelection = -1;
+        audioMicrotonalMode = false;
+        microWasRunning = false;
+    }
     bool bankChanged = false, chordsChanged = false, regionChanged = false;
     {
         juce::SpinLock::ScopedTryLockType lock(exchangeLock);
