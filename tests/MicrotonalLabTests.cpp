@@ -3,6 +3,7 @@
 #include "PluginEditor.h"
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -278,6 +279,112 @@ void testMicrotonalHarmonyWorkflow() {
           "micro evolve-each-loop was not serviced outside the audio thread");
 }
 } // namespace
+// Opt-in diagnostic: measure actual engine work and the processor's parameter-to-worker path.
+// Timing is reported, never asserted: a fast Release build must not be made artificially slower.
+void runSearchBudgetAudit() {
+    using Clock = std::chrono::steady_clock;
+    std::atomic<bool> cancelled{false};
+    struct Budget {
+        int population, generations, bars;
+    };
+    std::cout << "engine,population,generations,bars,notes,evaluations,rhythm_evaluations,ms,initial,best\n";
+    for (const auto budget :
+         {Budget{128, 300, 4}, Budget{128, 600, 4}, Budget{512, 300, 4}, Budget{128, 300, 16}}) {
+        composer::Settings normal;
+        normal.population = budget.population;
+        normal.generations = budget.generations;
+        normal.bars = budget.bars;
+        normal.phraseType = 2;
+        normal.seed = 742;
+        normal.crossover = 1;
+        composer::SearchStats stat;
+        int reports = 0;
+        const auto start = Clock::now();
+        const auto bank =
+            composer::generate(normal, nullptr, cancelled, {}, [&](const composer::SearchStats& value) {
+                check(value.generation == reports++, "normal audit skipped a generation report");
+                stat = value;
+            });
+        const double milliseconds = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        const uint64_t expectedNormal = uint64_t(budget.population) * (budget.generations + 1);
+        check(!bank.empty() && reports == budget.generations + 1 && stat.generation == budget.generations &&
+                  stat.evaluations == expectedNormal,
+              "normal audit did not execute the full budget");
+        check(stat.crossovers == uint64_t(budget.population - 4) * budget.generations,
+              "normal audit did not execute all island crossover generations");
+        std::cout << "normal," << budget.population << ',' << budget.generations << ',' << budget.bars << ','
+                  << bank.front().count << ',' << stat.evaluations << ",0," << std::fixed
+                  << std::setprecision(3) << milliseconds << ',' << stat.initialBest << ','
+                  << stat.bestFitness << std::endl;
+
+        microtonal::Settings micro;
+        micro.population = budget.population;
+        micro.generations = budget.generations;
+        micro.bars = budget.bars;
+        micro.seed = 742;
+        micro.phraseType = 2;
+        for (bool chords : {false, true}) {
+            microtonal::Stats final;
+            int pitchReports = 0, rhythmReports = 0;
+            const auto begin = Clock::now();
+            auto callback = [&](const microtonal::Stats& value) {
+                if (value.evaluations > 0) {
+                    check(value.generation == pitchReports++, "micro audit skipped a pitch/chord generation");
+                } else {
+                    check(value.rhythmGeneration == rhythmReports++,
+                          "micro audit skipped a rhythm generation");
+                }
+                final = value;
+            };
+            const auto clip = chords ? microtonal::generateChords(micro, {}, cancelled, callback)
+                                     : microtonal::generate(micro, nullptr, cancelled, callback);
+            const double ms = std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
+            const uint64_t expected =
+                uint64_t(budget.population) + uint64_t(budget.population - 1) * budget.generations;
+            check(clip.count > 0 && pitchReports == budget.generations + 1 &&
+                      final.generation == budget.generations && final.evaluations == expected,
+                  "micro audit did not execute the full pitch/chord budget");
+            check(chords ? final.rhythmEvaluations == 0
+                         : (final.rhythmEvaluations == expectedNormal &&
+                            rhythmReports == budget.generations + 1),
+                  "micro audit did not execute the full rhythm budget");
+            std::cout << (chords ? "micro-chords," : "micro-melody,") << budget.population << ','
+                      << budget.generations << ',' << budget.bars << ',' << clip.count << ','
+                      << final.evaluations << ',' << final.rhythmEvaluations << ',' << ms << ','
+                      << final.initialBest << ',' << final.best.total << std::endl;
+        }
+    }
+    auto processor = std::make_unique<Processor>();
+    auto parameter = [&](const char* id, float value) {
+        auto* p = processor->parameters.getParameter(id);
+        check(p != nullptr, "budget audit parameter missing");
+        p->setValueNotifyingHost(p->convertTo0to1(value));
+    };
+    parameter("customSearch", 1);
+    parameter("searchPopulation", 128);
+    parameter("searchGenerations", 600);
+    check(processor->configuredSearchBudget().generations == 600,
+          "processor ignored custom generation budget");
+    processor->generate(false);
+    await(*processor);
+    check(processor->searchSummary().startsWith("600/600 gen") &&
+              processor->searchSummary().contains("76928 eval"),
+          "processor submitted an incorrect budget to the conventional worker");
+    std::cout << "processor-normal: " << processor->searchSummary() << std::endl;
+    auto settings = processor->microtonalSnapshot().settings;
+    settings.population = 128;
+    settings.generations = 600;
+    settings.bars = 4;
+    processor->setMicrotonalSettings(settings);
+    processor->generateMicrotonal(false);
+    await(*processor);
+    const auto micro = processor->microtonalSnapshot();
+    check(micro.stats.generation == 600 && micro.stats.evaluations == 76328 &&
+              micro.stats.rhythmEvaluations == 76928,
+          "processor submitted an incorrect budget to the microtonal worker");
+    std::cout << "processor-micro: " << micro.stats.generation << "/600 gen | " << micro.stats.evaluations
+              << " pitch eval + " << micro.stats.rhythmEvaluations << " rhythm eval" << std::endl;
+}
 void runMicrotonalLabTests(const juce::File& screenshots) {
     testMicrotonalHarmonyWorkflow();
     auto p = std::make_unique<Processor>();

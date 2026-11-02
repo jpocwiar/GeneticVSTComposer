@@ -92,6 +92,8 @@ The third main tab has Melody/Chords views, its own twelve-slot bank, chord sequ
 
 ## Tests
 
+`plugin_tests budget-audit` is an opt-in Release diagnostic for concerns about searches completing too quickly. It measures normal melody, microtonal melody and microtonal chords at 128 x 300, 128 x 600 and 512 x 300, plus a longer phrase. It asserts every generation report and exact fitness-evaluation budgets, and also checks 600 generations through the processor's settings/worker path. Output includes wall time and initial/final fitness. Time itself is never a pass/fail criterion; no artificial delays are inserted. The regular search and microtonal-engine suites also include 300-generation regression checks.
+
 Run the configured suites with:
 
 ```sh

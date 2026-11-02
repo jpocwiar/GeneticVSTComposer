@@ -208,6 +208,17 @@ void runSearchTests() {
     const auto evolvedAgain = generate(s, &mates.front(), cancelled, {}, {}, &mates);
     check(evolved.size() == slotCount && similarity(evolved.front(), evolvedAgain.front()) == 1,
           "pinned mates made evolution nondeterministic");
+    // A small seven-generation test cannot detect a hidden cap at 100 generations.
+    s.generations = 300;
+    int largeReports = 0;
+    SearchStats large;
+    const auto fullBudget = generate(s, nullptr, cancelled, {}, [&](const SearchStats& stats) {
+        check(stats.generation == largeReports++, "large-budget search skipped a generation");
+        large = stats;
+    });
+    check(fullBudget.size() == slotCount && largeReports == 301 && large.generation == 300 &&
+              large.evaluations == 16 * 301,
+          "large-budget search silently capped generations or evaluations");
     s.generations = 2000;
     auto stopped = generate(s, nullptr, cancelled, {}, [&](const SearchStats& stats) {
         if (stats.generation == 2)

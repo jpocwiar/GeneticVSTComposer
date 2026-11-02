@@ -235,6 +235,24 @@ int main() {
                 cancelled.store(true);
         });
         check(aborted.count == 0, "partial cancelled result was committed");
+        cancelled.store(false);
+        Settings large;
+        large.population = 16;
+        large.generations = 300;
+        for (bool harmony : {false, true}) {
+            Stats final;
+            int reports = 0;
+            auto observe = [&](const Stats& stats) {
+                if (stats.evaluations > 0)
+                    check(stats.generation == reports++, "large micro search skipped a generation");
+                final = stats;
+            };
+            const auto result = harmony ? generateChords(large, {}, cancelled, observe)
+                                        : generate(large, nullptr, cancelled, observe);
+            check(result.count > 0 && reports == 301 && final.generation == 300 && final.evaluations == 4516,
+                  "large micro search silently capped the generation/evaluation budget");
+            check(harmony || final.rhythmEvaluations == 4816, "large micro rhythm planner capped its budget");
+        }
         testSharedRhythmAndHarmony();
         std::cout << "Microtonal engine: EDO / rational pitches, exact Hz, independent fitness, real GA, "
                      "determinism and cancellation passed.\n";

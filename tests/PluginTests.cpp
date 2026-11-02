@@ -36,6 +36,7 @@ void runChordPanelTests();
 void runPlaybackArchitectureTests();
 void runRealtimeTests();
 void runMicrotonalLabTests(const juce::File& screenshots = {});
+void runSearchBudgetAudit();
 void renderMusicalExamples(const juce::File&);
 void renderHarmonyExamples(const juce::File&, bool controls);
 int main(int argc, char** argv) {
@@ -52,10 +53,15 @@ int main(int argc, char** argv) {
         return 0;
     }
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
-                           requested == "realtime" || requested == "microtonal-lab";
+                           requested == "realtime" || requested == "microtonal-lab" ||
+                           requested == "budget-audit";
     const std::string suite = suiteMode ? requested : "all";
     const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
+        if (requested == "budget-audit") {
+            runSearchBudgetAudit();
+            return 0;
+        }
         if (want("plugin")) {
         auto p = std::make_unique<Processor>();
         p->prepareToPlay(48000, 128);
