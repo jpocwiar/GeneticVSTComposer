@@ -17,6 +17,16 @@ jobs:
         run: cmake --build build --config Release --parallel 4
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+      # auval only finds registered components, so the fresh build is copied into the user
+      # Components folder of this runner first.
+      - name: Validate AU
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/GeneticComposer_artefacts/Release/AU/Genetic Composer.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -a > /dev/null
+          auval -v aumu Gnc2 Gnco
       - uses: actions/upload-artifact@v4
         with:
           name: GeneticComposer-${{ matrix.os }}
@@ -33,11 +43,30 @@ jobs:
           cmake -S . -B build
           -DCOMPOSER_BUILD_PLUGIN=OFF
           -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
       - name: Build
         run: cmake --build build --parallel 4
       - name: Test
+        run: ctest --test-dir build --output-on-failure
+  # The search pool, the search thread, the audio callback and the editor share state through
+  # atomics, a spin lock and the document mutex. ThreadSanitizer checks the plugin suites too.
+  threads:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with ThreadSanitizer
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="-fsanitize=thread"
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+      - name: Build tests
+        run: cmake --build build --target engine_tests plugin_tests --parallel 4
+      - name: Test
+        env:
+          TSAN_OPTIONS: halt_on_error=1
         run: ctest --test-dir build --output-on-failure
   pluginval:
     runs-on: macos-14

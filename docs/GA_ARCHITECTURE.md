@@ -1,6 +1,6 @@
 # Architektura generowania melodii
 
-Ten dokument opisuje wersję 2.7 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
+Ten dokument opisuje wersję 2.9 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
 
 ## Inspiracja i różnice wobec pierwotnego projektu
 
@@ -19,11 +19,11 @@ Chromosom to `Clip`, zawierający do 512 uporządkowanych zdarzeń. Gen nuty prz
 
 Rzeczywista wysokość używana do oceny interwałów wynosi `100 × pitch + cents`. Dwie nuty o tym samym klawiszu i różnych centach są różnymi zdarzeniami także przy porównywaniu podobieństwa fraz.
 
-Preset Quick to 64 osobniki i 40 pokoleń, Balanced 128 i 100, Deep 256 i 300. Własny budżet pozwala ustawić 16–512 osobników oraz 1–2000 pokoleń. Przy co najmniej 64 osobnikach populacja dzieli się na cztery wyspy; mniejsza zostaje jedną. Ziarno każdej wyspy jest funkcją ziarna frazy i numeru wyspy. W każdym pokoleniu oceniana jest cała populacja, równolegle, a wynik nie zależy od kolejności wątków. Selekcja jest turniejowa. Każda wyspa zachowuje swojego najlepszego osobnika bez zmian, więc globalnie najlepszy wynik nie spada; nie ma już dwóch elit całej populacji. Potomstwo powstaje przez krzyżowanie i mutację. Domyślna szansa krzyżowania wynosi 90%. Bazowa mutacja to 0.25 przy nowej frazie i `mutation × 0.4` przy ewolucji. Gdy najlepszy wynik wyspy nie poprawia się przez 8 pokoleń, ten mnożnik rośnie do 1.5 i wraca do 1 po poprawie. Co 10 pokoleń najsłabszy osobnik wyspy jest zastępowany już ocenioną kopią lidera sąsiedniej wyspy, bez dodatkowej oceny, więc liczba ocen zostaje `populacja × (pokolenia + 1)`. Przy ewolucji przypięte frazy są dodatkową pulą do krzyżowania. Świeże generowanie ich nie używa. Zatrzymanie przez Cancel przerywa wyszukiwanie i nie zwraca częściowego banku.
+Preset Quick to 64 osobniki i 40 pokoleń, Balanced 128 i 100, Deep 256 i 300. Własny budżet pozwala ustawić 16–512 osobników oraz 1–2000 pokoleń. Przy co najmniej 64 osobnikach populacja dzieli się na cztery wyspy; mniejsza zostaje jedną. Ziarno każdej wyspy jest funkcją ziarna frazy i numeru wyspy. W każdym pokoleniu oceniana jest cała populacja, równolegle, a wynik nie zależy od kolejności wątków. Od 2.8 jedna pula wątków działa przez całe wyszukiwanie: `min(rdzenie − 3, 7)` wątków pomocniczych i wątek wyszukiwania oceniają wszystkie wyspy w jednym przebiegu, więc co najmniej dwa rdzenie zostają dla DAW. Wcześniej każda wyspa w każdym pokoleniu uruchamiała do ośmiu nowych wątków. Selekcja jest turniejowa. Każda wyspa zachowuje swojego najlepszego osobnika bez zmian, więc globalnie najlepszy wynik nie spada; nie ma już dwóch elit całej populacji. Potomstwo powstaje przez krzyżowanie i mutację. Domyślna szansa krzyżowania wynosi 90%. Bazowa mutacja to 0.25 przy nowej frazie i `mutation × 0.4` przy ewolucji. Gdy najlepszy wynik wyspy nie poprawia się przez 8 pokoleń, ten mnożnik rośnie do 1.5 i wraca do 1 po poprawie. Co 10 pokoleń najsłabszy osobnik wyspy jest zastępowany już ocenioną kopią lidera sąsiedniej wyspy, bez dodatkowej oceny, więc liczba ocen zostaje `populacja × (pokolenia + 1)`. Przy ewolucji przypięte frazy są dodatkową pulą do krzyżowania. Świeże generowanie ich nie używa. Zatrzymanie przez Cancel przerywa wyszukiwanie i nie zwraca częściowego banku.
 
-Krzyżowanie wymienia fragmenty całych zdarzeń, więc dziedziczone są także centy. Przy blokadach, Keep rhythm lub Melody on rhythm zachowane są czasy, a wymieniane wysokości, centy i velocity odblokowanych nut. Mutacja może zmieniać klawisz i gen mikrotonowy; przy dozwolonej zmianie rytmu także długość lub podział nuty, wstawienie nowego początku, usunięcie nuty do pauzy, przesunięcie początku o krok siatki, połączenie sąsiednich nut i kopiowanie krótkiego fragmentu razem z przerwami. Naprawa ograniczeń następuje przed oceną potomka.
+Krzyżowanie wymienia fragmenty całych zdarzeń, więc dziedziczone są także centy. Przy blokadach, Keep rhythm lub Melody on rhythm zachowane są czasy, a wymieniane wysokości, centy i velocity odblokowanych nut. Mutacja może zmieniać klawisz i gen mikrotonowy; przy dozwolonej zmianie rytmu także długość lub podział nuty, wstawienie nowego początku, usunięcie nuty do pauzy, przesunięcie początku o krok siatki, połączenie sąsiednich nut i kopiowanie krótkiego fragmentu razem z przerwami. Usunięcie i przesunięcie mogą dotyczyć także pierwszej nuty, więc fraza może wejść po pauzie. Zmiana velocity przesuwa ją o 35% w stronę akcentu metrycznego i dodaje losowo ±8. Naprawa ograniczeń następuje przed oceną potomka.
 
-Końcowy wybór najpierw bierze po jednym liderze z wyspy, potem resztę rankingu, odrzucając frazy podobne powyżej 0.85. Jeśli zabraknie dostatecznie różnych wyników, pozostałe sloty otrzymują ocenione osobniki. Silnik nie tworzy wtedy nieocenionych mutacji i nie losuje nowych centów po zakończeniu GA. `SearchStats::microtonalEvaluations` liczy oceny osobników zawierających faktyczne niezerowe offsety; nie jest liczbą nut ani obietnicą, że każda wynikowa fraza będzie mikrotonowa.
+Końcowy wybór najpierw bierze liderów wysp w kolejności ich wyniku, więc slot 1 zawsze zawiera najlepszą frazę wyszukiwania, a potem resztę rankingu, odrzucając frazy podobne powyżej 0.85. Podobieństwo to udział nut dopasowanych jeden do jednego według czasu początku (±0.01 ćwierćnuty), klawisza i centów, liczony względem dłuższej frazy. Wstawiona lub usunięta nuta nie przesuwa więc porównania reszty frazy; w 2.7 porównywano nuty o tym samym indeksie i jedna dodatkowa nuta obniżała podobieństwo prawie identycznych fraz z 0.94 do 0.06. Jeśli zabraknie dostatecznie różnych wyników, pozostałe sloty otrzymują ocenione osobniki najmniej podobne do już wybranych. Silnik nie tworzy wtedy nieocenionych mutacji i nie losuje nowych centów po zakończeniu GA. `SearchStats::microtonalEvaluations` liczy oceny osobników zawierających faktyczne niezerowe offsety; nie jest liczbą nut ani obietnicą, że każda wynikowa fraza będzie mikrotonowa.
 
 ## Riff, Motif i Melody
 
@@ -31,7 +31,7 @@ Końcowy wybór najpierw bierze po jednym liderze z wyspy, potem resztę ranking
 
 ### Riff
 
-Komórka ma długość jednego taktu lub całej frazy, jeżeli jest krótsza od taktu. Pierwsza komórka jest powielana wraz z początkami, długościami, wysokościami i centami. Przy aktywnej harmonii kolejne kopie są dostosowywane do akordów. Granice własnych akordów mogą dodatkowo dzielić nutę.
+Komórka ma pół taktu, jeden takt albo dwa takty (Riff ½ bar, Riff 1 bar, Riff 2 bars; parametr `riffCell`, domyślnie jeden takt), ale nie więcej niż cała fraza. Pierwsza komórka jest powielana wraz z początkami, długościami, wysokościami i centami. Przy aktywnej harmonii kolejne kopie są dostosowywane do akordów. Granice własnych akordów mogą dodatkowo dzielić nutę.
 
 Krzyżowanie przecina komórkę, a mutacja zmienia jej zdarzenia. Pozostałe kopie są aktualizowane **przed oceną** potomka. W chromosomie nadal znajduje się cała fraza, dzięki czemu fitness widzi również przejścia między kopiami i powrót do początku pętli. Nie jest to dopiero końcowe powielenie zwycięzcy.
 
@@ -61,6 +61,26 @@ Cel długości nuty to `max(grid, 0.25 × 2^(1.65 − 1.5 × activity))`, gdzie 
 Przy dodatnim Jazziness słabe części taktu dopuszczają nuty skali poza akordem. Docelowy udział nut akordowych to `(0.8 dla Riff / 0.75 dla Motif / 0.6 dla Melody) − 0.25 × Jazziness`; przy Jazziness = 0 cel wynosi 1. Mocne części taktu dodatkowo premiują stabilne nuty. Poprawne mikrotonowe przejścia nadal otrzymują częściowy kredyt 0.75. Różnorodność wysokości ma cel zależny od Diversity; nadmiar kolejnych identycznych wysokości jest karany. Małe niezerowe kroki nadal są preferowane.
 
 [Audyt pierwowzoru i pomiary przed/po](REFERENCE_AUDIT_2.6.md) wyjaśniają regresje, poprawki i pozostałe różnice względem Pythona.
+
+## Metrum, akcenty i wejście po pauzie w 2.8
+
+`metricLevel(czas, licznik, mianownik)` zwraca 3 na początku taktu, 2 na uderzeniu, 1 na podziale uderzenia i 0 w pozostałych miejscach. Jednostką jest wartość z mianownika. Metra złożone (licznik podzielny przez 3 i większy od 3, w metrach x/8 i x/16, np. 6/8, 9/8, 12/8) mają uderzenia co trzy jednostki. Pozostałe metra x/8 i x/16 grupują jednostki po dwie i kończą grupą trzech, więc 7/8 to 2+2+3, a 5/8 to 2+3. W metrach prostych x/4 i x/2 każda jednostka jest uderzeniem. Uderzenie jednostkowe dzieli się na pół, a grupa dwóch lub trzech jednostek na jednostki.
+
+Funkcja `metricWeight(czas, ustawienia)` korzysta z tej samej mapy, ale respektuje także własne grupowanie zapisane w klipie. Generowanie velocity, fitness, diagnostyka i dobieranie akordów do melodii używają tej wspólnej interpretacji metrum.
+
+Ten poziom zastępuje dawny test „całkowita ćwierćnuta” w czterech miejscach: udziale offbeatów, przyciąganiu do dźwięku akordu przy propozycjach na uderzeniach, premii za stabilne dźwięki akordu na uderzeniach i dopasowaniu kopii komórki do harmonii. W 4/4, 3/4 i 2/4 nic się nie zmienia. W 6/8 nuta na 1.5 jest teraz uderzeniem, a na 1.0 — podziałem; w 7/16 każdy takt zaczyna się od uderzenia, choć jego początek nie wypada na całej ćwierćnucie.
+
+Velocity nadal nie jest składnikiem fitness. Najpierw sprawdzono składnik oceny nagradzający nachylenie około 6 kroków velocity na poziom metryczny. Akcenty stały się bardzo regularne, ale w konfiguracji przykładu odsłuchowego (Motif, seed zmieniany od 1 do 100) udział zwycięzców z poprawnymi mikrotonowymi przejściami spadł z 98/100 do około 89/100. Velocity jest niezależne od pozostałych składników, więc dodatkowy cel tylko zaszumiał selekcję wysokości i rytmu. Obecnie nowe nuty dostają `80 + 6 × poziom ± 6`, a mutacja velocity przesuwa ją o 35% w stronę tej wartości i dodaje ±8. W wygenerowanych frazach nuty na uderzeniach są średnio o 8–10 kroków velocity głośniejsze od nut pomiędzy (wcześniej 0–3), a w tej samej konfiguracji 97/100 zwycięzców ma mikrotonowe przejścia.
+
+Nowa fraza może zacząć się od pauzy do ósemki, z prawdopodobieństwem `0.12 + 0.3 × cel offbeatów`. Wcześniej 575 z 576 wygenerowanych fraz zaczynało się dokładnie na „raz”, bo pierwszej nuty nie dało się usunąć ani przesunąć.
+
+## Gotowe progresje przy skalach pięcio- i sześciodźwiękowych
+
+Stopnie gotowych progresji wymagają siedmiu stopni skali. Pentatonika durowa, skala chromatyczna i całotonowa korzystają ze stopni skali durowej, a pentatonika molowa, skala bluesowa i Saba — z naturalnej molowej, tak jak w generatorze akordów (`harmonicScale`). Wcześniej `scale[stopień % rozmiar]` dawało jako IV w C dźwięk G (pentatoniki), F# (blues, całotonowa) albo D# (chromatyczna). Sama skala melodii się nie zmienia: przy pentatonice nad akordem F dopasowanie do skali nadal preferuje dźwięki pentatoniki.
+
+## Rozbicie oceny
+
+`fitnessBreakdown()` zwraca nazwane składniki `fitnessScore()` w kolejności obliczania; ich suma jest równa wynikowi. Przycisk **Explain score** w zakładce Search pokazuje wynik wyświetlanej frazy przy bieżących ustawieniach i pięć składników o największej wartości bezwzględnej, a podpowiedź — wszystkie. Ocena podczas Evolve zawiera dodatkowo składnik odległości od rodzica, którego to rozbicie nie pokazuje.
 
 ## Koszt interwałów w centach
 
@@ -156,7 +176,7 @@ Wartości w poniższych wzorach mają zakres 0–1. Density jest ponownie widocz
 - **Dynamics** reguluje zróżnicowanie długości oraz zakresu wysokości, a nie poziom audio. Cel odchylenia `log2(duration)` wynosi `1.1 × Dynamics`; docelowy zakres frazy wynosi `min(High − Low, 4 + 6 × Dynamics + 8 × Arousal)` półtonów.
 - **Valence** zwiększa wagę relacji konsonansowej do prymy, preferowany rejestr i udział ruchu w górę. Cel ruchu w górę wynosi `0.3 + 0.4 × Valence` wśród niezerowych interwałów wewnątrz frazy.
 - **Arousal** reguluje aktywność nutową i zakres rejestru. Efektywna gęstość to `clamp(Density + 0.65 × (Arousal − 0.5), 0, 1)`. Docelowy rejestr to środek Low/High, powiększony o `10 × (Valence − 0.5) + 4 × (Arousal − 0.5)` półtonów.
-- **Weirdness** zwiększa udział przesunięć względem pulsu i szansę szerszych skoków. Cel udziału offbeatów wynosi `clamp(Syncopation + 0.55 × (Weirdness − 0.1), 0, 1)`. Twarde ograniczenia nut mikrotonowych pozostają aktywne.
+- **Weirdness** zwiększa udział przesunięć względem pulsu i szansę szerszych skoków. Cel udziału offbeatów wynosi `clamp(Syncopation + 0.55 × (Weirdness − 0.1), 0, 1)`; offbeat to nuta poza uderzeniem metrum, czyli z `metricLevel < 2`. Twarde ograniczenia nut mikrotonowych pozostają aktywne.
 - **Evolution** (`mutation`) reguluje mutację rodzica i docelową odległość od niego. Rytm i blokady nadal mają pierwszeństwo.
 
 Te cele współdziałają. Przykładowo wysoka Dynamics może sprzyjać większemu zakresowi, ale duży, przypadkowy skok nadal kosztuje; wysoka Weirdness nie zamienia każdej nuty w chromatyczny skok. Zmiana gałki zmienia rozkład propozycji i/lub preferencje oceny, a nie gwarantuje konkretnego stylu.
@@ -178,6 +198,12 @@ Te cele współdziałają. Przykładowo wysoka Dynamics może sprzyjać większe
 - wyzerowanie odblokowanych centów przy OFF i zachowanie blokad oraz chronionego rytmu;
 - faktyczne powtórzenia komórki Riff, powrót i kontrast Motif oraz dłuższy kontur Melody;
 - utrzymanie struktury riffu w nieograniczonej ewolucji;
-- zmianę preferencji fitness po zmianie Dynamics, Valence, Arousal i Weirdness na porównywalnych parach fraz.
+- zmianę preferencji fitness po zmianie Dynamics, Valence, Arousal i Weirdness na porównywalnych parach fraz;
+- poziomy metryczne w 4/4, 6/8, 7/8, 7/16, 2/2 i 12/8 oraz udział offbeatów w 6/8;
+- IV gotowej progresji jako F przy pentatonikach, skali chromatycznej, całotonowej i bluesowej, także w 12-taktowym bluesie;
+- wejście części fraz po pauzie i głośniejsze nuty na uderzeniach niż pomiędzy nimi;
+- powtarzanie komórki Riff co pół taktu i co dwa takty.
+
+`SearchTests.cpp` sprawdza podobieństwo po wstawieniu nuty, przesunięciu wszystkich początków i przy nutach jednoczesnych, najlepszą frazę w slocie 1 przy czterech wyspach, brak par podobnych powyżej 0.85 w banku oraz zgodność sumy rozbicia z wynikiem. `FuzzTests.cpp` podaje losowe dane do parserów, przekształceń, harmonizacji i małych pełnych wyszukiwań.
 
 Dotychczasowe testy nadal sprawdzają pełną liczbę pokoleń, ocen i krzyżowań, elityzm, anulowanie, metra, własną harmonię, blokady i zgodność stanu silnika. Bieżący engine-only build przeszedł **AddressSanitizer i UndefinedBehaviorSanitizer**, a CTest zakończył się **1/1 PASS**. Są to sprawdzenia implementacji i jej ograniczeń; nie zastępują odsłuchu ani oceny muzycznej przez użytkownika.

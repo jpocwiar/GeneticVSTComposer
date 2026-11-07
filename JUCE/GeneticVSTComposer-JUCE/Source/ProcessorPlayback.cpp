@@ -7,6 +7,9 @@ using Processor = GeneticVSTComposerJUCEAudioProcessor;
 composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& clip, int transposition,
                                        int index) const {
     const double swing = cached.swing->load();
+    // Transform both edges through the same time mapping used for note onsets.
+    const double swungLength =
+        swingTime(n.start + n.duration, clip.grid, swing) - swingTime(n.start, clip.grid, swing);
     n.start = swingTime(n.start, clip.grid, swing);
     const float humanize = cached.humanize->load();
     if (humanize > 0.0001f && index >= 0) {
@@ -24,7 +27,7 @@ composer::Note Processor::renderedNote(composer::Note n, const composer::Clip& c
         n.velocity = std::clamp(n.velocity + int(std::lround((unit() * 2.0 - 1.0) * humanize * 24.0)), 1, 127);
     }
     n.start = std::min(n.start, clip.length - 0.001);
-    n.duration = std::max(0.001, std::min(n.duration * cached.gate->load(), clip.length - n.start));
+    n.duration = std::max(0.001, std::min(swungLength * cached.gate->load(), clip.length - n.start));
     n.pitch = juce::jlimit(0, 127, n.pitch + transposition);
     // With the tuning off, stored offsets are kept but the output is plain 12-TET.
     const int tuning = tuningIndex();

@@ -225,4 +225,65 @@ void runSearchTests() {
             cancelled = true;
     });
     check(stopped.empty(), "cancelled custom search returned a partial bank");
+    cancelled = false;
+
+    // Similarity follows onsets: one inserted note must not misalign the rest of the phrase.
+    Clip phrase;
+    phrase.length = 16;
+    for (int i = 0; i < 16; ++i)
+        phrase.notes[size_t(phrase.count++)] = {double(i), 0.5, 60 + (i * 5) % 12, 90, false, 0};
+    auto inserted = phrase;
+    inserted.notes[size_t(inserted.count++)] = {0.5, 0.25, 67, 90, false, 0};
+    sanitise(inserted);
+    check(similarity(phrase, inserted) > 0.9 && similarity(inserted, phrase) > 0.9,
+          "an inserted note misaligned the similarity of an otherwise identical phrase");
+    check(similarity(phrase, phrase) == 1, "a phrase is not identical to itself");
+    auto moved = phrase;
+    for (int i = 0; i < moved.count; ++i)
+        moved.notes[size_t(i)].start += 0.25;
+    check(similarity(phrase, moved) == 0, "shifted onsets still matched");
+    Clip chord;
+    chord.length = 4;
+    for (int i = 0; i < 3; ++i)
+        chord.notes[size_t(chord.count++)] = {0, 4, 60, 90, false, 0};
+    Clip single = chord;
+    single.count = 1;
+    check(std::abs(similarity(single, chord) - 1.0 / 3) < 1e-12,
+          "one note matched several simultaneous notes");
+
+    // Slot 1 holds the global best of a four-island search, and the bank avoids near-duplicates.
+    for (int type = 0; type < 3; ++type)
+        for (uint32_t seed : {41u, 77u}) {
+            s = {};
+            s.phraseType = type;
+            s.seed = seed;
+            SearchStats last;
+            const auto bank =
+                generate(s, nullptr, cancelled, {}, [&](const SearchStats& stats) { last = stats; });
+            check(last.population == 128 && std::abs(fitnessScore(bank.front(), s) - last.bestFitness) < 1e-8,
+                  "slot 1 is not the best phrase of the search");
+            for (size_t i = 0; i < bank.size(); ++i)
+                for (size_t j = i + 1; j < bank.size(); ++j)
+                    check(similarity(bank[i], bank[j]) <= 0.85, "the bank contains near-identical phrases");
+        }
+
+    // The breakdown is the score, term by term.
+    s = {};
+    s.phraseType = 2;
+    s.microEnabled = true;
+    s.tuning = 6;
+    check(parseHarmony("Cm:4 Fm:4 Ab:4 G7:4", s.harmony, error), "breakdown harmony setup");
+    const auto scored = generate(s, nullptr, cancelled).front();
+    const auto terms = fitnessBreakdown(scored, s);
+    double sum = 0;
+    bool density = false, parentTerm = false;
+    for (const auto& term : terms) {
+        check(term.name != nullptr && std::isfinite(term.value), "malformed fitness term");
+        sum += term.value;
+        density |= std::string(term.name) == "Density";
+        parentTerm |= std::string(term.name) == "Distance from parent";
+    }
+    check(std::abs(sum - fitnessScore(scored, s)) < 1e-9 && density && !parentTerm && terms.size() > 15,
+          "fitness breakdown does not add up to the score");
+    check(fitnessBreakdown(Clip{}, s).size() == 1, "an empty phrase needs one explaining term");
 }

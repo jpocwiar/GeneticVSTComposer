@@ -34,25 +34,46 @@ const Entry fragments[]{
     {", pitches ", ", wysokości "},
     {", accents ", ", akcenty "},
     {"Arrangement A / A' / B / A''  |  ", "Układ A / A' / B / A''  |  "},
-    {" positions / ", " pozycji / "},
-    {" distinct chords / ", " różnych akordów / "},
     {"No chord sequence yet", "Nie ma jeszcze sekwencji akordów"},
+    {"Score of variation ", "Wynik wariantu "},
+    {"Score of the preview", "Wynik podglądu"},
+    {" under the current settings: ", " przy obecnych ustawieniach: "},
     {"Variation ", "Wariant "},
     {"Cancel search  ", "Anuluj szukanie  "},
     {"Cancel search ", "Anuluj szukanie "},
-    {" individuals / ", " osobników / "},
-    {" generations...", " pokoleń..."},
     {" gen  |  ", " pok.  |  "},
-    {" eval  |  ", " ocen  |  "},
     {"Hearing chords", "Słychać akordy"},
     {"Hearing ", "Słychać "},
     {"Preview", "Podgląd"},
     {"A reference", "Referencja A"},
     {" next loop", " następna pętla"},
-    {" notes   /   ", " nut   /   "},
-    {" locked", " zablokowanych"},
-    {" microtonal", " mikrotonowych"},
-    {" bars", " taktów"},
+};
+// Fragments that follow a number take the Polish form for it: 1, 2-4 (but not 12-14) and the
+// rest. A decimal such as 1.5 takes the genitive singular; 4.0 is shown as 4.
+struct Plural {
+    const char* english;
+    const char* one;
+    const char* few;
+    const char* many;
+    const char* fraction;
+};
+const Plural plurals[]{
+    {" individuals. Audition a phrase; drag its piano roll to your DAW.",
+     " osobnik. Odsłuchaj frazę i przeciągnij jej piano roll do DAW.",
+     " osobniki. Odsłuchaj frazę i przeciągnij jej piano roll do DAW.",
+     " osobników. Odsłuchaj frazę i przeciągnij jej piano roll do DAW.",
+     " osobnika. Odsłuchaj frazę i przeciągnij jej piano roll do DAW."},
+    {" generations x ", " pokolenie × ", " pokolenia × ", " pokoleń × ", " pokolenia × "},
+    {" positions / ", " pozycja / ", " pozycje / ", " pozycji / ", " pozycji / "},
+    {" distinct chords / ", " różny akord / ", " różne akordy / ", " różnych akordów / ",
+     " różnego akordu / "},
+    {" individuals / ", " osobnik / ", " osobniki / ", " osobników / ", " osobnika / "},
+    {" generations...", " pokolenie...", " pokolenia...", " pokoleń...", " pokolenia..."},
+    {" eval  |  ", " ocena  |  ", " oceny  |  ", " ocen  |  ", " oceny  |  "},
+    {" notes   /   ", " nuta   /   ", " nuty   /   ", " nut   /   ", " nuty   /   "},
+    {" locked", " zablokowana", " zablokowane", " zablokowanych", " zablokowanej"},
+    {" microtonal", " mikrotonowa", " mikrotonowe", " mikrotonowych", " mikrotonowej"},
+    {" bars", " takt", " takty", " taktów", " taktu"},
 };
 const Entry exact[]{
     {"Microtonal chords ready.", "Akordy mikrotonowe gotowe."},
@@ -412,7 +433,7 @@ const Entry exact[]{
      "full sequence.",
      "Tylko nowe akordy zostawia melodie. Melodia z tych akordów przepisuje nieprzypięte melodie na całą "
      "sekwencję."},
-    {"VOICED CHORDS", "ZAGRNE AKORDY"},
+    {"VOICED CHORDS", "ZAGRANE AKORDY"},
     {"Play previews these chords. Melody > With chords plays both layers. Drag notes for chord MIDI.",
      "Play odsłuchuje te akordy. Melodia > Z akordami gra obie warstwy. Przeciągnij nuty, aby dostać MIDI "
      "akordów."},
@@ -426,12 +447,78 @@ const Entry exact[]{
     {"Click for budget and full search statistics.",
      "Kliknij, aby zobaczyć budżet i pełne statystyki szukania."},
     {"Language", "Język"},
+    {"Chords for this melody", "Akordy do tej melodii"},
+    {"Chords fitted to the selected melody, which is unchanged. Play together to hear both.",
+     "Akordy dopasowane do wybranej melodii, która się nie zmienia. Graj razem, aby usłyszeć obie warstwy."},
+    {"Select a variation with notes first.", "Najpierw wybierz wariant z nutami."},
+    {"Explain score", "Wyjaśnij wynik"},
+    {"Show statistics", "Pokaż statystyki"},
+    {"Empty phrase", "Pusta fraza"},
+    {"Scale fit", "Zgodność ze skalą"},
+    {"Chord tones", "Dźwięki akordu"},
+    {"Rests", "Pauzy"},
+    {"Offbeats", "Poza pulsem"},
+    {"Rhythmic variety", "Różnorodność rytmu"},
+    {"Interval size", "Wielkość interwałów"},
+    {"Small steps", "Małe kroki"},
+    {"Pitch variety", "Różnorodność wysokości"},
+    {"Repeated pitches", "Powtórzone dźwięki"},
+    {"Stable beats", "Stabilne mocne części"},
+    {"Range", "Ambitus"},
+    {"Register", "Rejestr"},
+    {"Contour direction", "Kierunek linii"},
+    {"Consonance", "Konsonans"},
+    {"Riff repetition", "Powtórzenie riffu"},
+    {"Loop leap", "Skok na pętli"},
+    {"Motif return", "Powrót motywu"},
+    {"Middle contrast", "Kontrast środka"},
+    {"Motif repetition", "Powtórzenia motywu"},
+    {"Contour arc", "Łuk linii"},
+    {"Melody repetition", "Powtórzenia melodii"},
+    {"Cadence", "Kadencja"},
+    {"Microtone share", "Udział mikrotonów"},
+    {"Resolved passing notes", "Rozwiązane przejścia"},
+    {"Unresolved microtones", "Nierozwiązane mikrotony"},
+    {"Distance from parent", "Odległość od rodzica"},
 };
 juce::String fromTable(const juce::String& english, const Entry* table, int count) {
     for (int i = 0; i < count; ++i)
         if (english == table[i].english)
             return juce::String::fromUTF8(table[i].polish);
     return {};
+}
+
+juce::String withPolishPlurals(juce::String text) {
+    for (const auto& entry : plurals) {
+        const juce::String english(entry.english);
+        for (int at = text.indexOf(english); at >= 0;) {
+            int begin = at;
+            while (begin > 0 &&
+                   (juce::CharacterFunctions::isDigit(text[begin - 1]) || text[begin - 1] == '.'))
+                --begin;
+            const auto number = text.substring(begin, at);
+            auto shown = number;
+            const char* form = entry.many;
+            if (number.containsAnyOf("0123456789")) {
+                const auto whole = number.upToFirstOccurrenceOf(".", false, false);
+                const auto decimals = number.fromFirstOccurrenceOf(".", false, false);
+                if (decimals.isEmpty() || decimals.containsOnly("0")) {
+                    shown = whole;
+                    const auto n = whole.getLargeIntValue();
+                    form = n == 1                                                         ? entry.one
+                           : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? entry.few
+                                                                                          : entry.many;
+                } else {
+                    shown = whole + "," + decimals;
+                    form = entry.fraction;
+                }
+            }
+            const auto polish = juce::String::fromUTF8(form);
+            text = text.substring(0, begin) + shown + polish + text.substring(at + english.length());
+            at = text.indexOf(begin + shown.length() + polish.length(), english);
+        }
+    }
+    return text;
 }
 } // namespace
 
@@ -441,7 +528,7 @@ juce::String interfaceText(const juce::String& english, int language) {
     if (auto exactMatch = fromTable(english, exact, int(sizeof exact / sizeof exact[0]));
         exactMatch.isNotEmpty())
         return exactMatch;
-    auto result = english;
+    auto result = withPolishPlurals(english);
     for (const auto& fragment : fragments)
         result = result.replace(juce::String(fragment.english), juce::String::fromUTF8(fragment.polish));
     return result;

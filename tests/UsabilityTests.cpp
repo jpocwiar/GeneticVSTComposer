@@ -262,8 +262,9 @@ void runUsabilityTests() {
         juce::AudioBuffer<float> audio(2, 512);
         juce::MidiBuffer midi;
         float peak = 0;
-        // Restore queues one block of note-offs before new playback may begin.
-        for (int block = 0; block < 2; ++block) {
+        // Restore queues one block of note-offs before new playback may begin. A generated
+        // phrase may also open with a rest of up to an eighth note, so listen for one beat.
+        for (int block = 0; block < 50 && peak == 0; ++block) {
             midi.clear();
             p->processBlock(audio, midi);
             peak = std::max(peak, audio.getMagnitude(0, 512));

@@ -502,4 +502,56 @@ void runChordGeneratorTests() {
         check(parseHarmony(alias.first, parsed, error) && parsed.chords[0].quality == alias.second,
               "chord alias did not map onto the existing quality");
     }
+
+    // Harmonising a melody: arpeggios of C, F, G and C, one bar each, ask for exactly those chords.
+    Clip arpeggios;
+    arpeggios.length = 16;
+    const int outline[4][4]{{60, 64, 67, 64}, {65, 69, 72, 69}, {67, 71, 74, 71}, {72, 67, 64, 60}};
+    for (int bar = 0; bar < 4; ++bar)
+        for (int beat = 0; beat < 4; ++beat)
+            arpeggios.notes[size_t(arpeggios.count++)] = {
+                bar * 4.0 + beat, 1, outline[bar][beat], 90, false, 0};
+    ChordGenerationSettings fit;
+    fit.scale = 0;
+    fit.originality = 0;
+    const auto fitted = harmonizeMelody(arpeggios, fit);
+    check(fitted.count == 4 && fitted.length == 16, "harmonisation must cover the whole melody");
+    const int expected[]{0, 5, 7, 0};
+    for (int i = 0; i < 4; ++i)
+        check(fitted.chords[size_t(i)].root == expected[i] && fitted.chords[size_t(i)].quality == 0 &&
+                  fitted.chords[size_t(i)].start == i * 4.0,
+              "C-F-G-C arpeggios were not harmonised as C-F-G-C");
+    check(same(fitted, harmonizeMelody(arpeggios, fit)), "harmonisation is not reproducible");
+    check(harmonizeMelody(Clip{}, fit).count == 0, "an empty melody must give no chords");
+    // A leading tone over the dominant asks for a major V in natural minor.
+    Clip minorLine;
+    minorLine.length = 8;
+    const int line[]{72, 75, 79, 75, 71, 74, 79, 74};
+    for (int i = 0; i < 8; ++i)
+        minorLine.notes[size_t(minorLine.count++)] = {double(i), 1, line[i], 90, false, 0};
+    fit.scale = 1;
+    fit.resolve = false;
+    const auto dominant = harmonizeMelody(minorLine, fit);
+    check(dominant.count == 2 && dominant.chords[1].root == 7 &&
+              (dominant.chords[1].quality == 0 || dominant.chords[1].quality == 4),
+          "B natural over G did not choose the major dominant");
+    // Odd meters and dense harmonic rhythm keep the melody's length and stay within capacity.
+    Clip odd;
+    odd.numerator = 7;
+    odd.denominator = 8;
+    odd.length = 3.5 * 3;
+    for (int i = 0; i < 21; ++i)
+        odd.notes[size_t(odd.count++)] = {i * 0.5, 0.5, 60 + (i * 2) % 12, 90, false, 0};
+    fit.harmonicRhythm = 2;
+    fit.originality = 1;
+    for (uint32_t seed = 1; seed <= 20; ++seed) {
+        fit.seed = seed;
+        const auto chords = harmonizeMelody(odd, fit);
+        double covered = 0;
+        for (int i = 0; i < chords.count; ++i)
+            covered += chords.chords[size_t(i)].duration;
+        check(chords.count > 0 && chords.count <= 64 && std::abs(chords.length - odd.length) < 1e-9 &&
+                  std::abs(covered - odd.length) < 1e-9,
+              "odd-meter harmonisation lost part of the melody");
+    }
 }

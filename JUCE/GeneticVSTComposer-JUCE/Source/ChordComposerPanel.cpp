@@ -92,7 +92,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
     juce::ComboBox rhythm, rhythmShape, voicing, length, key, scale, character;
     juce::ToggleButton resolve{"Resolve to tonic"};
     juce::TextButton generateChords{"New chords only"}, generateMelody{"Melody from these chords"},
-        newPair{"New chords + melody"}, revoice{"Revoice"}, melodySettings{"Melody settings"},
+        newPair{"New chords + melody"}, harmonize{"Chords for this melody"}, revoice{"Revoice"}, melodySettings{"Melody settings"},
         exportFile{"Export..."}, help{"?"}, adaptMelody{"Adapt melody"};
     TransportButton audition, together;
     MidiDragButton drag;
@@ -117,7 +117,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
                  &originality, &colour, &mood, &centre, &rhythm, &rhythmShape, &voicing, &length,
                  &key, &character,
                  &scale,          &resolve,      &generateChords, &generateMelody,  &newPair, &revoice,
-                 &melodySettings, &adaptMelody,  &audition,     &together,       &exportFile,      &help,    &drag,
+                 &melodySettings, &adaptMelody, &harmonize,  &audition,     &together,       &exportFile,      &help,    &drag,
                  &roll,           &cardViewport, &context,        &status})
             addAndMakeVisible(component);
         for (auto* label : {&context, &status}) {
@@ -229,6 +229,14 @@ struct ChordComposerPanel::Impl : public juce::Component {
                            "Two steps in one action.");
         newPair.setColour(juce::TextButton::buttonColourId, palette::accent);
         newPair.setColour(juce::TextButton::textColourOffId, palette::background);
+        harmonize.setColour(juce::TextButton::textColourOffId, palette::teal);
+        harmonize.setTooltip(
+            "Fit a chord sequence to the selected melody, using Originality, harmonic rhythm "
+            "and Resolve. The melody stays unchanged; Undo restores the previous chords.");
+        harmonize.onClick = [this] {
+            report(processor.harmonizeMelody());
+            refresh();
+        };
         revoice.setTooltip("Keep every chord and its timing; find new registers and inversions using "
                            "the current voicing and centre settings.");
         drag.setButtonText("Drag chord MIDI");
@@ -393,6 +401,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
         generateChords.setEnabled(!busy);
         adaptMelody.setEnabled(!busy && processor.canAdaptMelodyToChords());
         newPair.setEnabled(!busy);
+        harmonize.setEnabled(!busy && processor.selectedClip().count > 0);
         revoice.setEnabled(!busy && chordCount > 0);
         generateMelody.setEnabled(busy || chordCount > 0);
         generateMelody.setButtonText(text(busy ? "Cancel search " +
@@ -413,6 +422,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
         adaptMelody.setButtonText(text(region.enabled && region.slot == processor.selectedIndex()
                                           ? "Adapt range" : "Adapt melody"));
         newPair.setButtonText(text("New chords + melody"));
+        harmonize.setButtonText(text("Chords for this melody"));
         revoice.setButtonText(text("Revoice"));
         melodySettings.setButtonText(text("Melody settings"));
         exportFile.setButtonText(text("Export..."));
@@ -490,11 +500,14 @@ struct ChordComposerPanel::Impl : public juce::Component {
         voicing.setBounds(158, 183, 186, 27);
         centre.setBounds(474, 183, w - 750, 27);
         resolve.setBounds(w - 256, 183, 228, 27);
-        generateChords.setBounds(20, 232, 160, 35);
-        adaptMelody.setBounds(190, 232, 166, 35);
-        generateMelody.setBounds(366, 232, 196, 35);
-        newPair.setBounds(572, 232, 196, 35);
-        revoice.setBounds(w - 124, 232, 104, 35);
+        // Share the action row between both melody/harmony workflows at every editor size.
+        const int gap = 8;
+        const int buttonWidth = (w - 40 - 5 * gap) / 6;
+        int actionX = 20;
+        for (auto* button : {&generateChords, &adaptMelody, &generateMelody, &newPair, &harmonize, &revoice}) {
+            button->setBounds(actionX, 232, buttonWidth, 35);
+            actionX += buttonWidth + gap;
+        }
         melodySettings.setBounds(w - 204, 20, 142, 25);
         cardViewport.setBounds(20, 302, w - 40, 82);
         const int cardWidth = std::max(w - 40, cards.sequenceCount() * 137);

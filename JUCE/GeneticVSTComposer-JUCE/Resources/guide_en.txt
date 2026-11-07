@@ -1,0 +1,183 @@
+## 1. Your first phrase
+YOUR FIRST PHRASE
+
+Choose Root, Scale, Length and Meter, then Generate melody bank. Select one of the 12 variations and press Play: it enables Internal sound and disables Follow DAW. Double-clicking a card or the piano roll also starts audition. Choose Soft keys, Sine or Warm organ beside the button; Stop ends preview.
+
+Capture A keeps a reference for comparison. The plus on a card pins that variation so it survives another bank generation. Evolve selected develops the current phrase; Evolution controls the preferred amount of change.
+
+Drag the piano roll onto an instrument track, or use Drag MIDI / Export. Clicking the roll does not create notes by default. Export writes the displayed phrase or draft, including Swing and Gate processing.
+
+Phrase type: Riff ½ bar, Riff 1 bar and Riff 2 bars repeat a cell of half a bar, one bar or two bars; Motif builds a returning theme and Melody develops the whole phrase. A phrase may enter after a short rest, like a riff that starts on the "and". New notes take their velocity from the meter: bar starts and the other beats sound louder than the notes between them.
+
+Diversity shapes pitch and interval variety. Dynamics shapes melodic movement, not loudness. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. Density sets note activity, also influenced by Arousal. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
+
+The header MIDI trace shows actual emitted note events; OUT meters the internal audio output. Piano keys respond to emitted notes. Turn Motion off in the bottom bar for reduced animation while transport and level indicators remain active.
+
+Use the chapter selector above for detailed workflows. Escape closes this guide.
+
+## 2. Edit a region
+EDIT A REGION
+
+Drag across the top bar-number ruler to select a time range. The green strip marks the selection. Region shows the endpoints in quarter-note beats; Whole phrase selects everything.
+
+Selecting time automatically focuses playback on that section. Press Play: only notes starting inside the selection play, with note-offs at the range end. Moving the selection updates the loop. Double-click the ruler or click Whole phrase below the piano roll to clear the selection.
+
+The main Evolve selected action becomes Optimise range when time is selected. It runs the genetic search on that section of the current variation using the current evolution and harmony settings. Each loop respects the same scope. The rest of the melody, locked notes and other variations remain unchanged. Undo restores the previous phrase.
+
+Simplify thins the selection. More movement increases melodic movement. Answer creates a contrasting response. Resolve steers the ending towards a stable scale or chord tone.
+
+Only unlocked notes whose onsets fall inside the selected range are transformed. Other notes are preserved. These are musical algorithms, not natural-language AI commands. Undo reverses the operation. Export range saves the selection as a separate MIDI file; notes crossing its boundaries are cropped.
+
+Example: select the final bar of a four-bar phrase and press Resolve. Play the ending and compare it with a captured A reference.
+
+The piano roll exports MIDI by default. Enable Edit notes for manual editing: click an empty area to add; drag a note to move; drag its right edge to resize. Shift-click or L toggles a lock. Delete or right-click removes an unlocked note. Up/down arrows change the selected note's pitch. Keep rhythm preserves note starts and durations during evolution.
+
+## 3. Your own harmony
+YOUR OWN HARMONY
+
+Open Harmony and enter, for example:
+
+Cm:4 Fm:2 G7:2
+
+Apply chords sets C minor for four quarter-note beats, F minor for two, then G dominant seventh for two. Durations are BEATS, not bars. One 4/4 bar is 4 beats; one 7/8 bar is 3.5. Fractional durations are supported.
+
+Qualities: C, Cm, Cdim, Caug, C7, Cmaj7, Cm7, Csus2, Csus4, Cm7b5, Cdim7, C6, Cm6, Cadd9, C9 and Cmaj9. Sharps and flats are supported. The strip above the notes shows the applied progression; a shorter progression repeats through the phrase.
+
+Custom harmony overrides the preset progression. It guides generation and musical transforms; applying chords alone does not rewrite existing notes. Fit to scale remains available with custom harmony and fits pitches to the chosen scale during playback and export. It can change chromatic chord tones; turn it off to hear the generator's original pitches. Clear restores preset harmony.
+
+Import harmony MIDI reads a separate reference without replacing the melody. Chord recognition is approximate: inspect the text, correct it, and apply. A clean chord track without percussion works best.
+
+## 4. Compare A/B
+COMPARE A/B
+
+Capture A stores the displayed phrase as an independent reference. Hear A auditions that reference; Hear B returns to the selected variation or draft. Capturing again replaces the reference. Clear A removes the saved reference and its outlines.
+
+With Switch at loop enabled, variation and A/B changes wait until the current playback loop ends. Changes are immediate while stopped. Disable the option for immediate switching during playback.
+
+The line above the piano roll identifies what is audible and what is queued. A teal card dot marks the audible variation; gold marks a queued variation. The editor keeps showing B even while A is audible.
+
+Gold outlines show reference A notes with different positions, pitches or durations. Velocity-only differences are not outlined.
+
+Example: Capture A, edit the ending in Region, press Play, then alternate Hear A and Hear B. Each change can start at the loop boundary.
+
+A/B affects audition output. Export and Drag MIDI always write the displayed phrase, so check its title before exporting.
+
+## 5. Groove and velocity
+GROOVE AND VELOCITY
+
+In Groove, Import groove MIDI loads a timing and accent reference without replacing the melody. Use selected captures the current variation as a reference; then choose the variation you want to change.
+
+Newly generated notes get velocities that follow the meter: the bar start loudest, then the other beats, and the notes between beats softest. Groove and manual editing can still change them.
+
+Timing controls how far note starts move towards the reference. Velocity controls accent transfer. 0% preserves the feature; 100% applies the full proposed change. Apply groove changes the selected phrase; Undo reverses it. Locked notes remain unchanged.
+
+Try a drum reference with Timing at 30% and Velocity at 70%. Timing transfers deviations from the nearest reference grid positions, not the entire rhythm structure. A shorter reference loops; a longer reference contributes its opening portion. Pitches and durations are preserved.
+
+To edit one note's velocity, enable Edit notes and click its bar in the VEL lane below the piano roll and drag vertically. The selected bar is brighter. Notes with identical onsets share the same horizontal position.
+
+Swing and Gate apply additional playback and export processing. Check those values when evaluating the groove.
+
+## 6. Build an arrangement
+BUILD A — A′ — B — A″
+
+Select a useful motif, open Arrange and press Preview arrangement. The result has four consecutive sections: original A, a development A′, an answer B, and an ending A″.
+
+A four-bar source becomes a sixteen-bar sequence. The piano roll shows the entire draft. You can audition it or export it directly with Export or Drag MIDI.
+
+Keep preview replaces the selected bank slot with the sequence. Discard returns to the committed phrase. Note editing and generation are disabled while a draft is pending; first keep or discard it. A draft is temporary: keep or export it before closing the project.
+
+After keeping the sequence, select one section in the ruler and refine it using Region. Undo restores the phrase from before the commit. To export one section, select its time range in the ruler and use Region > Export range. The main Export writes the whole sequence.
+
+This arranges one MIDI part, not multiple instruments. The source must be at most 32 quarter-note beats and 128 notes. The result can hold up to 512 notes; very dense source material may need simplifying first.
+
+## 7. Combine variations
+COMBINE VARIATIONS
+
+In Combine, choose three sources from the current bank:
+
+Rhythm supplies note starts, durations and the result's length.
+Pitches supplies pitches.
+Accents supplies velocity values.
+
+For example, select Rhythm 03, Pitches 07 and Accents 02, then Preview combination. Sources with different note counts are matched by relative position within each phrase; a one-to-one note correspondence is not required.
+
+Play the draft shown in the piano roll. Keep preview writes it to the currently selected bank slot. Discard preserves the previous phrase. You can change source choices and preview again before deciding.
+
+Locked notes in the Rhythm source are preserved in full: their pitch and velocity are not replaced. Locks in the Pitches and Accents sources do not constrain the result.
+
+Capture A before starting for easy comparison. Pin important sources and Save bank to retain the complete source set.
+
+## 8. Studio One and shortcuts
+STUDIO ONE AND SHORTCUTS
+
+Play through Internal sound, then drag Drag MIDI onto your instrument track in Studio One. Export saves a standard MIDI file for manual import.
+
+Follow DAW synchronises playback position, tempo, start and stop with the host. Play automatically disables Follow DAW and enables Internal sound for independent preview. Turn Follow DAW off for MIDI-note triggering too. Disable Internal sound when another instrument receives the MIDI output. MIDI routing availability depends on the plugin format and host setup.
+
+MIDI 48–59: hold to trigger variations 1–12.
+MIDI 60–127: transpose; 60 means original pitch. DAW octave names may differ.
+
+Space: Play / Stop (Play enables the internal sound and turns Follow DAW off).
+Cmd/Ctrl+Z: Undo.
+Cmd/Ctrl+Shift+Z: Redo.
+Esc: close the guide; outside it, Stop all.
+Shift-click or L: toggle a note lock.
+Delete / right-click: delete an unlocked note when Edit notes is on.
+Mouse wheel over the roll: scroll pitches.
+
+Playback shortcuts are suspended while typing text. Save bank stores the bank and settings; the DAW project also stores plugin state. Keep preview commits a temporary draft before saving.
+
+## 9. Microtones
+MICROTONES (OPTIONAL)
+
+Microtones is always visible in the Composition panel. The palette and output details are under Tuning / MIDI. Off gives a normal 12-tone melody. On allows the genetic search to place short passing notes between semitones and resolve them into stable notes.
+
+The colour selector supplies neutral intervals, Rast, Bayati, Saba, blues or 24-EDO. The main Scale still guides the melody. There is no manual percentage or blanket retuning action: the placement, duration and resolution of microtonal passing notes are part of the optimisation.
+
+Use Generate melody bank or Evolve selected after changing the settings. Violet piano-roll notes sit between rows; E4-50 is E4 lowered by 50 cents. Play previews their exact pitches. Fit to scale moves base pitches into Scale while retaining their microtonal offsets; turn it off to hear the generator's original pitches.
+
+MIDI output:
+Pitch bend (mono): channel 1, for a single melody voice. Set the receiving synth's bend range to the Bend value. Overlapping notes may share the new bend during the preceding note's release.
+MPE: one note per channel 2–16, at ±48. The receiving instrument must support MPE.
+
+Export and Drag MIDI include the tuning messages. Internal preview needs no MIDI setup. Chords stay in 12-TET and use a separate sound layer, so melody pitch bends do not detune them. Enable With chords on Melody to hear both layers together.
+
+## 10. Genetic search
+GENETIC SEARCH, METER AND PROGRESSIONS
+
+Quick uses 64 individuals and 40 generations; Balanced 128 and 100; Deep 256 and 300. Search > Custom budget allows 16-512 individuals and 1-2000 generations. Crossover is the mating probability (90% by default).
+
+Every population is scored in parallel by fitness. From 64 individuals the search uses four islands, and each island keeps one elite unchanged. Tournament selection chooses parents. One-point crossover exchanges phrase sections, and mutation rises when an island stops improving. Locks, Keep rhythm and Melody on rhythm protect timing; crossover then exchanges pitches and velocities. Rhythm only also crosses rhythm sections when timing is unprotected. Pinned variations can join Evolve as extra parents. Humanize defaults to zero. Above zero it shifts melody starts and velocities in export and preview; the stored phrase, chord roll and chord export stay exact. The EN/PL button changes only this editor's language and is saved locally, not as a host parameter.
+
+Beats come from the meter: 6/8 and 12/8 count dotted quarters, and 7/8 groups 2+2+3. Preset progressions with pentatonic, whole-tone, blues and chromatic scales take their chords from the parent major or minor scale, so IV in C is F. The search leaves two processor cores free for the DAW. Slot 1 always holds the search's best phrase, and the bank skips phrases more than 85% similar to one already chosen, comparing notes by onset. Explain score on the Search tab shows how much each fitness term adds to or takes from the displayed phrase under the current settings.
+
+Generation, Evaluations, Crossovers and Best/Mean fitness report real work. The initial population is also evaluated: total evaluations = population x (generations + 1). Fitness is an internal measure of matching settings, not an objective musical rating. More generations do not guarantee a better idea. Cancel search keeps the old bank.
+
+This is a new engine, not a copy of the old genetic.cpp. The old code used 128 individuals, 100 generations and 90% crossover. Cached fitness and a different scoring function make the new search faster; it adds no artificial delay.
+
+Meter offers 27 presets or typed input such as 11/8: numerator 1-32, denominator 1, 2, 4, 8, 16 or 32. Meter affects new generation; Evolve retains the parent's meter. Phrases are limited to 128 quarter-note beats, so choose fewer bars for long meters.
+
+Harmony offers 25 progressions plus Scale only. Degrees follow the chosen scale, one chord per bar. Custom chords opens chord/duration entry such as Cm:4 Ab:4 Eb:4 Bb:4. Selecting a preset clears active custom harmony.
+
+## 11. Chord Composer
+CHORDS TAB — HARMONY AND VOICINGS
+
+Melody and Chords are the two main pages of one interface. Root and Scale are shared; set Meter on Melody. Chords has its own Length, defaulting to 4 bars. Follow melody explicitly links the two lengths. Settings affect the next generation, not existing notes.
+
+Harmonic character selects Balanced, Pop, Jazz, Modal or Cinematic. A phrase planner sets destinations and answers, then a bounded search combines learned transitions, harmonic-function preferences and repetition costs. Longer progressions may visit a related key and return home. Originality controls root movement and surprise: familiar tonal relationships at low values, mixture and related keys in the middle, remote chromatic roots and semitone shifts at the high end. Chord colour independently chooses triads, then suspensions/sixths/sevenths, then ninths. Mood runs from Dark (more minor/diminished/tense colours) to Bright (more major/warmer colours); 50% is neutral. It respects the chosen key/scale, Colour and tonic ending. These controls affect new generation. Voicing below controls inversions and spacing and applies on Revoice. Melody still uses a separate genetic search with your Search budget.
+
+The transition prior is trained on Bach Choral Harmony (Radicioni & Esposito, 2014), UCI, https://doi.org/10.24432/C5B61F, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/. Our adaptation aggregates root intervals and chord families from 5665 events in 60 chorales without storing whole works. Pop, Jazz, Modal and Cinematic profiles are authored rules, not styles learned from this classical corpus. The model runs locally and needs no internet connection.
+
+Harmonic rhythm changes chords every two bars, one bar or half a bar. Resolve to tonic ends on the tonic. New chords only changes harmony. Melody from these chords keeps the displayed chords and creates a melody bank spanning the entire sequence. New chords + melody performs both steps. Both melody actions return to Melody and enable With chords; pinned variations remain intact. Generate melody bank on Melody uses active harmony with the length selected on Melody; Evolve selected develops the selected variation.
+
+Adapt melody retunes the selected existing variation to the active chords. It keeps rhythm, velocity, note count, phrase length and as much contour as possible; fitting short passing notes may remain. It considers chord changes under held notes. Locked notes and other variations stay unchanged. A melody time selection changes the action to Adapt range. The action is available on Chords and Chord text. Undo restores the previous melody over the new chords. Adapt uses the actual chords; Fit to scale remains a separate playback/export projection. Melody and harmony keep their lengths, so a shorter harmony repeats along the melody timeline.
+
+Smooth inversions limits voice movement across the sequence. Root position keeps the root in the bass. Open voicings spreads the voices. Voice centre sets the register; click Revoice after changing it to update the voices without changing the progression. Slash names show the actual bass: C/E is C major over E.
+
+Chords for this melody works the other way round from Adapt melody: it fits a chord sequence to the selected melody, using Originality, Harmonic rhythm and Resolve. Each harmonic step favours chords containing the notes that sound longest and fall on the strongest beats, and the sequence as a whole favours common functional moves and a tonic ending. The melody is unchanged; Undo restores the previous chords.
+
+The triangular Play button below the chord piano roll plays the chords alone; the square Stop ends preview. On Melody, enable With chords and press Play to hear both layers together. Switching tabs does not stop playback.
+
+Drag the Chords piano roll or Drag chord MIDI for the chord part. Drag the Melody piano roll for the melody. Export saves the displayed inversions and register. Each layer remains a separate MIDI export. Chords use 12-TET even with Micro on; internal preview gives them a separate sound layer so melody pitch bends do not detune them. The progression and voicings are saved with the bank and DAW project.
+
+Length also offers 3, 6, 12 and 16 bars. Chord names add m7b5, dim7, 6, m6, add9, 9 and maj9, still as four voices. Scales add Phrygian, Locrian, melodic minor, whole tone, blues and Phrygian dominant. Rhythm shape can be even, long-short or short-long. Melody + chords writes MIDI type 1: the melody on track 1 and the exact chord voices on track 2. Chord MIDI output is off by default; when enabled it sends those voices on channel 16 and stays off while MPE uses channels 2-16.

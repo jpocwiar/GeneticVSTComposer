@@ -34,19 +34,37 @@ struct Random {
     int index(int count) { return int(engine() % uint32_t(count)); }
     std::mt19937 engine;
 };
-int harmonicScale(int scale) {
-    switch (scale) {
-    case 4:
-    case 8:
-    case 13: // Whole tone uses the major chord vocabulary.
-        return 0;
-    case 5:
-    case 9:
-    case 14: // Hexatonic blues uses the minor chord vocabulary.
-        return 1;
-    default:
-        return std::clamp(scale, 0, 15);
+// Chord durations for a harmonic rhythm over the whole length, grouped to at most 64 events.
+std::vector<double> chordSteps(double length, double bar, int harmonicRhythm, int rhythmShape) {
+    const int rhythm = std::clamp(harmonicRhythm, 0, 2);
+    double step = std::max(0.125, bar * (rhythm == 0 ? 2.0 : rhythm == 1 ? 1.0 : 0.5));
+    const int requested = int(std::ceil(length / step - 1e-9));
+    if (requested > 64)
+        step *= std::ceil(requested / 64.0);
+    const int evenCount = std::min(64, int(std::ceil(length / step - 1e-9)));
+    std::vector<double> durations;
+    const int shape = std::clamp(rhythmShape, 0, 2);
+    if (shape == 0) {
+        for (int i = 0; i < evenCount; ++i)
+            durations.push_back(std::min(step, length - i * step));
+    } else {
+        // Group the same grid: long-short holds two steps then one, short-long the reverse.
+        constexpr int pattern[2][2]{{2, 1}, {1, 2}};
+        double consumed = 0;
+        for (int index = 0; consumed < length - 1e-9 && durations.size() < 64; ++index) {
+            double duration = step * pattern[shape - 1][index % 2];
+            if (consumed + duration > length - 1e-9)
+                duration = length - consumed;
+            if (duration < 0.125 - 1e-9) {
+                if (!durations.empty())
+                    durations.back() += duration;
+                break;
+            }
+            durations.push_back(duration);
+            consumed += duration;
+        }
     }
+    return durations;
 }
 ChordEvent degreeChord(const std::vector<int>& scale, int degree, int root) {
     const int third = pc(scale[size_t((degree + 2) % 7)] - scale[size_t(degree)]);
@@ -152,34 +170,7 @@ Harmony generateHarmony(const ChordGenerationSettings& settings) {
     if (length > 128.0 || !std::isfinite(length))
         return result;
     result.length = length;
-    const int rhythm = std::clamp(settings.harmonicRhythm, 0, 2);
-    double step = std::max(0.125, bar * (rhythm == 0 ? 2.0 : rhythm == 1 ? 1.0 : 0.5));
-    const int requested = int(std::ceil(length / step - 1e-9));
-    if (requested > 64)
-        step *= std::ceil(requested / 64.0);
-    const int evenCount = std::min(64, int(std::ceil(length / step - 1e-9)));
-    std::vector<double> durations;
-    const int shape = std::clamp(settings.rhythmShape, 0, 2);
-    if (shape == 0) {
-        for (int i = 0; i < evenCount; ++i)
-            durations.push_back(std::min(step, length - i * step));
-    } else {
-        // Group the same grid: long-short holds two steps then one, short-long the reverse.
-        constexpr int pattern[2][2]{{2, 1}, {1, 2}};
-        double consumed = 0;
-        for (int index = 0; consumed < length - 1e-9 && durations.size() < 64; ++index) {
-            double duration = step * pattern[shape - 1][index % 2];
-            if (consumed + duration > length - 1e-9)
-                duration = length - consumed;
-            if (duration < 0.125 - 1e-9) {
-                if (!durations.empty())
-                    durations.back() += duration;
-                break;
-            }
-            durations.push_back(duration);
-            consumed += duration;
-        }
-    }
+    const auto durations = chordSteps(length, bar, settings.harmonicRhythm, settings.rhythmShape);
     result.count = int(durations.size());
     if (result.count == 0)
         return result;
@@ -197,6 +188,168 @@ HarmonyModelInfo harmonyModelInfo() {
     return {harmony_model::sourceEvents, harmony_model::sourceSequences, harmony_model::transitions,
             harmony_model::validationSequences, harmony_model::validationTransitions,
             harmony_model::firstPerplexity, harmony_model::contextPerplexity};
+}
+
+Harmony harmonizeMelody(const Clip& source, const ChordGenerationSettings& settings) {
+    auto melody = source;
+    sanitise(melody);
+    Harmony result;
+    if (melody.count == 0)
+        return result;
+    Settings meter;
+    meter.numerator = melody.numerator;
+    meter.denominator = melody.denominator;
+    meter.groups = melody.groups;
+    meter.groupCount = melody.groupCount;
+    meter.groupUnit = melody.groupUnit;
+    const double bar = melody.numerator * 4.0 / melody.denominator;
+    const auto durations = chordSteps(melody.length, bar, settings.harmonicRhythm, settings.rhythmShape);
+    if (durations.empty())
+        return result;
+    const int key = pc(settings.root), mode = harmonicScale(settings.scale);
+    const auto& scale = scaleIntervals(mode);
+    const bool minor = scale[2] == 3;
+    const float originality = amount(settings.originality);
+    struct Candidate {
+        ChordEvent chord;
+        int degree;
+        double cost;
+        bool applied;
+    };
+    std::vector<Candidate> options;
+    const auto offer = [&](ChordEvent chord, int degree, double cost, bool applied = false) {
+        for (const auto& existing : options)
+            if (existing.chord.root == chord.root && existing.chord.quality == chord.quality)
+                return;
+        options.push_back({chord, degree, cost, applied});
+    };
+    // Diatonic triads first; originality admits sevenths, parallel-mode colours and applied
+    // dominants, each with a cost that falls as originality rises.
+    for (int degree = 0; degree < 7; ++degree) {
+        const auto triad = degreeChord(scale, degree, key);
+        offer(triad, degree, 0.0);
+        if (originality >= 0.2f) {
+            auto seventh = triad;
+            extendChord(seventh, scale, key);
+            offer(seventh, degree, 0.35 * (1.0 - originality));
+        }
+    }
+    if (minor)
+        offer({0, 4, pc(key + 7), 0}, 4, 0.05);
+    if (originality >= 0.35f) {
+        static constexpr int majorBorrowed[][2]{{3, 0}, {8, 0}, {10, 0}, {5, 1}, {2, 2}};
+        static constexpr int minorBorrowed[][2]{{2, 0}, {5, 0}, {1, 0}, {0, 0}, {9, 1}};
+        for (const auto& colour : minor ? minorBorrowed : majorBorrowed)
+            offer({0, 4, pc(key + colour[0]), colour[1]}, -1, 0.15 + 0.6 * (1.0 - originality));
+    }
+    if (originality >= 0.5f)
+        for (int target = 1; target <= 5; ++target)
+            offer({0, 4, pc(key + scale[size_t(target)] + 7), 4}, -1, 0.1 + 0.5 * (1.0 - originality), true);
+    // Fit of each candidate to the melody in each step. A note counts by its sounding time
+    // there, more on stronger metric positions; notes held over from the previous step count less.
+    const int steps = int(durations.size()), choices = int(options.size());
+    std::vector<double> starts(static_cast<size_t>(steps), 0.0);
+    for (int step = 1; step < steps; ++step)
+        starts[size_t(step)] = starts[size_t(step - 1)] + durations[size_t(step - 1)];
+    const auto inScale = [&](int pitch) {
+        return std::find(scale.begin(), scale.end(), pc(pitch - key)) != scale.end();
+    };
+    Random random(settings.seed);
+    std::vector<std::vector<double>> fit(static_cast<size_t>(steps),
+                                         std::vector<double>(static_cast<size_t>(choices), 0.0));
+    for (int step = 0; step < steps; ++step) {
+        const double begin = starts[size_t(step)], end = begin + durations[size_t(step)];
+        double weight = 0.0;
+        for (int i = 0; i < melody.count; ++i) {
+            const auto& note = melody.notes[size_t(i)];
+            const double overlap = std::min(end, note.start + note.duration) - std::max(begin, note.start);
+            if (overlap <= 1e-9)
+                continue;
+            const bool onset = note.start >= begin - 1e-9;
+            const double w =
+                overlap *
+                (onset ? 1.0 + 0.35 * metricWeight(note.start, meter) : 0.6);
+            weight += w;
+            for (int c = 0; c < choices; ++c) {
+                const auto& tones = intervals[size_t(options[size_t(c)].chord.quality)];
+                const int relative = pc(note.pitch - options[size_t(c)].chord.root);
+                const bool chordTone = std::any_of(std::begin(tones), std::end(tones), [&](int interval) {
+                    return interval >= 0 && pc(interval) == relative;
+                });
+                fit[size_t(step)][size_t(c)] += w * (chordTone ? 1.0 : inScale(note.pitch) ? -0.3 : -0.9);
+            }
+        }
+        for (int c = 0; c < choices; ++c) {
+            if (weight > 0)
+                fit[size_t(step)][size_t(c)] /= weight;
+            // Seeded variety among near ties, wider at higher originality.
+            fit[size_t(step)][size_t(c)] += (random.unit() - 0.5) * 0.08 * (0.25 + originality);
+        }
+    }
+    const auto motion = [&](const Candidate& from, const Candidate& to) {
+        double value = 0.0;
+        const int interval = pc(to.chord.root - from.chord.root);
+        if (interval == 0)
+            value -= from.chord.quality == to.chord.quality ? 0.45 : 0.15;
+        else if (interval == 5)
+            value += 0.45; // falling fifth: V-I, ii-V, vi-ii
+        else if (interval == 2)
+            value += 0.15; // IV-V
+        else if (interval == 8 || interval == 9)
+            value += 0.12; // falling third: I-vi, vi-IV
+        else if (interval == 7)
+            value += 0.1; // IV-I, I-V
+        if (from.degree == 4 && to.degree == 0)
+            value += 0.35;
+        if (from.applied)
+            value += interval == 5 ? 0.6 : -0.9;
+        return value;
+    };
+    const auto local = [&](int step, int c) {
+        const auto& option = options[size_t(c)];
+        double value = 2.2 * fit[size_t(step)][size_t(c)] - option.cost;
+        if (step == 0 && option.degree == 0)
+            value += 0.6;
+        if (step + 1 == steps) {
+            if (settings.resolve && option.degree == 0)
+                value += 1.2;
+            if (option.applied)
+                value -= 0.9;
+        }
+        return value;
+    };
+    std::vector<std::vector<double>> total(static_cast<size_t>(steps),
+                                           std::vector<double>(static_cast<size_t>(choices)));
+    std::vector<std::vector<int>> previous(static_cast<size_t>(steps),
+                                           std::vector<int>(static_cast<size_t>(choices), -1));
+    for (int c = 0; c < choices; ++c)
+        total[0][size_t(c)] = local(0, c);
+    for (int step = 1; step < steps; ++step)
+        for (int c = 0; c < choices; ++c) {
+            double best = -std::numeric_limits<double>::max();
+            for (int p = 0; p < choices; ++p) {
+                const double value =
+                    total[size_t(step - 1)][size_t(p)] + motion(options[size_t(p)], options[size_t(c)]);
+                if (value > best) {
+                    best = value;
+                    previous[size_t(step)][size_t(c)] = p;
+                }
+            }
+            total[size_t(step)][size_t(c)] = best + local(step, c);
+        }
+    const auto& last = total.back();
+    int choice = int(std::max_element(last.begin(), last.end()) - last.begin());
+    result.length = melody.length;
+    result.count = steps;
+    for (int step = steps - 1; step >= 0; --step) {
+        auto chord = options[size_t(choice)].chord;
+        chord.start = starts[size_t(step)];
+        chord.duration = durations[size_t(step)];
+        result.chords[size_t(step)] = chord;
+        choice = previous[size_t(step)][size_t(choice)];
+    }
+    sanitise(result);
+    return result;
 }
 
 Clip voiceHarmony(const Harmony& source, int numerator, int denominator, const VoicingSettings& settings) {

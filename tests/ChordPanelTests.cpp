@@ -140,11 +140,16 @@ void checkLayout(ChordComposerPanel& panel) {
             check(!prior.intersects(bounds), "primary harmony controls overlap");
         amountBounds.push_back(bounds);
     }
-    for (const char* name : {"New chords only", "Adapt melody", "Melody from these chords", "New chords + melody", "Revoice",
+    std::vector<juce::Rectangle<int>> actionBounds;
+    for (const char* name : {"New chords only", "Adapt melody", "Melody from these chords", "New chords + melody", "Chords for this melody", "Revoice",
                              "Play", "Play together", "Drag chord MIDI", "Export..."}) {
         auto* button = findButton(panel, name);
         check(button != nullptr, "chord panel primary action missing");
         visibleInside(*button);
+        const auto bounds = panel.getLocalArea(button, button->getLocalBounds());
+        for (const auto& prior : actionBounds)
+            check(!prior.intersects(bounds), "chord panel actions overlap after combining both workflows");
+        actionBounds.push_back(bounds);
         check(!panel.getLocalArea(button, button->getLocalBounds())
                    .intersects(panel.getLocalArea(roll, roll->getLocalBounds())),
               "chord panel primary action overlaps the piano roll");

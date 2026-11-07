@@ -473,10 +473,11 @@ void runSearchTests();
 void runChordGeneratorTests();
 void runMelodyAdaptationTests();
 void runMusicalArchitectureTests();
+void runFuzzTests();
 int main(int argc, char** argv) {
     const std::string suite = argc > 1 ? argv[1] : "all";
     if (suite != "all" && suite != "engine" && suite != "harmony" && suite != "search" &&
-        suite != "architecture") {
+        suite != "architecture" && suite != "fuzz") {
         std::cerr << "Unknown suite: " << suite << '\n';
         return 2;
     }
@@ -491,6 +492,8 @@ int main(int argc, char** argv) {
         }
         if (want("architecture"))
             runMusicalArchitectureTests();
+        if (want("fuzz"))
+            runFuzzTests();
         if (!want("engine")) {
             std::cout << "Engine suite '" << suite << "' passed.\n";
             return 0;

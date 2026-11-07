@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <condition_variable>
 #include <iomanip>
 #include <limits>
 #include <locale>
+#include <mutex>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -82,12 +84,12 @@ void fillDefaultGroups(int numerator, int denominator, std::array<int, 16>& grou
     if (!unitDenominator(denominator))
         denominator = 4;
     groups.fill(0);
-    if (denominator == 8) {
-        groupUnit = 8;
+    if (denominator >= 8) {
+        groupUnit = denominator;
         int remaining = numerator;
         groupCount = 0;
-        // 6/8 is 3+3. Odd counts end on a 3: 5/8 = 2+3, 7/8 = 2+2+3, 9/8 = 2+2+2+3.
-        const bool compound = remaining >= 6 && remaining % 3 == 0 && remaining % 2 == 0;
+        // Compound meters use groups of three; other additive meters end with a three.
+        const bool compound = remaining > 3 && remaining % 3 == 0;
         while (remaining > 0 && groupCount < 16) {
             int group = remaining == 1 ? 1 : (compound || remaining == 3 ? 3 : 2);
             if (groupCount == 15 || group > remaining)
@@ -247,9 +249,15 @@ int metricWeight(double beat, const Settings& settings) {
         wrapped += barLength;
     if (wrapped < 0.01 || barLength - wrapped < 0.01)
         return 3;
-    // Default x/4 keeps the previous accent: every integer quarter is strong.
-    if (settings.groupCount <= 0 && denominator == 4)
-        return std::abs(beat - std::round(beat)) < 0.01 ? 2 : 0;
+    if (settings.groupCount <= 0 && denominator <= 4) {
+        // Simple meters retain one beat per denominator unit, including numerators
+        // above the sixteen entries available to an explicit grouping.
+        const double unit = 4.0 / denominator;
+        if (std::abs(wrapped - std::round(wrapped / unit) * unit) < 0.01)
+            return 2;
+        const double half = unit * 0.5;
+        return std::abs(wrapped - std::round(wrapped / half) * half) < 0.01 ? 1 : 0;
+    }
     const auto g = resolveGroups(settings);
     if (g.count <= 0 || g.unit <= 0)
         return 0;
@@ -257,26 +265,27 @@ int metricWeight(double beat, const Settings& settings) {
     int sum = 0;
     for (int i = 0; i < g.count; ++i)
         sum += g.groups[size_t(i)];
-    if (sum <= 0 || !(unit > 0.0))
+    if (sum <= 0)
         return 0;
-    const double cycle = sum * unit;
-    double pos = std::fmod(beat, cycle);
+    double pos = std::fmod(beat, sum * unit);
     if (pos < 0.0)
-        pos += cycle;
-    const double nearest = std::round(pos / unit);
-    if (std::abs(pos - nearest * unit) >= 0.01)
-        return 0;
-    int index = int(std::lround(nearest)) % sum;
-    if (index < 0)
-        index += sum;
-    int cursor = 0;
+        pos += sum * unit;
+    double cursor = 0.0;
     for (int i = 0; i < g.count; ++i) {
-        if (index == cursor)
+        const double groupLength = g.groups[size_t(i)] * unit;
+        if (std::abs(pos - cursor) < 0.01)
             return 2;
-        cursor += g.groups[size_t(i)];
+        if (pos < cursor + groupLength - 0.01) {
+            // A one-unit beat divides in half; larger groups divide into their units.
+            const double step = g.groups[size_t(i)] == 1 ? unit * 0.5 : unit;
+            const double offset = pos - cursor;
+            return std::abs(offset - std::round(offset / step) * step) < 0.01 ? 1 : 0;
+        }
+        cursor += groupLength;
     }
-    return 1;
+    return 0;
 }
+
 bool usesLegacyQuarterGrid(const Settings& s) {
     const int denominator = unitDenominator(s.denominator) ? s.denominator : 4;
     if (s.groupCount <= 0)
@@ -323,6 +332,27 @@ const std::vector<int>& scaleIntervals(int scale) {
                                                           {0, 1, 4, 5, 7, 8, 10}}}; // Phrygian dominant
     return scales[std::clamp(scale, 0, int(scales.size()) - 1)];
 }
+int harmonicScale(int scale) {
+    switch (scale) {
+    case 4:
+    case 8:
+    case 13:
+        return 0;
+    case 5:
+    case 9:
+    case 14:
+        return 1;
+    default:
+        return std::clamp(scale, 0, 15);
+    }
+}
+int metricLevel(double time, int numerator, int denominator) {
+    Settings meter;
+    meter.numerator = numerator;
+    meter.denominator = denominator;
+    return metricWeight(time, meter);
+}
+
 int snapPitch(int pitch, int root, int scale, int low, int high) {
     low = std::clamp(low, 0, 127);
     high = std::clamp(high, low, 127);
@@ -524,7 +554,8 @@ int harmonicPitch(int desired, double time, const Settings& s, bool rootOnly = f
     const auto* chord = chordAt(s.harmony, time);
     if (!chord && s.progression == 0 && !rootOnly)
         return snapPitch(desired, s.root, s.scale, low, high);
-    const auto& scale = scaleIntervals(s.scale);
+    // Progression degrees need seven scale steps; five- and six-note scales use their parent.
+    const auto& scale = scaleIntervals(harmonicScale(s.scale));
     const double bar =
         std::clamp(s.numerator, 1, 32) * 4.0 / (validDenominator(s.denominator) ? s.denominator : 4);
     const int degree = progressionDegree(s.progression, time, bar);
@@ -994,14 +1025,28 @@ Clip combineParts(const Clip& rhythmSource, const Clip& pitchSource, const Clip&
     return result;
 }
 double similarity(const Clip& a, const Clip& b) {
-    if (a.count == 0 || b.count == 0)
+    const int countA = std::clamp(a.count, 0, maxNotes), countB = std::clamp(b.count, 0, maxNotes);
+    if (countA == 0 || countB == 0)
         return 0.0;
-    int matches = 0;
-    for (int i = 0; i < std::min(a.count, b.count); ++i)
-        if (std::abs(a.notes[i].start - b.notes[i].start) < 0.01 && a.notes[i].pitch == b.notes[i].pitch &&
-            a.notes[i].cents == b.notes[i].cents)
-            ++matches;
-    return double(matches) / std::max(a.count, b.count);
+    // Walk both onset lists together. Each note of b can match once, so simultaneous
+    // notes of imported polyphony are not counted twice.
+    constexpr double window = 0.01;
+    std::array<bool, maxNotes> used{};
+    int matches = 0, first = 0;
+    for (int i = 0; i < countA; ++i) {
+        const auto& note = a.notes[size_t(i)];
+        while (first < countB && b.notes[size_t(first)].start < note.start - window)
+            ++first;
+        for (int j = first; j < countB && b.notes[size_t(j)].start <= note.start + window; ++j) {
+            const auto& other = b.notes[size_t(j)];
+            if (!used[size_t(j)] && other.pitch == note.pitch && other.cents == note.cents) {
+                used[size_t(j)] = true;
+                ++matches;
+                break;
+            }
+        }
+    }
+    return double(matches) / std::max(countA, countB);
 }
 double intervalCost(double cents) {
     if (!std::isfinite(cents))
@@ -1091,6 +1136,14 @@ bool isValidMicrotonalPassing(const Clip& clip, int index, const Settings& setti
 PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
     auto clip = source;
     sanitise(clip);
+    auto meter = settings;
+    meter.numerator = clip.numerator;
+    meter.denominator = clip.denominator;
+    if (clip.groupCount > 0) {
+        meter.groups = clip.groups;
+        meter.groupCount = clip.groupCount;
+        meter.groupUnit = clip.groupUnit;
+    }
     PhraseDiagnostics result;
     if (!clip.count)
         return result;
@@ -1125,7 +1178,7 @@ PhraseDiagnostics analysePhrase(const Clip& source, const Settings& settings) {
         lowest = std::min(lowest, actualPitch(note));
         highest = std::max(highest, actualPitch(note));
         result.meanPitch += actualPitch(note) / (100.0 * clip.count);
-        result.offbeatRatio += metricWeight(note.start, settings) < 2 ? 1.0 / clip.count : 0;
+        result.offbeatRatio += metricWeight(note.start, meter) < 2 ? 1.0 / clip.count : 0;
         const double duration = std::log2(std::max(0.03125, note.duration));
         durationSum += duration;
         durationSquared += duration * duration;
@@ -1188,6 +1241,7 @@ Settings normaliseSearchSettings(Settings s) {
     s.root = (s.root % 12 + 12) % 12;
     s.scale = std::clamp(s.scale, 0, 15);
     s.phraseType = std::clamp(s.phraseType, 0, 2);
+    s.riffCellBars = s.riffCellBars < 0.75 ? 0.5 : s.riffCellBars > 1.5 ? 2.0 : 1.0;
     s.numerator = std::clamp(s.numerator, 1, 32);
     if (!validDenominator(s.denominator))
         s.denominator = 4;
@@ -1207,6 +1261,10 @@ Settings normaliseSearchSettings(Settings s) {
     s.tuning = std::clamp(s.tuning, 0, tuningCount - 1);
     sanitise(s.harmony);
     return s;
+}
+// Starting velocity at a metric level, six steps per level, so downbeats lead.
+int accentVelocity(int level) {
+    return 80 + 6 * std::clamp(level, 0, 3);
 }
 struct Evolution {
     Settings s;
@@ -1241,9 +1299,10 @@ struct Evolution {
         n.pitch = pitch;
     }
     double cellLength() const {
-        return s.phraseType == 0 ? std::min(bar, length)
+        return s.phraseType == 0 ? std::min(bar * s.riffCellBars, length)
                                  : std::max(std::min(grid, length), std::min(bar * 0.5, length / 4.0));
     }
+    int level(double time) const { return metricWeight(time, s); }
     bool structured() const {
         if (s.regionOnly || s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
             return false;
@@ -1409,7 +1468,7 @@ struct Evolution {
             return belongsToChord(pitch, *custom);
         if (s.progression == 0)
             return true;
-        const auto& scale = scaleIntervals(s.scale);
+        const auto& scale = scaleIntervals(harmonicScale(s.scale));
         const int degree = progressionDegree(s.progression, time, bar);
         const int pc = ((pitch - s.root) % 12 + 12) % 12;
         for (int third : {0, 2, 4})
@@ -1454,7 +1513,12 @@ struct Evolution {
         c.seed = s.seed;
         int previous =
             snapPitch((s.low + s.high) / 2 + int((s.valence - 0.5f) * 10), s.root, s.scale, s.low, s.high);
-        for (double time = 0.0; time < length - 0.001 && c.count < maxNotes;) {
+        double time = 0.0;
+        // A phrase may enter after a short rest, as offbeat riffs do. The rhythm operators can
+        // keep, move or remove that rest like any other.
+        if (random() < 0.12f + 0.3f * float(offbeatTarget()))
+            time = std::min(length * 0.5, integer(1, std::max(1, int(std::round(0.5 / grid)))) * grid);
+        while (time < length - 0.001 && c.count < maxNotes) {
             const int maxSteps = std::max(1, int(std::round(targetDuration() * 2.5 / grid)));
             int steps = integer(1, maxSteps);
             if (random() > offbeatTarget()) {
@@ -1488,7 +1552,8 @@ struct Evolution {
                 }
                 previous = s.mode == 1 ? snapPitch(60 + s.root, s.root, s.scale, s.low, s.high)
                                        : pitch(origin, time);
-                c.notes[c.count] = {time, duration, previous, integer(77, 108), false};
+                c.notes[c.count] = {time, duration, previous,
+                                    std::clamp(accentVelocity(level(time)) + integer(-6, 6), 1, 127), false};
                 ++c.count;
             }
             time += duration;
@@ -1573,16 +1638,18 @@ struct Evolution {
                 }
             }
             const int key = s.mode == 1 ? c.notes[0].pitch : pitch(previous, start);
-            c.notes[c.count++] = {
-                start, std::min(limit - start, grid * integer(1, 2)), key, integer(78, 110), false, 0};
-        } else if (operation == 1 && editable > 2 && index > 0) {
+            c.notes[c.count++] = {start, std::min(limit - start, grid * integer(1, 2)),
+                                  key,   std::clamp(accentVelocity(level(start)) + integer(-6, 6), 1, 127),
+                                  false, 0};
+        } else if (operation == 1 && editable > 2) {
             // Remove an onset to introduce a rest; locks/templates were excluded above.
+            // Removing the first onset lets the phrase enter after a rest.
             for (int i = index; i + 1 < c.count; ++i)
                 c.notes[i] = c.notes[i + 1];
             --c.count;
-        } else if (operation == 2 && index > 0) {
+        } else if (operation == 2) {
             auto& note = c.notes[index];
-            const double earlier = c.notes[index - 1].start + c.notes[index - 1].duration;
+            const double earlier = index > 0 ? c.notes[index - 1].start + c.notes[index - 1].duration : 0.0;
             const double later = index + 1 < editable ? c.notes[index + 1].start : end;
             const double start = note.start + (random() < .5f ? -grid : grid);
             if (start >= earlier - 1e-8 && start + grid <= later + 1e-8) {
@@ -1644,7 +1711,13 @@ struct Evolution {
                 continue;
             if (s.mode != 1)
                 setPitch(n, pitch(n.pitch, n.start), true);
-            n.velocity = std::clamp(n.velocity + integer(-12, 12), 40, 120);
+            // Velocity is not scored: as a fitness term it only added noise to the selection of
+            // pitch and rhythm. Instead each change moves towards the metric accent, so downbeats
+            // stay louder than the notes between beats.
+            n.velocity = std::clamp(
+                n.velocity + int(std::lround((accentVelocity(level(n.start)) - n.velocity) * 0.35)) +
+                    integer(-8, 8),
+                40, 120);
             if (!s.lockRhythm && s.mode != 2) {
                 double end = c.length;
                 for (int j = i + 1; j < c.count; ++j)
@@ -1681,11 +1754,20 @@ struct Evolution {
         shape(c);
         constrainMicro(c);
     }
-    double score(const Clip& c) const {
-        if (c.count == 0)
-            return -1000.0;
+    double score(const Clip& c, std::vector<FitnessTerm>* terms = nullptr) const {
+        // Every term goes through add(), so a breakdown always sums to the score.
+        double result = 0.0;
+        const auto add = [&](const char* name, double value) {
+            result += value;
+            if (terms)
+                terms->push_back({name, value});
+        };
+        if (c.count == 0) {
+            add("Empty phrase", -1000.0);
+            return result;
+        }
         double scaleFit = 0.0, harmonic = 0.0, occupied = 0.0, consonanceCost = 0.0, microDuration = 0.0;
-        int offbeats = 0;
+        int offbeats = 0, strong = 0, stable = 0;
         std::array<bool, 384> unique{};
         for (int i = 0; i < c.count; ++i) {
             const auto& n = c.notes[i];
@@ -1718,7 +1800,11 @@ struct Evolution {
             const int semitone = int(relative);
             consonanceCost += tonalCosts[semitone] +
                               (relative - semitone) * (tonalCosts[semitone + 1] - tonalCosts[semitone]);
-            offbeats += metricWeight(n.start, s) < 2 ? 1 : 0;
+            if (metricWeight(n.start, s) >= 2) {
+                ++strong;
+                stable += chordTone(n.pitch, n.start) && n.cents == 0;
+            } else
+                ++offbeats;
         }
         const double count = c.count;
         const double targetNotes = c.length * (1.0 - s.space) / targetDuration();
@@ -1727,54 +1813,49 @@ struct Evolution {
                                                         : s.phraseType == 1 ? 0.75
                                                                             : 0.6) -
                                                            s.tension * 0.25;
-        double result = -6.0 * std::abs(scaleFit / count - (1.0 - s.tension * 0.25));
+        add("Scale fit", -6.0 * std::abs(scaleFit / count - (1.0 - s.tension * 0.25)));
         if (s.progression || s.harmony.count)
-            result -= 3.0 * std::abs(harmonic / count - harmonicTarget);
-        result -= 3.5 * std::abs(count - targetNotes) / std::max(1.0, targetNotes);
-        result -= 2.0 * std::abs(1.0 - std::min(1.0, occupied / c.length) - s.space);
-        result -= std::abs(offbeats / count - offbeatTarget()) * 1.5;
+            add("Chord tones", -3.0 * std::abs(harmonic / count - harmonicTarget));
+        add("Density", -3.5 * std::abs(count - targetNotes) / std::max(1.0, targetNotes));
+        add("Rests", -2.0 * std::abs(1.0 - std::min(1.0, occupied / c.length) - s.space));
+        add("Offbeats", -std::abs(offbeats / count - offbeatTarget()) * 1.5);
         const auto musical = analysePhrase(c, s);
-        result -= std::abs(musical.rhythmVariation - s.dynamics * 1.1) * 0.8;
+        add("Rhythmic variety", -std::abs(musical.rhythmVariation - s.dynamics * 1.1) * 0.8);
         if (s.mode != 1) {
-            result -= musical.intervalPenalty * (1.8 - s.diversity * 0.4 - s.weirdness * 0.6);
-            result += musical.smallStepRatio * 0.65;
+            add("Interval size", -musical.intervalPenalty * (1.8 - s.diversity * 0.4 - s.weirdness * 0.6));
+            add("Small steps", musical.smallStepRatio * 0.65);
             const double variety =
                 std::min(1.0, std::count(unique.begin(), unique.end(), true) / double(std::min(c.count, 8)));
-            result -= 1.5 * std::abs(variety - (0.35 + s.diversity * 0.6));
-            int unisons = 0, strong = 0, stable = 0;
-            for (int i = 0; i < c.count; ++i) {
-                if (i && actualPitch(c.notes[i]) == actualPitch(c.notes[i - 1]))
+            add("Pitch variety", -1.5 * std::abs(variety - (0.35 + s.diversity * 0.6)));
+            int unisons = 0;
+            for (int i = 1; i < c.count; ++i)
+                if (actualPitch(c.notes[i]) == actualPitch(c.notes[i - 1]))
                     ++unisons;
-                if (metricWeight(c.notes[i].start, s) >= 2) {
-                    ++strong;
-                    stable += chordTone(c.notes[i].pitch, c.notes[i].start) && c.notes[i].cents == 0;
-                }
-            }
-            result -= 1.8 * std::max(0.0, double(unisons) / std::max(1, c.count - 1) -
-                                              (0.15 + (1.0 - s.diversity) * 0.3));
+            add("Repeated pitches", -1.8 * std::max(0.0, double(unisons) / std::max(1, c.count - 1) -
+                                                             (0.15 + (1.0 - s.diversity) * 0.3)));
             if ((s.harmony.count || s.progression) && strong)
-                result += 0.75 * stable / strong;
+                add("Stable beats", 0.75 * stable / strong);
             const double registerSpan = std::max(1, s.high - s.low);
             const double spanTarget = std::min(registerSpan, 4.0 + s.dynamics * 6.0 + s.arousal * 8.0);
-            result -= std::abs(musical.pitchSpan - spanTarget) / 12.0 * 0.8;
+            add("Range", -std::abs(musical.pitchSpan - spanTarget) / 12.0 * 0.8);
             const double pitchTarget =
                 (s.low + s.high) * 0.5 + (s.valence - 0.5) * 10.0 + (s.arousal - 0.5) * 4.0;
-            result -= std::abs(musical.meanPitch - pitchTarget) / registerSpan * 1.5;
-            result -= std::abs(musical.upwardRatio - (0.3 + s.valence * 0.4)) * 0.6;
-            result -= consonanceCost / count * (0.2 + s.valence * 0.8);
+            add("Register", -std::abs(musical.meanPitch - pitchTarget) / registerSpan * 1.5);
+            add("Contour direction", -std::abs(musical.upwardRatio - (0.3 + s.valence * 0.4)) * 0.6);
+            add("Consonance", -consonanceCost / count * (0.2 + s.valence * 0.8));
             if (s.phraseType == 0) {
-                result += musical.repetition * 1.8 + musical.rhythmicRepetition * 0.7;
-                result -= std::max(0.0, musical.loopIntervalCents - 500.0) / 1200.0;
+                add("Riff repetition", musical.repetition * 1.8 + musical.rhythmicRepetition * 0.7);
+                add("Loop leap", -std::max(0.0, musical.loopIntervalCents - 500.0) / 1200.0);
             } else if (s.phraseType == 1) {
-                result += musical.motifReturn * 1.5 + musical.rhythmicRepetition * 0.5;
-                result -= std::abs(musical.middleContrast - 0.30) * 1.4;
-                result -= std::abs(musical.repetition - 0.50) * 0.7;
+                add("Motif return", musical.motifReturn * 1.5 + musical.rhythmicRepetition * 0.5);
+                add("Middle contrast", -std::abs(musical.middleContrast - 0.30) * 1.4);
+                add("Motif repetition", -std::abs(musical.repetition - 0.50) * 0.7);
             } else {
-                result -= std::abs(musical.contourArc - 0.32) * 2.2;
-                result -= std::max(0.0, musical.repetition - 0.45) * 1.5;
+                add("Contour arc", -std::abs(musical.contourArc - 0.32) * 2.2);
+                add("Melody repetition", -std::max(0.0, musical.repetition - 0.45) * 1.5);
                 const auto& final = c.notes[size_t(c.count - 1)];
                 const int destination = harmonicPitch(final.pitch, final.start, s, true);
-                result -= intervalCost(actualPitch(final) - destination * 100.0) * 0.7;
+                add("Cadence", -intervalCost(actualPitch(final) - destination * 100.0) * 0.7);
             }
             if (s.microEnabled) {
                 // Optional but audible embellishment, not a fixed percentage
@@ -1782,18 +1863,17 @@ struct Evolution {
                 // Short repeated approaches may be a third of the events but
                 // only a small part of the sounding time. The target measures
                 // duration, avoiding an accidental penalty for short motifs.
-                result -= std::abs(microDuration / std::max(0.03125, occupied) - 0.14) * 3.0;
-                result += musical.resolvedPassingNotes / count * 1.6;
-                result -= musical.invalidPassingNotes / count * 5.0;
+                add("Microtone share", -std::abs(microDuration / std::max(0.03125, occupied) - 0.14) * 3.0);
+                add("Resolved passing notes", musical.resolvedPassingNotes / count * 1.6);
+                add("Unresolved microtones", -musical.invalidPassingNotes / count * 5.0);
             }
         }
         if (parent)
-            result -= std::abs(similarity(c, *parent) - (1.0 - s.mutation)) * 3.0;
+            add("Distance from parent", -std::abs(similarity(c, *parent) - (1.0 - s.mutation)) * 3.0);
         return result;
     }
 };
-} // namespace
-double fitnessScore(const Clip& source, const Settings& settings) {
+double standaloneScore(const Clip& source, const Settings& settings, std::vector<FitnessTerm>* terms) {
     auto clip = source;
     sanitise(clip);
     auto s = normaliseSearchSettings(settings);
@@ -1804,7 +1884,16 @@ double fitnessScore(const Clip& source, const Settings& settings) {
         s.groupCount = clip.groupCount;
         s.groupUnit = clip.groupUnit;
     }
-    return Evolution(s, nullptr).score(clip);
+    return Evolution(s, nullptr).score(clip, terms);
+}
+} // namespace
+double fitnessScore(const Clip& source, const Settings& settings) {
+    return standaloneScore(source, settings, nullptr);
+}
+std::vector<FitnessTerm> fitnessBreakdown(const Clip& source, const Settings& settings) {
+    std::vector<FitnessTerm> terms;
+    standaloneScore(source, settings, &terms);
+    return terms;
 }
 void articulateCustomHarmony(Clip& clip, const Settings& s) {
     // Strict custom harmony already cuts fresh phrases at each change. Mutation and
@@ -1856,7 +1945,7 @@ void articulateCustomHarmony(Clip& clip, const Settings& s) {
                     continue;
                 inserted.start = start;
                 inserted.pitch = previousPitch;
-                inserted.velocity = 90;
+                inserted.velocity = accentVelocity(metricWeight(start, s));
             }
             inserted.pitch = harmonicPitch(inserted.pitch, start, s);
             inserted.cents = 0;
@@ -1868,6 +1957,80 @@ void articulateCustomHarmony(Clip& clip, const Settings& s) {
     if (changed)
         sanitise(clip);
 }
+namespace {
+// Helper threads live for one search, rather than being started for every island in every
+// generation. The calling thread scores too. Two cores stay free for the host's audio work.
+class ScoringPool {
+  public:
+    ScoringPool() {
+        const unsigned cores = std::thread::hardware_concurrency();
+        const unsigned helpers = cores > 3 ? std::min(cores - 3, 7u) : 0u;
+        for (unsigned i = 0; i < helpers; ++i)
+            threads.emplace_back([this] { serve(); });
+    }
+    ~ScoringPool() {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            stopping = true;
+        }
+        wake.notify_all();
+        for (auto& thread : threads)
+            thread.join();
+    }
+    // Calls task(i) once for every i in [0, count) and returns when all calls have finished.
+    void run(int count, const std::function<void(int)>& task) {
+        if (threads.empty() || count < 2) {
+            for (int i = 0; i < count; ++i)
+                task(i);
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            job = &task;
+            total = count;
+            next.store(0);
+            working = int(threads.size());
+            ++round;
+        }
+        wake.notify_all();
+        work(task, count);
+        std::unique_lock<std::mutex> lock(mutex);
+        finished.wait(lock, [&] { return working == 0; });
+        job = nullptr;
+    }
+
+  private:
+    void work(const std::function<void(int)>& task, int count) {
+        for (int i = next.fetch_add(1); i < count; i = next.fetch_add(1))
+            task(i);
+    }
+    void serve() {
+        uint64_t seen = 0;
+        std::unique_lock<std::mutex> lock(mutex);
+        for (;;) {
+            wake.wait(lock, [&] { return stopping || round != seen; });
+            if (stopping)
+                return;
+            seen = round;
+            const auto* task = job;
+            const int count = total;
+            lock.unlock();
+            work(*task, count);
+            lock.lock();
+            if (--working == 0)
+                finished.notify_one();
+        }
+    }
+    std::vector<std::thread> threads;
+    std::mutex mutex;
+    std::condition_variable wake, finished;
+    const std::function<void(int)>* job = nullptr;
+    std::atomic<int> next{0};
+    int total = 0, working = 0;
+    uint64_t round = 0;
+    bool stopping = false;
+};
+} // namespace
 std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<bool>& cancelled,
                            const std::function<void(float)>& progress,
                            const std::function<void(const SearchStats&)>& statistics,
@@ -1940,29 +2103,25 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
                 current.evolution.mutate(clip, s.mutation);
         }
     }
-    auto scoreIsland = [&](Island& current) {
-        const int count = int(current.population.size());
-        unsigned workers = std::thread::hardware_concurrency();
-        workers = std::min<unsigned>(workers == 0 ? 1u : workers, 8u);
-        workers = std::min<unsigned>(workers, unsigned(std::max(count, 1)));
-        if (workers <= 1) {
-            for (int i = 0; i < count && !cancelled.load(); ++i)
-                current.scores[size_t(i)] = current.evolution.score(current.population[size_t(i)]);
+    // Every individual of every island is scored in one pass. Each task writes only its own
+    // score, and the score does not depend on the thread that computes it.
+    std::vector<std::pair<int, int>> members;
+    members.reserve(size_t(size));
+    for (int index = 0; index < islands; ++index)
+        for (int i = 0; i < int(island[size_t(index)].population.size()); ++i)
+            members.emplace_back(index, i);
+    ScoringPool pool;
+    const std::function<void(int)> scoreMember = [&](int member) {
+        if (cancelled.load())
             return;
-        }
-        std::atomic<int> cursor{0};
-        std::vector<std::thread> pool;
-        for (unsigned worker = 0; worker < workers; ++worker)
-            pool.emplace_back([&] {
-                while (!cancelled.load()) {
-                    const int i = cursor.fetch_add(1);
-                    if (i >= count)
-                        return;
-                    current.scores[size_t(i)] = current.evolution.score(current.population[size_t(i)]);
-                }
-            });
-        for (auto& worker : pool)
-            worker.join();
+        auto& current = island[size_t(members[size_t(member)].first)];
+        auto& clip = current.population[size_t(members[size_t(member)].second)];
+        if (s.tension == 0.0f && s.harmony.count)
+            articulateCustomHarmony(clip, s);
+        current.evolution.constrainRegion(clip);
+        if (s.regionOnly)
+            current.evolution.constrainMicro(clip);
+        current.scores[size_t(members[size_t(member)].second)] = current.evolution.score(clip);
     };
     SearchStats stats;
     stats.population = size;
@@ -1971,23 +2130,14 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
     for (int generation = 0; generation <= rounds; ++generation) {
         if (cancelled.load())
             return {};
-        for (auto& current : island) {
-            if (s.tension == 0.0f && s.harmony.count)
-                for (auto& clip : current.population)
-                    articulateCustomHarmony(clip, s);
-            for (auto& clip : current.population) {
-                current.evolution.constrainRegion(clip);
-                if (s.regionOnly)
-                    current.evolution.constrainMicro(clip);
-            }
-            scoreIsland(current);
-            if (cancelled.load())
-                return {};
+        pool.run(size, scoreMember);
+        if (cancelled.load())
+            return {};
+        for (const auto& current : island)
             for (const auto& clip : current.population)
                 if (std::any_of(clip.notes.begin(), clip.notes.begin() + clip.count,
                                 [](const Note& note) { return note.cents != 0; }))
                     ++stats.microtonalEvaluations;
-        }
         double total = 0, globalBest = -1e100;
         for (auto& current : island) {
             std::iota(current.order.begin(), current.order.end(), 0);
@@ -2090,7 +2240,16 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
     std::vector<Clip> results;
     if (s.regionOnly)
         results.push_back(ranked[size_t(rank.front())]);
-    for (const auto& current : island) {
+    // Island leaders come first, best first, so slot 1 holds the global best.
+    std::vector<int> leaders(static_cast<size_t>(islands));
+    std::iota(leaders.begin(), leaders.end(), 0);
+    const auto leaderScore = [&](int index) {
+        return island[size_t(index)].scores[size_t(island[size_t(index)].order.front())];
+    };
+    std::stable_sort(leaders.begin(), leaders.end(),
+                     [&](int a, int b) { return leaderScore(a) > leaderScore(b); });
+    for (int index : leaders) {
+        const auto& current = island[size_t(index)];
         const auto& leader = current.population[size_t(current.order.front())];
         if (!tooClose(results, leader))
             results.push_back(leader);
@@ -2101,11 +2260,23 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         if (!tooClose(results, ranked[size_t(index)]))
             results.push_back(ranked[size_t(index)]);
     }
+    // Too few distinct phrases: take the evaluated candidates least like those already chosen.
+    // Every output is still an evaluated chromosome; a tiny search may repeat one.
     while (results.size() < slotCount) {
         if (cancelled.load())
             return {};
-        // Every output is an evaluated chromosome. A small search may repeat a high-scoring one.
-        results.push_back(ranked[size_t(rank[results.size() % rank.size()])]);
+        int choice = rank.front();
+        double closest = 2.0;
+        for (int index : rank) {
+            double closeness = 0.0;
+            for (const auto& existing : results)
+                closeness = std::max(closeness, similarity(existing, ranked[size_t(index)]));
+            if (closeness < closest - 1e-12) {
+                closest = closeness;
+                choice = index;
+            }
+        }
+        results.push_back(ranked[size_t(choice)]);
     }
     return results;
 }

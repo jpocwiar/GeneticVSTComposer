@@ -100,8 +100,9 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     bool chordPage = false, microPage = false;
     juce::ToggleButton editNotes{"Edit notes"}, customSearch{"Custom budget"};
     juce::Slider searchPopulation, searchGenerations, crossover;
-    juce::TextButton searchDetails{"Search settings..."};
+    juce::TextButton searchDetails{"Search settings..."}, explainScore{"Explain score"};
     juce::Label searchInfo;
+    bool explainingScore = false;
     std::array<juce::Slider, 9> knobs;
     juce::Slider low, high, swing, gate, humanize, tempo, volume;
     juce::ToggleButton snap{"Fit to scale"}, lockRhythm{"Keep rhythm"}, follow{"Follow DAW"},

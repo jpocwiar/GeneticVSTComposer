@@ -1,0 +1,188 @@
+## 1. Pierwsza fraza
+PIERWSZA FRAZA
+
+1. Wybierz Root (tonikę), Scale (skalę), Length (długość) i Meter (metrum). Starting points ustawia punkt wyjścia dla charakteru melodii.
+
+2. Kliknij Generate melody bank. Powstanie 12 propozycji. Kliknij kartę wariantu, a potem Play. Przycisk włącza Internal sound i wyłącza Follow DAW. Dwuklik karty lub piano rollu też uruchamia odsłuch. Obok wybierz Soft keys, Sine albo Warm organ; Stop kończy odsłuch.
+
+3. Znalazłeś ciekawy motyw? Capture A zachowa go do porównania. Plus na karcie przypina wariant, aby przetrwał następne generowanie. Evolve selected tworzy rozwinięcia wybranej frazy; Evolution określa preferowaną wielkość zmiany.
+
+4. Chwyć piano roll i przeciągnij na ścieżkę instrumentu. Zwykły klik nie tworzy nut. Możesz też użyć Drag MIDI albo Export. Plik zawiera aktualnie wyświetlaną frazę lub podgląd, wraz z przetwarzaniem Swing i Gate.
+
+Phrase type: Riff ½ bar, Riff 1 bar i Riff 2 bars powtarzają komórkę długości pół taktu, taktu albo dwóch taktów; Motif buduje powracający temat, a Melody rozwija całą frazę. Fraza może zaczynać się po krótkiej pauzie, jak riff wchodzący na „i”. Velocity nowych nut wynika z metrum: początek taktu i pozostałe mocne części brzmią głośniej niż nuty pomiędzy nimi.
+
+Diversity: różnorodność wysokości i interwałów. Dynamics: ruch melodii, nie głośność. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. Density: liczba nut, dodatkowo modulowana przez Arousal. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
+
+Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk wewnętrznego instrumentu. Podświetlenia klawiatury reagują na nuty wysyłane przez wtyczkę. Motion w dolnym pasku ogranicza animacje, zachowując wskazania transportu i poziomu.
+
+? otwiera tę instrukcję. Wybierz rozdział z listy powyżej. Esc zamyka instrukcję.
+
+## 2. Edycja fragmentu
+EDYCJA WYBRANEGO FRAGMENTU
+
+Przeciągnij po górnej linijce z numerami taktów, aby wybrać zakres czasu. Zielony pasek pokazuje zaznaczenie. Zakładka Region wyświetla jego początek i koniec w ćwierćnutach. Whole phrase zaznacza całość.
+
+Zaznaczenie automatycznie wyznacza pętlę odsłuchu. Naciśnij Play: odtwarzane będą tylko nuty zaczynające się w zaznaczeniu; wybrzmiewanie jest ucinane na jego końcu. Zmiana zaznaczenia aktualizuje pętlę. Kliknij dwukrotnie linijkę albo wybierz Cała fraza pod piano rollem, aby wrócić do całości.
+
+Główny przycisk Rozwiń wybrany zmienia się po zaznaczeniu w Optymalizuj fragment. Uruchamia wyszukiwanie genetyczne tylko dla zaznaczonego fragmentu bieżącego wariantu, z aktualnymi ustawieniami ewolucji i harmonii. Co pętlę respektuje ten sam zakres. Reszta melodii, zablokowane nuty i inne warianty pozostają bez zmian. Wynik można cofnąć przez Undo.
+
+Simplify: przerzedź wybrany fragment.
+More movement: zwiększ ruch melodii w zaznaczeniu.
+Answer: utwórz wariant odpowiedzi.
+Resolve: skieruj zakończenie do stabilnego dźwięku skali lub aktualnego akordu.
+
+Operacje dotyczą odblokowanych nut, których początki leżą w zaznaczeniu. Nuty poza zaznaczeniem i nuty zablokowane pozostają zachowane. To muzyczne przekształcenia, a nie polecenia tekstowe dla modelu AI. Efekt można cofnąć przez Undo. Export range zapisuje zaznaczony zakres jako osobny plik MIDI; nuty przecinające jego granice zostają przycięte.
+
+Przykład: wybierz ostatni takt czterotaktowej frazy i kliknij Resolve. Odsłuchaj zakończenie, porównaj z Capture A lub cofnij zmianę.
+
+Piano roll domyślnie służy do przeciągania MIDI. Opcjonalnie włącz Edit notes: kliknij pusty obszar, aby dodać nutę; przeciągnij nutę, aby zmienić pozycję i wysokość; przeciągnij prawą krawędź, aby zmienić długość. Shift-klik lub L blokuje nutę. Delete albo prawy klik usuwa odblokowaną nutę. Strzałki góra/dół zmieniają wysokość zaznaczonej nuty. Keep rhythm zachowuje rytm podczas ewolucji.
+
+## 3. Własne akordy
+WŁASNA HARMONIA
+
+Otwórz Harmony. Wpisz akordy wraz z długością, np.:
+
+Cm:4 Fm:2 G7:2
+
+Kliknij Apply chords. Cm trwa cztery ćwierćnuty, Fm dwie, G7 dwie. Liczby oznaczają ćwierćnuty, NIE takty. W 4/4 pełny takt to 4; w 7/8 pełny takt to 3.5. Długości mogą być ułamkowe.
+
+Dostępne jakości: C, Cm, Cdim, Caug, C7, Cmaj7, Cm7, Csus2, Csus4, Cm7b5, Cdim7, C6, Cm6, Cadd9, C9 i Cmaj9. Możesz używać krzyżyków i bemoli. Pasek nad nutami pokazuje zastosowaną progresję. Krótsza progresja powtarza się przez frazę.
+
+Własne akordy mają pierwszeństwo przed gotową progresją. Wpływają na generowanie i operacje muzyczne; samo Apply chords nie przepisuje istniejących nut. Fit to scale działa również przy własnej harmonii: dopasowuje wysokości do wybranej skali podczas odtwarzania i eksportu. Może zmienić chromatyczne dźwięki akordowe; wyłącz go, żeby usłyszeć oryginalny wynik generatora. Clear przywraca gotową progresję.
+
+Import harmony MIDI wczytuje osobny plik referencyjny bez zastępowania melodii. Rozpoznawanie akordów jest przybliżone. Sprawdź wynik w polu tekstowym, popraw go i zastosuj. Najczytelniejszy materiał wejściowy to pojedyncza ścieżka akordów bez perkusji.
+
+## 4. Porównanie A/B
+PORÓWNANIE A/B
+
+Capture A zapamiętuje aktualnie wyświetlaną frazę jako niezależny punkt odniesienia. Hear A przełącza odsłuch na zapisane A. Hear B wraca do aktualnego wariantu lub podglądu. Ponowne Capture A zastępuje punkt odniesienia. Clear A usuwa zapisane A i jego obrysy.
+
+Gdy Switch at loop jest włączone i trwa odtwarzanie, wybór wariantu oraz przełączenie A/B czekają do końca aktualnej pętli. Gdy odtwarzanie jest zatrzymane, wybór działa od razu. Wyłącz tę opcję, jeśli potrzebujesz natychmiastowego przełączania.
+
+Opis nad piano rollem wskazuje, co aktualnie słychać i czy kolejna zmiana oczekuje. Turkusowa kropka na karcie oznacza odtwarzany wariant, złota — oczekujący. Edytor nadal pokazuje wybraną frazę B, nawet podczas odsłuchu A.
+
+Złote obrysy w piano rollu pokazują nuty punktu A, które różnią się pozycją, wysokością lub długością od bieżącej frazy. Obrysy nie przedstawiają różnic samego velocity.
+
+Przykład: Capture A → zmień zakończenie przez Region → Play → Hear A / Hear B. Dzięki przełączaniu na granicy pętli porównasz całe frazy.
+
+A/B przełącza wyjście odsłuchowe. Export i Drag MIDI zapisują frazę wyświetlaną w edytorze, więc przed eksportem sprawdź jej tytuł.
+
+## 5. Groove i velocity
+GROOVE I EKSPRESJA
+
+Otwórz Groove. Import groove MIDI wczytuje osobny wzorzec rytmiczny i akcenty bez zastępowania melodii. Use selected zapamiętuje aktualnie wybrany wariant jako wzorzec. Następnie wybierz wariant, który chcesz zmienić.
+
+Nowo generowane nuty dostają velocity zgodne z metrum: najmocniej początek taktu, potem pozostałe mocne części, najciszej nuty pomiędzy nimi. Groove i ręczna edycja nadal mogą to zmienić.
+
+Timing określa siłę dopasowania pozycji nut do wzorca. Velocity określa siłę przenoszenia akcentów. 0% zachowuje daną cechę, 100% stosuje pełną proponowaną zmianę. Apply groove zapisuje wynik w wybranej frazie; Undo cofa operację.
+
+Przykład: wczytaj groove perkusji, ustaw Timing na 30% i Velocity na 70%. Odsłuchaj, czy melodia lepiej współgra z akcentami. Algorytm przenosi odchylenia najbliższych pozycji siatki, a nie całą strukturę rytmu. Krótszy wzorzec zapętla się; z dłuższego używany jest odpowiedni początkowy fragment. Wysokości i długości nut pozostają zachowane, podobnie jak całe nuty zablokowane.
+
+Velocity pojedynczej nuty: włącz Edit notes, kliknij jej słupek w dolnym pasku VEL piano rollu i przeciągnij pionowo. Jaśniejszy słupek wskazuje wybór. Gdy kilka nut zaczyna się równocześnie, najłatwiej najpierw rozsunąć je albo edytować po eksporcie.
+
+Swing i Gate są osobnymi ustawieniami wykonania. Ich efekt jest uwzględniony w odsłuchu i eksporcie, więc przy ocenie groove sprawdź również te wartości.
+
+## 6. Dłuższa forma
+DŁUŻSZA FORMA: A — A′ — B — A″
+
+Wybierz dobry motyw i otwórz Arrange. Preview arrangement tworzy cztery kolejne części: oryginalny motyw A, rozwinięcie A′, odpowiedź B oraz zakończenie A″. Punktem wyjścia jest aktualnie wybrana fraza.
+
+Całość pojawia się w piano rollu jako podgląd. Przy frazie czterotaktowej otrzymasz szesnaście taktów. Odsłuchaj całą sekwencję; Export i Drag MIDI mogą wyeksportować ją od razu.
+
+Keep preview zastępuje wybrany slot banku gotową sekwencją. Discard wraca do dotychczasowej frazy. Podczas podglądu edycja nut i generowanie są wyłączone: najpierw zachowaj albo odrzuć wynik. Podgląd jest tymczasowy; przed zamknięciem projektu zachowaj go lub wyeksportuj.
+
+Po zachowaniu możesz zaznaczyć pojedynczą część w linijce i poprawić ją operacjami Region. Undo przywraca stan przed zachowaniem sekwencji. Aby wyeksportować jedną część, zaznacz jej czas w linijce i wybierz Region → Export range. Całą sekwencję zapisuje zwykły Export.
+
+To kompozycja jednej partii MIDI, nie aranżacja wielu instrumentów. Motyw źródłowy może mieć najwyżej 32 ćwierćnuty i 128 nut. Wynik może zawierać najwyżej 512 nut; bardzo gęsty materiał może wymagać wcześniejszego uproszczenia.
+
+## 7. Łączenie wariantów
+ŁĄCZENIE CECH WARIANTÓW
+
+Otwórz Combine. Wybierz trzy źródła z aktualnego banku:
+
+Rhythm — początki i długości nut oraz długość wynikowej frazy.
+Pitches — wysokości nut.
+Accents — velocity, czyli siłę uderzeń.
+
+Przykład: Rhythm 03, Pitches 07, Accents 02. Preview combination tworzy nową frazę z tych trzech źródeł. Różna liczba nut jest dopasowywana według względnej pozycji w źródłowych frazach; nie musi istnieć zgodność nuta w nutę.
+
+Piano roll pokazuje wynik do odsłuchu. Keep preview zapisuje go w aktualnie wybranym slocie banku. Discard pozostawia poprzednią frazę. Możesz zmienić źródła i ponownie uruchomić podgląd przed decyzją.
+
+Zablokowane nuty źródła Rhythm są zachowywane w całości: ich wysokość i velocity nie są zastępowane. Blokady w źródłach Pitches i Accents nie ograniczają wyniku.
+
+Capture A przed rozpoczęciem ułatwia porównanie. Zapnij ważne warianty plusem i użyj Save bank, jeśli chcesz zachować zestaw źródeł na później.
+
+## 8. Studio One i skróty
+STUDIO ONE I SKRÓTY
+
+Najprostszy sposób pracy: odsłuchaj frazę przez Internal sound, a następnie przeciągnij Drag MIDI na ścieżkę wybranego instrumentu w Studio One. Export zapisuje standardowy plik MIDI, który można wczytać ręcznie.
+
+Follow DAW wiąże start, stop, pozycję i tempo odtwarzania z transportem hosta. Play automatycznie wyłącza Follow DAW i włącza Internal sound do niezależnego odsłuchu. Wyłącz Follow DAW także do wyzwalania wariantów nutami MIDI. Gdy używasz innego instrumentu do odsłuchu wyjścia MIDI, wyłącz Internal sound, aby uniknąć podwójnego dźwięku. Dostępność routingu MIDI zależy od formatu wtyczki i konfiguracji hosta.
+
+MIDI 48–59: przytrzymaj, aby wyzwolić warianty 1–12.
+MIDI 60–127: transpozycja; 60 oznacza oryginalną wysokość. Nazwy oktaw mogą różnić się w DAW.
+
+Spacja: Play / Stop (Play włącza brzmienie wewnętrzne i wyłącza Follow DAW).
+Cmd/Ctrl+Z: Undo.
+Cmd/Ctrl+Shift+Z: Redo.
+Esc: zamknij instrukcję; poza instrukcją — Stop all.
+Shift-klik lub L: zablokuj / odblokuj nutę.
+Delete / prawy klik: usuń odblokowaną nutę, gdy Edit notes jest włączone.
+Kółko myszy nad piano rollem: przewijaj wysokości.
+
+Skróty odtwarzania nie działają podczas wpisywania tekstu. Save bank zachowuje bank i ustawienia; stan jest również zapisywany z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.
+
+## 9. Mikrotony
+MIKROTONY (OPCJONALNIE)
+
+Mikrotony włączysz bezpośrednio w panelu Kompozycja. Paleta i szczegóły wyjścia są w zakładce Strój / MIDI. Wyłączone dają zwykłą melodię 12-tonową. Włączone pozwalają algorytmowi szukać krótkich dźwięków przejściowych między półtonami i rozwiązywać je na stabilnych nutach.
+
+Wybór koloru określa dostępne odcienie: neutralne interwały, Rast, Bayati, Saba, blues albo 24-EDO. Główna Scale nadal prowadzi melodię. Nie ma ręcznego procentu mikrotonów ani przycisku przestrojenia wszystkich nut: ich miejsca, czas trwania i rozwiązania są częścią optymalizacji genetycznej.
+
+Po zmianie ustawień użyj Generate melody bank lub Evolve selected. W piano rollu fioletowe nuty leżą między wierszami; E4-50 to E4 obniżone o 50 centów. Play odtwarza ich dokładną wysokość. Fit to scale dopasowuje bazową wysokość do Scale, zachowując mikrotonowe odchylenie; wyłącz go, aby usłyszeć niezmienione wysokości generatora.
+
+Wyjście MIDI:
+Pitch bend (mono): kanał 1, dla jednogłosowej melodii. Ustaw w syntezatorze odbierającym zakres pitch bend taki sam jak Bend. Gdy nuty zachodzą na siebie, nowy pitch bend może zmienić wybrzmiewanie poprzedniej nuty.
+MPE: każda nuta na osobnym kanale 2–16, zakres ±48. Instrument odbierający musi obsługiwać MPE.
+
+Export i Drag MIDI zapisują odpowiednie komunikaty stroju. Odsłuch wewnętrzny nie wymaga konfiguracji MIDI. Akordy pozostają w 12-TET i mają osobną warstwę dźwięku, więc mikrotonowy pitch bend melodii ich nie odstraja. Na karcie Melody włącz With chords, żeby odsłuchać obie warstwy.
+
+## 10. Algorytm genetyczny
+ALGORYTM GENETYCZNY, METRUM I PROGRESJE
+
+Search pokazuje rzeczywistą pracę algorytmu. Quick: 64 osobniki i 40 pokoleń. Balanced: 128 i 100. Deep: 256 i 300. Custom budget pozwala ustawić 16-512 osobników i 1-2000 pokoleń. Crossover to prawdopodobieństwo krzyżowania (domyślnie 90%).
+
+Każde pokolenie jest oceniane równolegle funkcją fitness. Od 64 osobników wyszukiwanie dzieli się na cztery wyspy; każda wyspa zachowuje jedną elitę bez zmian. Selekcja turniejowa wybiera rodziców. Krzyżowanie wymienia fragmenty fraz, a mutacja rośnie, gdy wyspa przestaje się poprawiać. Blokady, Keep rhythm i Melody on rhythm chronią granice nut; wtedy krzyżowane są wysokości i velocity. W Rhythm only krzyżowane są także fragmenty rytmu, o ile rytm nie jest chroniony. Przypięte warianty mogą wejść do Evolve jako dodatkowi rodzice. Humanize domyślnie wynosi zero. Powyżej zera przesuwa początki i velocity melodii w eksporcie i odsłuchu; zapisana fraza, rolka akordów i eksport akordów pozostają dokładne. Przycisk EN/PL zmienia tylko język tego edytora i zapisuje się lokalnie, nie jako parametr hosta.
+
+Mocne części taktu wynikają z metrum: 6/8 i 12/8 liczą ósemkami z kropką, a 7/8 grupuje 2+2+3. Gotowe progresje przy pentatonice oraz skalach całotonowej, bluesowej i chromatycznej biorą akordy ze skali macierzystej dur albo moll, więc IV w C to F. Wyszukiwanie zostawia dwa rdzenie procesora wolne dla DAW. Slot 1 zawiera zawsze najlepszą frazę wyszukiwania, a bank pomija frazy podobne w ponad 85% do już wybranych; nuty są porównywane według czasu początku. Explain score w zakładce Search pokazuje, ile każdy składnik fitness dodaje wyświetlanej frazie albo jej odejmuje przy bieżących ustawieniach.
+
+Generation, Evaluations, Crossovers oraz Best/Mean fitness pokazują faktyczne obliczenia. Populacja początkowa także jest oceniana, więc liczba ocen to populacja x (pokolenia + 1). Fitness to wewnętrzna miara zgodności z ustawieniami, nie obiektywna ocena muzyki. Więcej pokoleń nie gwarantuje lepszego pomysłu. Cancel search zachowuje poprzedni bank.
+
+To nowy silnik, nie kopia dawnego genetic.cpp. Stary kod miał 128 osobników, 100 pokoleń i 90% krzyżowania. Nowy przechowuje wyniki fitness na czas pokolenia i ma inną funkcję oceny, dlatego nawet pełny przebieg może być szybki. Czas nie jest sztucznie wydłużany.
+
+Meter: wybierz z 27 propozycji albo wpisz np. 11/8. Licznik 1-32; mianownik 1, 2, 4, 8, 16 lub 32. Metrum dotyczy nowego generowania; Evolve zachowuje metrum rodzica. Fraza może mieć do 128 ćwierćnut — przy długim metrum wybierz mniej taktów.
+
+Harmony: 25 progresji oraz Scale only. Stopnie są względne do wybranej skali, jeden akord na takt. Custom chords otwiera wpisywanie akordów i długości, np. Cm:4 Ab:4 Eb:4 Bb:4. Wybór gotowej progresji usuwa aktywną własną harmonię.
+
+## 11. Kreator akordów
+KARTA CHORDS — AKORDY I PRZEWROTY
+
+Melody i Chords to dwie główne karty tego samego interfejsu. Root i Scale są wspólne dla obu kart; Meter ustaw na Melody. Chords ma osobne Length, domyślnie 4 takty. Follow melody jawnie wiąże je z długością melodii. Ustawienia dotyczą następnego generowania, nie przepisują istniejących nut.
+
+Charakter harmonii wybiera język: Balanced, Pop, Jazz, Modal lub Filmowy. Generator planuje cele i odpowiedzi fraz, a następnie przeszukuje możliwe przebiegi z wyuczonym modelem przejść, regułami funkcji i karą za mechaniczną powtarzalność. Dłuższe progresje mogą odwiedzić pokrewną tonację i wrócić do głównej. Originality reguluje zaskoczenie i ruch podstaw: od znanych przejść tonalnych przez zapożyczenia i pokrewne tonacje po odległe podstawy chromatyczne i ruch o półton. Kolor akordów niezależnie wybiera trójdźwięki, następnie susy/seksty/septymy, a wyżej nony. Nastrój przechodzi od Ciemnego (więcej molowych/zmniejszonych akordów i napięcia) do Jasnego (więcej durowych i cieplejszych barw); 50% jest neutralne. Respektuje wybraną tonikę, skalę, Kolor i rozwiązanie. Te suwaki dotyczą nowego generowania. Rozłożenie głosów poniżej określa przewroty i odstępy, stosowane przez Revoice. Melodia nadal powstaje w osobnym algorytmie genetycznym z budżetem Search.
+
+Model przejść wytrenowano na Bach Choral Harmony (Radicioni i Esposito, 2014), UCI, https://doi.org/10.24432/C5B61F, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/. Zmieniono reprezentację na zagregowane interwały prym i rodziny akordów: 5665 zdarzeń w 60 chorałach, bez zachowywania całych utworów. Profile Pop, Jazz, Modal i Filmowy są autorskimi regułami, nie stylami wyuczonymi z tego klasycznego zbioru. Model działa lokalnie i nie wymaga połączenia z internetem.
+
+Harmonic rhythm wybiera zmianę co dwa takty, takt albo pół taktu. Resolve to tonic zamyka progresję na tonice. New chords only zmienia tylko harmonię. Melody from these chords zachowuje widoczne akordy i tworzy bank melodii na całą długość tej sekwencji. New chords + melody wykonuje obie operacje. Oba przyciski melodii wracają na Melody i włączają With chords; przypięte warianty pozostają zachowane. Generate melody bank na Melody korzysta z aktywnej harmonii, ale z długości wybranej na Melody; Evolve selected rozwija wybrany wariant.
+
+Dopasuj melodię przestraja istniejący wybrany wariant do aktywnych akordów. Zachowuje rytm, velocity, liczbę nut, długość i możliwie wierny kontur; krótkie poprawne nuty przejściowe mogą pozostać. Uwzględnia zmianę akordu pod długą nutą. Zablokowane nuty i inne warianty nie są zmieniane. Po zaznaczeniu czasu w melodii akcja zmienia się w Dopasuj fragment i działa tylko na ten zakres. Możesz ją wywołać w Akordach albo w Tekście akordów. Cofnij przywraca poprzednią melodię przy nowych akordach. Dopasuj używa samych akordów; Do skali nadal jest osobnym przekształceniem odsłuchu i eksportu. Długości melodii i harmonii pozostają zachowane, więc krótsza harmonia powtarza się na osi melodii.
+
+Smooth inversions ogranicza ruch głosów przez całą sekwencję. Root position utrzymuje prymę w basie. Open voicings rozsuwa głosy. Voice centre określa rejestr; po zmianie kliknij Revoice, aby przeliczyć ułożenie głosów bez zmiany progresji. Slash pokazuje faktyczny bas: C/E to C-dur z E na dole.
+
+Chords for this melody działa odwrotnie niż Adapt melody: dopasowuje sekwencję akordów do wybranej melodii, korzystając z Originality, Harmonic rhythm i Resolve. Każdy krok harmoniczny preferuje akordy zawierające nuty najdłużej brzmiące i stojące na mocnych częściach taktu, a cała sekwencja — typowe ruchy funkcyjne i zakończenie na tonice. Melodia się nie zmienia; Undo przywraca poprzednie akordy.
+
+Trójkąt Play pod akordowym piano rollem odtwarza same akordy, a kwadrat Stop zatrzymuje odsłuch. Na Melody włącz With chords i naciśnij Play, aby usłyszeć melodię wraz z harmonią. Przełączanie kart nie zatrzymuje odtwarzania.
+
+Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciągaj z Melody. Export zapisuje widoczne przewroty i rejestr akordów. MIDI obu warstw pozostaje oddzielne. Akordy mają strój 12-TET również przy włączonym Micro; wewnętrzny odsłuch używa osobnej warstwy, więc pitch bend melodii nie zmienia stroju akordów. Progresja i przewroty zapisują się z bankiem i projektem DAW.
+
+Length ma też 3, 6, 12 i 16 taktów. Nazwy akordów obejmują m7b5, dim7, 6, m6, add9, 9 i maj9, nadal jako cztery głosy. Skale dodają frygijską, lokrycką, molową melodyczną, całotonową, bluesową i frygijską dominantową. Kształt rytmu może być równy, długi-krótki albo krótki-długi. Melody + chords zapisuje MIDI typu 1: melodię na ścieżce 1 i dokładne głosy akordów na ścieżce 2. Chord MIDI output jest domyślnie wyłączone; po włączeniu wysyła te głosy na kanale 16 i pozostaje wyłączone, gdy MPE używa kanałów 2–16.

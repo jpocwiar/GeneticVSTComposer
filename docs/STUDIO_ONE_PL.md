@@ -17,7 +17,7 @@ Na Melody dostępne są zakładki **Edit region**, **Harmony**, **Groove**, **Ar
 
 1. Przeciągnij Genetic Composer na nową ścieżkę instrumentu.
 2. Włącz odsłuch/monitorowanie ścieżki. **Internal sound** daje prosty dźwięk do sprawdzenia melodii.
-3. Na **Melody** wybierz Root, Scale, Length, Meter i **Phrase type: Riff / Motif / Melody**, a potem **Generate melody bank**. Kliknij wariant i trójkąt **Play pod piano rollem**; dwuklik karty również uruchamia odsłuch. Kwadrat **Stop** go zatrzymuje.
+3. Na **Melody** wybierz Root, Scale, Length, Meter i **Phrase type: Riff ½ bar / Riff 1 bar / Riff 2 bars / Motif / Melody**, a potem **Generate melody bank**. Kliknij wariant i trójkąt **Play pod piano rollem**; dwuklik karty również uruchamia odsłuch. Kwadrat **Stop** go zatrzymuje.
 4. Znak **+** przypina udany wariant i chroni go przed zastąpieniem.
 5. Zaznacz wybrany motyw i użyj **Evolve selected**. Gałka **Evolution** reguluje stopień zmian, a **Keep rhythm** zachowuje rytm.
 6. Shift-klik na nucie blokuje ją. Możesz zostawić początek melodii i zmieniać pozostałe nuty. Zablokowane nuty mają bursztynowy kolor.
@@ -29,7 +29,7 @@ Na Melody dostępne są zakładki **Edit region**, **Harmony**, **Groove**, **Ar
 
 | Typ | Charakter frazy |
 | --- | --- |
-| Riff | Krótki powtarzany rdzeń, dopasowywany do akordów |
+| Riff | Krótka komórka — pół taktu, takt albo dwa takty — powtarzana i dopasowywana do akordów |
 | Motif | Rozpoznawalny pomysł z kontrolowanymi wariantami |
 | Melody | Swobodniejsza linia z rozwinięciem i zakończeniem |
 
@@ -87,8 +87,9 @@ Wybierz główną kartę **Chords**. Skróty **Chord composer...** w Chord text 
 2. Ustaw **Originality**. Niska wartość wybiera typowe progresje funkcyjne. Wyższe wartości stopniowo dodają zamiany diatoniczne, septymy, akordy pożyczone z równoległych skal, dominanty wtrącone i chromatyczne podejścia prowadzące do następnego akordu. To poziom swobody harmonicznej, nie liczba pokoleń algorytmu.
 3. **Harmonic rhythm** określa częstotliwość zmian: **Two bars**, **One bar** lub **Half bar**. **Resolve to tonic** kończy progresję na tonice.
 4. **New chords only** zmienia tylko akordy. **Melody from these chords** zachowuje widoczne akordy i generuje melodie na całą długość sekwencji. **New chords + melody** tworzy oba elementy. Dwie ostatnie akcje wracają na Melody i włączają With chords; przypięte warianty pozostają zachowane. **Generate melody bank** na Melody korzysta z aktywnej harmonii, ale długości ustawionej na Melody. **Evolve selected** rozwija wybrany wariant.
-5. Wybierz układ **Smooth inversions**, **Root position** lub **Open voicings**, ustaw preferowany rejestr i kliknij **Revoice**. Pierwszy tryb ogranicza skoki głosów, drugi utrzymuje prymę w basie, trzeci rozsuwa głosy. Revoice zachowuje akordy i ich długości, zmieniając przewroty oraz oktawy. Oznaczenie `Cm/Eb` oznacza akord c-moll z Es jako najniższym dźwiękiem.
-6. Trójkąt **Play pod akordowym piano rollem** odtwarza same akordy. **Play together** odtwarza je razem z wybraną melodią; ten sam odsłuch uzyskasz przez **With chords + Play** na Melody. Przeciągnij **piano roll akordów** albo **Drag chord MIDI** na osobną ścieżkę instrumentu. **Export...** zapisuje dokładnie te nuty. Melodię przeciągnij z Melody i ustaw obie partie od tego samego miejsca utworu.
+5. **Chords for this melody** działa odwrotnie: dopasowuje sekwencję akordów do wybranej melodii, używając Originality, Harmonic rhythm i Resolve. Każdy krok preferuje akordy zawierające nuty najdłużej brzmiące i stojące na mocnych częściach taktu, a cała sekwencja — typowe ruchy funkcyjne i zakończenie na tonice. Melodia się nie zmienia; Undo przywraca poprzednie akordy.
+6. Wybierz układ **Smooth inversions**, **Root position** lub **Open voicings**, ustaw preferowany rejestr i kliknij **Revoice**. Pierwszy tryb ogranicza skoki głosów, drugi utrzymuje prymę w basie, trzeci rozsuwa głosy. Revoice zachowuje akordy i ich długości, zmieniając przewroty oraz oktawy. Oznaczenie `Cm/Eb` oznacza akord c-moll z Es jako najniższym dźwiękiem.
+7. Trójkąt **Play pod akordowym piano rollem** odtwarza same akordy. **Play together** odtwarza je razem z wybraną melodią; ten sam odsłuch uzyskasz przez **With chords + Play** na Melody. Przeciągnij **piano roll akordów** albo **Drag chord MIDI** na osobną ścieżkę instrumentu. **Export...** zapisuje dokładnie te nuty. Melodię przeciągnij z Melody i ustaw obie partie od tego samego miejsca utworu.
 
 Originality, rytm zmian i Resolve działają przy następnym **New chords only** lub **New chords + melody**. Samo przesunięcie suwaka nie przepisuje istniejącej progresji. Zmianę rejestru lub sposobu układania głosów zastosujesz przez **Revoice** albo nową generację. Akordy wpisane ręcznie lub odczytane z pliku harmonii również można tutaj przestawić i wyeksportować.
 
@@ -175,13 +176,17 @@ Chwyć piano roll i przeciągnij go na ścieżkę instrumentu. Eksport zawiera c
 
 **Meter** ma 27 gotowych opcji. Możesz wpisać własne, np. `11/8`: licznik 1–32, mianownik 1, 2, 4, 8, 16 lub 32. Metrum obowiązuje przy nowym generowaniu; Evolve zachowuje metrum źródła. Maksimum 128 ćwierćnut na frazę może wymagać zmniejszenia Length.
 
-**Harmony** zawiera 25 progresji oraz Scale only. Stopnie są względne do wybranej skali, jeden akord na takt; sekwencja się powtarza. **Custom chords...** otwiera wpisywanie akordów i długości, np. `Cm:4 Ab:4 Eb:4 Bb:4`, a **Chord composer...** przełącza na główną kartę Chords do generowania harmonii i eksportu przewrotów. Liczby w tekście są ćwierćnutami, nie taktami. Wybór presetu usuwa aktywną własną harmonię.
+**Harmony** zawiera 25 progresji oraz Scale only. Stopnie są względne do wybranej skali, jeden akord na takt; sekwencja się powtarza. **Custom chords...** otwiera wpisywanie akordów i długości, np. `Cm:4 Ab:4 Eb:4 Bb:4`, a **Chord composer...** przełącza na główną kartę Chords do generowania harmonii i eksportu przewrotów. Liczby w tekście są ćwierćnutami, nie taktami. Wybór presetu usuwa aktywną własną harmonię. Przy pentatonice oraz skalach całotonowej, bluesowej i chromatycznej stopnie progresji pochodzą ze skali macierzystej dur albo moll, więc IV w C to F.
 
 **Quick**: 64 osobniki × 40 pokoleń. **Balanced**: 128 × 100. **Deep**: 256 × 300. W **Search** przełącznik **Custom budget** udostępnia 16–512 osobników i 1–2000 pokoleń. **Crossover** określa szansę krzyżowania, domyślnie 90%.
 
-Każde pokolenie jest oceniane funkcją fitness. Algorytm wybiera rodziców turniejowo, zachowuje dwa najlepsze osobniki, krzyżuje fragmenty i mutuje potomstwo. Blokady i Keep rhythm chronią czas nut; wtedy krzyżowane są wysokości i velocity. Panel pokazuje faktyczne pokolenia, liczbę ocen, krzyżowań, fitness i czas. Populacja początkowa też jest oceniana: 128 × 100 oznacza 12 928 ocen.
+Każde pokolenie jest oceniane funkcją fitness. Algorytm wybiera rodziców turniejowo, na każdej wyspie zachowuje jej najlepszego osobnika, krzyżuje fragmenty i mutuje potomstwo. Slot 1 zawsze zawiera najlepszą frazę wyszukiwania, a bank pomija frazy podobne w ponad 85% do już wybranych. **Explain score** w zakładce Search pokazuje składniki fitness wyświetlanej frazy przy bieżących ustawieniach. Wyszukiwanie zostawia dwa rdzenie procesora wolne dla Studio One. Blokady i Keep rhythm chronią czas nut; wtedy krzyżowane są wysokości i velocity. Panel pokazuje faktyczne pokolenia, liczbę ocen, krzyżowań, fitness i czas. Populacja początkowa też jest oceniana: 128 × 100 oznacza 12 928 ocen.
 
 To nowy silnik z inną funkcją oceny, nie kopia pierwotnego kodu. Stary miał 128 osobników, 100 pokoleń i krzyżowanie 90%; nowy zapisuje oceny na czas pokolenia zamiast wielokrotnie przeliczać je podczas selekcji i sortowania. Dlatego może być szybki mimo pełnego przebiegu. Więcej pokoleń i wyższy fitness nie gwarantują lepszego muzycznie pomysłu. W instrukcji wewnętrznej rozdział 10 wyjaśnia te ustawienia.
+
+## Metrum, akcenty i swing w 2.8
+
+Mocne części taktu wynikają z metrum: 6/8 i 12/8 liczą ósemkami z kropką, a 7/8 grupuje 2+2+3. Nowe nuty dostają velocity zgodne z metrum — najmocniej początek taktu, najciszej nuty pomiędzy mocnymi częściami — więc przeciągnięte MIDI ma akcenty bez dodatkowej edycji. Fraza może zacząć się po krótkiej pauzie. **Swing** przesuwa teraz także koniec nuty: nuta grana „na i” skraca się zamiast nachodzić na następną.
 
 ## Gęstość i porównanie z pierwowzorem w 2.6
 

@@ -50,6 +50,8 @@ struct Settings {
     int mode = 0, progression = 0, quality = 1;
     // Musical architecture, independent of generation mode: riff, motif, melody.
     int phraseType = 0;
+    // Bars in one repeated Riff cell: 0.5, 1 or 2.
+    double riffCellBars = 1.0;
     float density = 0.5f, diversity = 0.5f, syncopation = 0.25f;
     float tension = 0.15f, space = 0.15f, mutation = 0.35f;
     float dynamics = 0.5f, valence = 0.5f, arousal = 0.5f, weirdness = 0.1f;
@@ -106,7 +108,7 @@ double intervalCost(double cents);
 PhraseDiagnostics analysePhrase(const Clip&, const Settings&);
 // The same objective used by fresh generation, without the parent-similarity term.
 double fitnessScore(const Clip&, const Settings&);
-// 3 on a barline, 2 at a group start, 1 on the grouping-unit grid, 0 elsewhere.
+// 3 on a barline, 2 at a group start, 1 on a subdivision, 0 elsewhere.
 // A groupCount of 0 uses the meter default, so 4/4 still treats integer quarters as strong.
 int metricWeight(double beat, const Settings&);
 void defaultGrouping(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount,
@@ -116,7 +118,20 @@ std::string groupingText(const std::array<int, 16>& groups, int count);
 bool parseGrouping(const std::string& text, std::array<int, 16>& groups, int& count, std::string& error);
 // Compositions of 2 and 3 (and the meter default) that fill one bar.
 std::vector<std::string> groupingChoices(int numerator, int denominator);
+struct FitnessTerm {
+    const char* name;
+    double value;
+};
+// The signed terms of fitnessScore(), in evaluation order. They add up to fitnessScore().
+std::vector<FitnessTerm> fitnessBreakdown(const Clip&, const Settings&);
 const std::vector<int>& scaleIntervals(int scale);
+// Seven-note scale whose degrees build chords: pentatonic, chromatic and whole-tone scales use
+// major, blues and Saba use natural minor, and seven-note scales map to themselves.
+int harmonicScale(int scale);
+// 3 at a bar start, 2 on a beat, 1 on a beat subdivision, 0 elsewhere. Compound meters (6/8,
+// 9/8, 12/8) beat in dotted units; other x/8 and x/16 meters group twos and end with a
+// three, so 7/8 is 2+2+3.
+int metricLevel(double time, int numerator, int denominator);
 int snapPitch(int pitch, int root, int scale, int low = 0, int high = 127);
 // Tunings give root-relative pitch classes a quarter-tone form. Inflections keep the selected
 // scale; maqam, blues and 24-EDO tunings bring their own.
@@ -157,5 +172,7 @@ std::vector<Clip> generate(Settings settings, const Clip* parent, const std::ato
                            const std::function<void(float)>& progress = {},
                            const std::function<void(const SearchStats&)>& statistics = {},
                            const std::vector<Clip>* mates = nullptr);
+// Share of notes, out of the larger clip, matched by onset, key and cents. Matching follows
+// the onsets, so an inserted or removed note does not misalign the rest. Clips must be sorted.
 double similarity(const Clip& a, const Clip& b);
 } // namespace composer

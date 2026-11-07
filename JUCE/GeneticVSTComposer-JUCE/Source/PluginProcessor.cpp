@@ -185,6 +185,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Processor::createParameters(
     choice("chordCharacter", "Harmonic character", {"Balanced", "Pop", "Jazz", "Modal", "Cinematic"}, 0);
     number("chordColour", "Chord colour", 0, 1, 0.45f);
     number("chordMood", "Chord mood", 0, 1, 0.5f);
+    choice("riffCell", "Riff cell length", {"One bar", "Half bar", "Two bars"}, 0);
     return p;
 }
 GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
@@ -364,7 +365,9 @@ void Processor::restoreDocumentLocked(const Document& d) {
     customHarmonyEnabled.store(customHarmony.count > 0);
     draftActive = false;
 }
-void Processor::pushHistoryLocked() {
+void Processor::pushHistoryLocked(bool contentChange) {
+    if (contentChange)
+        contentRevision.fetch_add(1);
     undoStack.push_back(documentLocked());
     if (undoStack.size() > 24)
         undoStack.pop_front();
@@ -394,7 +397,8 @@ void Processor::setClip(int index, composer::Clip clip) {
 }
 void Processor::toggleFavourite(int index) {
     std::lock_guard<std::mutex> lock(documentMutex);
-    pushHistoryLocked();
+    // A running search can still finish: its results fill whichever slots are unpinned then.
+    pushHistoryLocked(false);
     auto& c = bank[juce::jlimit(0, 11, index)];
     c.favourite = !c.favourite;
     publishLocked();
@@ -415,6 +419,7 @@ void Processor::undo() {
     redoStack.push_back(documentLocked());
     restoreDocumentLocked(undoStack.back());
     undoStack.pop_back();
+    contentRevision.fetch_add(1);
     publishLocked();
 }
 void Processor::redo() {
@@ -425,6 +430,7 @@ void Processor::redo() {
     undoStack.push_back(documentLocked());
     restoreDocumentLocked(redoStack.back());
     redoStack.pop_back();
+    contentRevision.fetch_add(1);
     publishLocked();
 }
 void Processor::setPreview(bool enabled) {
@@ -572,6 +578,53 @@ juce::Result Processor::adaptMelodyToChords() {
                        " notes adjusted. Rhythm and locked notes are preserved. Undo restores the melody." +
                        (param("snap") > 0.5f ? " Fit to scale is on; disable it to hear borrowed chord tones." : ""));
     return juce::Result::ok();
+}
+juce::Result Processor::harmonizeMelody() {
+    const auto melody = selectedClip();
+    if (melody.count == 0)
+        return juce::Result::fail("Select a variation with notes first.");
+    composer::ChordGenerationSettings s;
+    s.root = int(param("root"));
+    s.scale = scaleIndex();
+    s.originality = param("chordOriginality");
+    s.harmonicRhythm = int(param("chordRhythm"));
+    s.rhythmShape = int(param("chordRhythmShape"));
+    s.resolve = param("chordResolve") > 0.5f;
+    s.seed = uint32_t(seedGenerator.nextInt());
+    const auto harmony = composer::harmonizeMelody(melody, s);
+    if (harmony.count == 0)
+        return juce::Result::fail("Select a variation with notes first.");
+    const auto voiced =
+        composer::voiceHarmony(harmony, melody.numerator, melody.denominator, voicingSettings());
+    cancelled.store(true);
+    std::lock_guard<std::mutex> lock(documentMutex);
+    if (draftActive)
+        return juce::Result::fail("Apply or discard the melody preview before changing harmony.");
+    pushHistoryLocked();
+    customHarmony = harmony;
+    chordClip = voiced;
+    customHarmonyEnabled.store(true);
+    publishLocked();
+    assignStatusLocked(
+        "Chords fitted to the selected melody, which is unchanged. Play together to hear both.");
+    return juce::Result::ok();
+}
+int Processor::phraseMenuId() const {
+    const int type = juce::jlimit(0, 2, int(param("phraseType")));
+    if (type > 0)
+        return type + 3;
+    const int cell = juce::jlimit(0, 2, int(param("riffCell")));
+    return cell == 1 ? 1 : cell == 2 ? 3 : 2;
+}
+void Processor::setPhraseMenu(int id) {
+    if (id >= 1 && id <= 3) {
+        setParameter("phraseType", 0);
+        setParameter("riffCell", id == 1 ? 1.0f : id == 2 ? 0.0f : 2.0f);
+    } else if (id == 4 || id == 5)
+        setParameter("phraseType", float(id - 3));
+}
+std::vector<composer::FitnessTerm> Processor::fitnessBreakdown() const {
+    return composer::fitnessBreakdown(displayedClip(), settings());
 }
 composer::TimeSignature Processor::timeSignature() const {
     if (param("meterOverride") > 0.5f)
@@ -902,6 +955,8 @@ composer::Settings Processor::settings() const {
     s.tuning = tuningIndex();
     s.microEnabled = microtonesEnabled();
     s.phraseType = int(param("phraseType"));
+    constexpr double riffCells[]{1.0, 0.5, 2.0};
+    s.riffCellBars = riffCells[juce::jlimit(0, 2, int(param("riffCell")))];
     s.dynamics = param("dynamics");
     s.valence = param("valence");
     s.arousal = param("arousal");
@@ -936,6 +991,14 @@ void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, doub
         setStatus("Apply or discard the preview before generating.");
         return;
     }
+    {
+        std::lock_guard<std::mutex> lock(documentMutex);
+        if (!regionOnly && std::all_of(bank.begin(), bank.end(),
+                        [](const composer::Clip& clip) { return clip.favourite; })) {
+            assignStatusLocked("All variations are pinned. Unpin a slot to generate into it.");
+            return;
+        }
+    }
     if (busy.exchange(true))
         return;
     cancelled.store(false);
@@ -961,13 +1024,13 @@ void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, doub
     }
     s.seed = uint32_t(seedGenerator.nextInt());
     composer::Clip parent;
-    uint64_t startRevision;
+    uint64_t startContent;
     int parentSlot;
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         parentSlot = selected.load();
         parent = bank[parentSlot];
-        startRevision = revision.load();
+        startContent = contentRevision.load();
     }
     if (regionOnly) {
         if (!std::isfinite(start) || !std::isfinite(end) || start < 0 || end > parent.length || end <= start) {
@@ -1005,7 +1068,7 @@ void Processor::beginSearch(bool evolve, bool overHarmony, bool regionOnly, doub
     SearchJob job;
     job.settings = s;
     job.parent = parent;
-    job.startRevision = startRevision;
+    job.startContent = startContent;
     job.useParent = useParent;
     job.evolve = evolve;
     job.regionSlot = regionOnly ? parentSlot : -1;
@@ -1069,33 +1132,34 @@ void Processor::performSearch(SearchJob job) {
             },
             job.evolve && !job.mates.empty() ? &job.mates : nullptr);
         std::lock_guard<std::mutex> lock(documentMutex);
-        if (!results.empty() && !cancelled.load() && revision.load() == job.startRevision) {
-            pushHistoryLocked();
+        if (!results.empty() && !cancelled.load() && contentRevision.load() == job.startContent) {
             if (job.regionSlot >= 0) {
+                pushHistoryLocked();
+                const bool pinned = bank[size_t(job.regionSlot)].favourite;
                 bank[size_t(job.regionSlot)] = results.front();
+                bank[size_t(job.regionSlot)].favourite = pinned;
                 publishLocked();
                 assignStatusLocked("Range optimised. The remaining notes and other variations are unchanged.");
-                busy.store(false);
-                searchSerialValue.fetch_add(1, std::memory_order_relaxed);
-                return;
-            }
-            int next = 0, bestSlot = -1;
-            for (int index = 0; index < composer::slotCount; ++index) {
-                if (size_t(next) >= results.size())
-                    break;
-                if (!bank[size_t(index)].favourite) {
-                    if (next == 0)
-                        bestSlot = index;
-                    bank[size_t(index)] = results[size_t(next++)];
+            } else if (std::all_of(bank.begin(), bank.end(),
+                                   [](const composer::Clip& clip) { return clip.favourite; })) {
+                assignStatusLocked("All variations are pinned. Unpin a slot to generate into it.");
+            } else {
+                pushHistoryLocked();
+                int next = 0, bestSlot = -1;
+                for (int index = 0; index < composer::slotCount && size_t(next) < results.size(); ++index) {
+                    if (!bank[size_t(index)].favourite) {
+                        if (next == 0)
+                            bestSlot = index;
+                        bank[size_t(index)] = results[size_t(next++)];
+                    }
                 }
+                if (job.selectBest && bestSlot >= 0)
+                    selected.store(bestSlot);
+                publishLocked();
+                assignStatusLocked("Ready: " + juce::String(s.generations) + " generations x " +
+                                   juce::String(s.population) +
+                                   " individuals. Audition a phrase; drag its piano roll to your DAW.");
             }
-            if (job.selectBest && bestSlot >= 0)
-                selected.store(bestSlot);
-            publishLocked();
-            assignStatusLocked(next > 0 ? "Ready: " + juce::String(s.generations) + " generations x " +
-                                              juce::String(s.population) +
-                                              " individuals. Audition a phrase; drag its piano roll to your DAW."
-                                        : "All variations are pinned. Unpin a slot to generate into it.");
         } else
             assignStatusLocked("Generation cancelled. Your previous phrases are safe.");
     } catch (const std::exception& error) {

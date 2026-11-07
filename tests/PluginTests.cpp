@@ -37,6 +37,7 @@ void runPlaybackArchitectureTests();
 void runRealtimeTests();
 void runMicrotonalLabTests(const juce::File& screenshots = {});
 void runSearchBudgetAudit();
+void runProcessorRegressionTests();
 void renderMusicalExamples(const juce::File&);
 void renderHarmonyExamples(const juce::File&, bool controls);
 int main(int argc, char** argv) {
@@ -391,6 +392,7 @@ int main(int argc, char** argv) {
         runUsabilityTests();
         runChordPluginTests();
         runChordPanelTests();
+        runProcessorRegressionTests();
         }
         if (want("midi"))
             runMicrotonalTests();
@@ -498,6 +500,18 @@ int main(int argc, char** argv) {
             editor->setSize(870, 630);
             snapshot("ui-search-compact.png");
             editor->setSize(1180, 900);
+            const auto explain = [&] {
+                for (auto* child : editor->getChildren())
+                    if (auto* button = dynamic_cast<juce::Button*>(child);
+                        button != nullptr && button->isVisible() && button->onClick &&
+                        (button->getButtonText() == "Explain score" ||
+                         button->getButtonText() == "Show statistics"))
+                        button->onClick();
+            };
+            explain();
+            workflowEditor->refreshDisplay();
+            snapshot("ui-search-score.png");
+            explain();
             parameter(*demo, "microEnabled", 1);
             parameter(*demo, "tuning", 1);
             demo->generate(false);
@@ -512,10 +526,13 @@ int main(int argc, char** argv) {
             demo->previewArrangement();
             workflowEditor->showWorkflowPage(3);
             snapshot("ui-arrangement.png");
+            // The guide follows the editor language; this capture documents the Polish text.
+            demo->setInterfaceLanguage(1);
             workflowEditor->showGuide();
             snapshot("ui-guide-pl.png");
             editor->setSize(870, 630);
             snapshot("ui-guide-compact.png");
+            demo->setInterfaceLanguage(0);
             if (argc > 2) {
                 auto animated = std::make_unique<Processor>();
                 animated->prepareToPlay(48000, 800);

@@ -224,9 +224,17 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     hostMeter.setTooltip("While enabled, the host time signature replaces the meter. If the host has none, the "
                          "current meter stays.");
     attach(mode, "mode");
-    attach(phraseType, "phraseType");
-    phraseType.setTooltip("Riff: a short repeating hook. Motif: a recognisable idea with small changes. "
-                          "Melody: a longer phrase with development and an ending.");
+    addAndMakeVisible(phraseType);
+    phraseType.addItemList(
+        {juce::String::fromUTF8("Riff ½ bar"), "Riff 1 bar", "Riff 2 bars", "Motif", "Melody"}, 1);
+    phraseType.onChange = [this] {
+        if (phraseType.getSelectedId() > 0)
+            processor.setPhraseMenu(phraseType.getSelectedId());
+    };
+    phraseType.setTooltip(
+        "Riff: a short hook whose cell of half a bar, one bar or two bars repeats. Motif: a "
+        "recognisable idea with small changes. Melody: a longer phrase with development and an "
+        "ending.");
     addAndMakeVisible(melodyTab);
     addAndMakeVisible(chordsTab);
     addAndMakeVisible(microtonalTab);
@@ -272,6 +280,15 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     crossover.setTooltip("Chance of crossing two tournament-selected parents before mutation.");
     addAndMakeVisible(searchDetails);
     searchDetails.onClick = [this] { showWorkflowPage(6); };
+    addAndMakeVisible(explainScore);
+    explainScore.setTooltip(
+        "Show how each fitness term scores the displayed phrase under the current settings. "
+        "Fitness is the search's internal measure, not a rating of the music.");
+    explainScore.onClick = [this] {
+        explainingScore = !explainingScore;
+        shownSearchPage = -1;
+        refresh();
+    };
     addAndMakeVisible(searchInfo);
     searchInfo.setFont(font(10.5f));
     searchInfo.setColour(juce::Label::textColourId, muted);
@@ -620,7 +637,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
                       "off; the algorithm chooses useful passing notes rather than retuning every note.");
     microOutput.setTooltip("Pitch bend: channel 1 for one melody voice. MPE: independent pitch per note "
                            "on channels 2-16. Internal preview needs no external setup.");
-    bendRange.setTooltip("Set the receiving synth's pitch-bend range to this value. MPE uses ±48.");
+    bendRange.setTooltip(
+        juce::String::fromUTF8("Set the receiving synth's pitch-bend range to this value. MPE uses ±48."));
     addAndMakeVisible(microInfo);
     microInfo.setFont(font(11));
     microInfo.setColour(juce::Label::textColourId, muted);
@@ -758,6 +776,7 @@ void Editor::applyInterfaceLanguage() {
     interfaceLanguageButton.setButtonText(processor.interfaceLanguageIndex() == 1 ? "PL" : "EN");
     preset.setTextWhenNothingSelected(tr("Starting points..."));
     searchDetails.setButtonText(tr("Search settings..."));
+    explainScore.setButtonText(tr(explainingScore ? "Show statistics" : "Explain score"));
     shownLanguage = processor.interfaceLanguageIndex();
     shownSearchSerial = ~uint64_t{0};
     shownStatusSerial = 0;
@@ -1008,7 +1027,8 @@ void Editor::resized() {
     searchPopulation.setBounds(x + 234, 603, 136, 26);
     searchGenerations.setBounds(x + 462, 603, 140, 26);
     crossover.setBounds(x + 686, 603, mw - 698, 26);
-    searchInfo.setBounds(x + 12, 635, mw - 24, 34);
+    searchInfo.setBounds(x + 12, 635, mw - 168, 34);
+    explainScore.setBounds(w - 168, 638, 136, 28);
     const int gap = 8, cardW = (mw - 5 * gap) / 6, cardH = (h - 64 - 712 - 20) / 2;
     for (int i = 0; i < 12; ++i)
         variants[i]->setBounds(x + (i % 6) * (cardW + gap), 712 + (i / 6) * (cardH + 8), cardW, cardH);
@@ -1167,7 +1187,7 @@ void Editor::updateWorkflow() {
                                                                    &bendRange, &microInfo})
         component->setVisible((!chordPage && !microPage) && workflowPage == 5);
     for (auto* component : std::initializer_list<juce::Component*>{
-             &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo})
+             &customSearch, &searchPopulation, &searchGenerations, &crossover, &searchInfo, &explainScore})
         component->setVisible((!chordPage && !microPage) && workflowPage == 6);
     const char* descriptions[]{
         "Drag the bar ruler to loop and edit a section. Double-click the ruler to return to the whole phrase.",
@@ -1252,9 +1272,36 @@ void Editor::refresh() {
             shownBudgetPopulation = budget.population;
             shownBudgetGenerations = budget.generations;
         }
-        if (workflowPage == 6)
+        if (workflowPage == 6 && !explainingScore) {
             searchInfo.setText(tr(shownSearchDescription), juce::dontSendNotification);
+            searchInfo.setTooltip({});
+        }
+        explainScore.setButtonText(tr(explainingScore ? "Show statistics" : "Explain score"));
         shownSearchPage = workflowPage;
+    }
+    // The explanation follows the displayed phrase and every control, so it is recomputed while shown.
+    if (workflowPage == 6 && explainingScore && !chordPage) {
+        auto terms = processor.fitnessBreakdown();
+        double score = 0;
+        for (const auto& term : terms)
+            score += term.value;
+        const auto signedValue = [](double value) {
+            return (value >= 0 ? "+" : "") + juce::String(value, 2);
+        };
+        juce::String detail, all;
+        for (const auto& term : terms)
+            all << tr(term.name) << "  " << signedValue(term.value) << "\n";
+        std::stable_sort(terms.begin(), terms.end(),
+                         [](const auto& a, const auto& b) { return std::abs(a.value) > std::abs(b.value); });
+        for (size_t i = 0; i < std::min<size_t>(5, terms.size()); ++i)
+            detail << (i ? "  |  " : "") << tr(terms[i].name) << " " << signedValue(terms[i].value);
+        const auto subject =
+            processor.hasDraft()
+                ? juce::String("Score of the preview")
+                : "Score of variation " + juce::String(processor.selectedIndex() + 1).paddedLeft('0', 2);
+        searchInfo.setText(tr(subject + " under the current settings: ") + signedValue(score) + "\n" + detail,
+                           juce::dontSendNotification);
+        searchInfo.setTooltip(all.trimEnd());
     }
     const auto version = processor.documentRevision();
     const int progression = processor.progressionIndex();
@@ -1269,6 +1316,8 @@ void Editor::refresh() {
         scale.setSelectedId(scaleId, juce::dontSendNotification);
     if (!bars.isPopupActive() && bars.getSelectedId() != processor.phraseLengthMenuId())
         bars.setSelectedId(processor.phraseLengthMenuId(), juce::dontSendNotification);
+    if (!phraseType.isPopupActive() && phraseType.getSelectedId() != processor.phraseMenuId())
+        phraseType.setSelectedId(processor.phraseMenuId(), juce::dontSendNotification);
     const auto slot = processor.selectedIndex();
     const bool draft = processor.hasDraft();
     const int tuningNow = processor.tuningIndex(), output = processor.microtonalOutput();

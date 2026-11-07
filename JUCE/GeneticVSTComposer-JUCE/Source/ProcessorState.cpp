@@ -220,6 +220,14 @@ bool Processor::restore(const void* data, int size) {
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter);
             ranged && !parameterState.getChildWithProperty("id", ranged->paramID).isValid())
             parameterState.appendChild(juce::ValueTree("PARAM", {{"id", ranged->paramID}}), nullptr);
+    // Do not let a damaged session publish NaN or infinity to the audio thread.
+    for (auto* parameter : getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter)) {
+            auto child = parameterState.getChildWithProperty("id", ranged->paramID);
+            const auto fallback = ranged->convertFrom0to1(ranged->getDefaultValue());
+            if (child.isValid() && !std::isfinite(float(child.getProperty("value", fallback))))
+                child.setProperty("value", fallback, nullptr);
+        }
     parameters.replaceState(parameterState);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
@@ -257,6 +265,7 @@ bool Processor::restore(const void* data, int size) {
         }
         undoStack.clear();
         redoStack.clear();
+        contentRevision.fetch_add(1);
         publishLocked();
         assignStatusLocked("Session restored.");
     }

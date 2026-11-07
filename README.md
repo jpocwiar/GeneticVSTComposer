@@ -1,8 +1,10 @@
-# Genetic Composer 2.8.0
+# Genetic Composer 2.9.0
 
 A JUCE instrument for composing and evolving MIDI phrases. Generate twelve alternatives, keep an idea, develop it and take the melody and chords into your track.
 
-Version **2.8.0** groups beats inside the meter (quarters in 4/4, a 2-and-3 pattern in x/8, or a typed pattern such as `2+2+3`). **Host** follows the DAW time signature when one is available. **Capture phrase** records incoming MIDI into the selected variation. Arrangement can preview A A' B A'', AAAB, ABAC or Call / Response. **Each loop** evolves the phrase when playback wraps, using the Evolution amount, and leaves pinned variations in place. The internal audition adds a little reverb (dry when the mix is zero, and dry for older sessions that have no reverb setting). MIDI export writes a `RHYTHMS_GROUPS` text event and chord-name markers, including slash bass such as `C/E`.
+Version **2.9.0** groups beats inside the meter (quarters in 4/4, a 2-and-3 pattern in x/8, or a typed pattern such as `2+2+3`). **Host** follows the DAW time signature when one is available. **Capture phrase** records incoming MIDI into the selected variation. Arrangement can preview A A' B A'', AAAB, ABAC or Call / Response. **Each loop** evolves the phrase when playback wraps, using the Evolution amount, and leaves pinned variations in place. The internal audition adds a little reverb (dry when the mix is zero, and dry for older sessions that have no reverb setting). MIDI export writes a `RHYTHMS_GROUPS` text event and chord-name markers, including slash bass such as `C/E`.
+
+This release also makes beats and accents follow the meter: 6/8 and 12/8 count dotted quarters, 7/8 groups 2+2+3, and new notes are louder on bar starts and beats than between them. A phrase can now enter after a short rest, and **Riff ½ bar / 1 bar / 2 bars** set the length of the repeated riff cell. Preset progressions with pentatonic, whole-tone, blues and chromatic scales take their chords from the parent major or minor scale, so IV in C is F. Similarity compares notes by onset: slot 1 always holds the search's best phrase, and a bank skips phrases more than 85% alike whenever the search found enough distinct ones. Pinning a variation or capturing A during a search no longer discards its result, and nothing is searched when every slot is pinned. Swing now moves note ends with their starts, so swung notes no longer overlap the next note. **Chords for this melody** on Chords fits a chord sequence to the selected melody, and **Explain score** on Search lists the fitness terms of the displayed phrase. The search leaves two processor cores free for the host. A session with non-finite parameter values restores their defaults. The Polish interface uses correct plural forms.
 
 Version **2.7.0** searches in islands, with one unchanged elite on each island. Populations of 64 or more use four islands; smaller populations stay on one. Scoring runs in parallel. Mutation rises when an island stops improving, and pinned variations can join Evolve as extra parents. New scales are Phrygian, Locrian, melodic minor, whole tone, blues and Phrygian dominant. New four-voice chords are m7b5, dim7, 6, m6, add9, 9 and maj9. Phrase and chord lengths add 3, 6, 12 and 16 bars. Humanize, off by default, shifts melody timing and velocity only in preview and export. **Melody + chords** writes a type 1 MIDI file. **Chord MIDI output**, off by default, sends chord voices on channel 16 and stays off while MPE uses channels 2–16. **EN/PL** changes the editor language and is stored locally, not as automation. Existing parameter IDs and automation ranges are unchanged.
 
@@ -21,7 +23,7 @@ The **? Help** button opens the built-in Polish/English guide ([guide preview](i
 ## Make a phrase
 
 1. Load **Genetic Composer** as an instrument. The included sound lets you audition immediately.
-2. On **Melody**, choose Root, Scale, phrase length, meter and **Phrase type: Riff / Motif / Melody**. **Generate melody bank** searches for twelve alternatives in the background; **Cancel search** keeps your previous bank.
+2. On **Melody**, choose Root, Scale, phrase length, meter and **Phrase type** (Riff with a ½-, 1- or 2-bar cell, Motif or Melody). **Generate melody bank** searches for twelve alternatives in the background; **Cancel search** keeps your previous bank.
 3. Select a variation and press the triangular **Play** below the piano roll, or double-click its card or piano roll. Play enables the internal sound and turns Follow DAW off; choose **Soft keys**, **Sine** or **Warm organ** in the bottom toolbar. The square **Stop** ends preview. Turn on **Follow DAW** to follow the host's transport and song position instead.
 4. Click **+** on a card to pin it. Pinned variations survive new generations.
 5. **Evolve selected** uses the selected phrase as a parent. **Evolution** controls the amount of mutation; **Keep rhythm** preserves all starts and durations.
@@ -45,6 +47,8 @@ The chord MIDI contains the displayed voices and their full chord durations, wit
 **Harmonic character**, **Originality**, **Chord colour**, **Mood**, rhythm and resolution affect the next **New chords only** or **New chords + melody**; voicing and register apply on **Revoice** or a new chord generation. A bounded stochastic beam search combines a phrase plan, learned interval-context transitions, harmonic-function preferences, common tones and repetition costs. The compact prior is trained on [UCI Bach Choral Harmony](https://doi.org/10.24432/C5B61F), by Radicioni & Esposito (2014), **CC BY 4.0**. Its 60 chorales inform tonal transitions; the genre profiles are authored rules, not genres learned from Bach. [Data, license, training and held-out validation](data/harmony/README.md) are reproducible and included in the repository. The plugin runs entirely offline. Melody keeps its separate genetic search. Voicing optimisation includes the last-to-first transition of the playback loop.
 
 Reproducible chord-only listening examples and separate MIDI files can be generated with `plugin_tests render-harmony <absolute-output-directory>`. `plugin_tests render-harmony-controls <absolute-output-directory>` compares low/middle/high values of each amount, changing one control at a time. They use fixed seeds and the same internal sound; settings and chord names accompany the WAVs.
+
+**Chords for this melody** fits a new chord sequence to the selected melody using Originality, harmonic rhythm and Resolve. It favours chords containing the longest and metrically strongest notes, preserves the melody, and supports Undo.
 
 Harmony is limited to 64 chord events and 128 quarter-note beats. At very dense harmonic rhythms, neighbouring steps are grouped to fit 64 events while retaining the full phrase. Pentatonic, whole-tone and blues scales use their parent major/minor chord vocabulary; the chromatic scale uses major, and Saba uses minor for conventional chord output.
 
@@ -91,7 +95,7 @@ To export one section of an arrangement, select its range on the piano-roll rule
 | Deep | 256 | 300 |
 | Custom budget | 16–512 | 1–2000 |
 
-Tournament selection, two unchanged elites, probabilistic one-point crossover (90% by default), and mutation run for every requested generation. Crossover exchanges phrase sections, including rhythm; locked events and rhythmic templates use pitch/velocity crossover to preserve timing. The Search tab reports generations, evaluations, crossover operations, best/mean fitness and elapsed time. The initial population is also scored, giving `population × (generations + 1)` evaluations. Cancel keeps the old bank.
+Tournament selection, one unchanged elite per island, probabilistic one-point crossover (90% by default), and mutation run for every requested generation. Crossover exchanges phrase sections, including rhythm; locked events and rhythmic templates use pitch/velocity crossover to preserve timing. The Search tab reports generations, evaluations, crossover operations, best/mean fitness and elapsed time. The initial population is also scored, giving `population × (generations + 1)` evaluations. Cancel keeps the old bank. **Explain score** lists each fitness term of the displayed phrase under the current settings; the terms add up to its score ([Search with Explain score](images/ui-search-score.png)).
 
 This is a rewritten engine with a different fitness function, not the original `genetic.cpp` restored verbatim. The old implementation used 128 individuals, 100 generations and 90% crossover, but repeatedly recomputed population-dependent fitness in selection and sorting. This engine caches fitness per generation and chooses diverse final results. It can finish quickly without skipping generations; higher fitness or a longer run is not a guarantee of musical quality.
 
@@ -101,7 +105,7 @@ This is a rewritten engine with a different fitness function, not the original `
 
 | Type | Intended shape |
 | --- | --- |
-| Riff | A short repeating core, adapted to the current chords |
+| Riff | A short cell of half a bar, one bar or two bars, repeated and adapted to the current chords |
 | Motif | A recognisable idea with controlled variations |
 | Melody | A freer line with development and an ending |
 

@@ -315,4 +315,140 @@ void runMusicalArchitectureTests() {
     settings.weirdness = 1;
     check(fitnessScore(shifted, settings) - fitnessScore(sparse, settings) > familiar,
           "Weirdness does not influence offbeat preference");
+
+    // Beats follow the meter rather than whole quarter notes.
+    check(metricLevel(0, 4, 4) == 3 && metricLevel(1, 4, 4) == 2 && metricLevel(0.5, 4, 4) == 1 &&
+              metricLevel(0.25, 4, 4) == 0 && metricLevel(4, 4, 4) == 3,
+          "4/4 metric levels changed");
+    check(metricLevel(1.5, 6, 8) == 2 && metricLevel(1.0, 6, 8) == 1 && metricLevel(3.0, 6, 8) == 3,
+          "6/8 must beat in dotted quarters");
+    check(metricLevel(1.0, 7, 8) == 2 && metricLevel(2.0, 7, 8) == 2 && metricLevel(2.5, 7, 8) == 1 &&
+              metricLevel(3.5, 7, 8) == 3,
+          "7/8 must group 2+2+3 and start every bar on a downbeat");
+    check(metricLevel(1.75, 7, 16) == 3 && metricLevel(0.5, 7, 16) == 2 && metricLevel(1.0, 7, 16) == 2,
+          "7/16 bar starts drifted off the downbeat");
+    check(metricLevel(2, 2, 2) == 2 && metricLevel(1, 2, 2) == 1 && metricLevel(4.5, 12, 8) == 2,
+          "cut time or 12/8 beats are misplaced");
+    check(metricLevel(1.5, 9, 8) == 2 && metricLevel(3.0, 9, 8) == 2 &&
+              metricLevel(2.0, 9, 8) == 1,
+          "9/8 must use three dotted-quarter beats");
+    check(metricLevel(1, 32, 4) == 2 && metricLevel(0.5, 32, 4) == 1,
+          "long simple meters must keep every quarter-note beat");
+    {
+        Clip compound;
+        compound.length = 3;
+        compound.numerator = 6;
+        compound.denominator = 8;
+        compound.notes[size_t(compound.count++)] = {0, 0.5, 60, 90, false, 0};
+        compound.notes[size_t(compound.count++)] = {1.5, 0.5, 62, 90, false, 0};
+        check(analysePhrase(compound, Settings{}).offbeatRatio == 0,
+              "notes on both 6/8 beats were treated as offbeats");
+        compound.notes[0].start = 1.0;
+        compound.notes[1].start = 2.0;
+        check(analysePhrase(compound, Settings{}).offbeatRatio == 1,
+              "weak 6/8 eighths were treated as beats");
+        compound.numerator = 7;
+        compound.length = 3.5;
+        compound.groupCount = 3;
+        compound.groupUnit = 8;
+        compound.groups = {3, 2, 2};
+        compound.notes[0].start = 1.5;
+        compound.notes[1].start = 2.5;
+        check(analysePhrase(compound, Settings{}).offbeatRatio == 0,
+              "phrase analysis ignored its stored 3+2+2 grouping");
+    }
+
+    // Preset degrees use the parent major/minor scale: IV in C is F, not the fourth pentatonic tone.
+    for (int scale : {4, 5, 8, 13, 14}) {
+        Settings degrees;
+        degrees.scale = scale;
+        degrees.progression = 1;
+        Clip bar;
+        bar.length = 16;
+        bar.notes[size_t(bar.count++)] = {4, 1, 64, 90, false, 0};
+        bar.notes[size_t(bar.count++)] = {7, 1, 64, 90, false, 0};
+        const auto resolved = transformRegion(bar, 4, 8, RegionAction::Resolve, degrees);
+        check(resolved.notes[size_t(resolved.count - 1)].pitch % 12 == 5,
+              "IV of a five- or six-note scale did not resolve to F");
+    }
+    {
+        Settings blues;
+        blues.scale = 14;
+        blues.progression = 21;
+        Clip bar;
+        bar.length = 48;
+        bar.notes[size_t(bar.count++)] = {16, 1, 62, 90, false, 0};
+        bar.notes[size_t(bar.count++)] = {19, 1, 64, 90, false, 0};
+        const auto resolved = transformRegion(bar, 16, 20, RegionAction::Resolve, blues);
+        check(resolved.notes[size_t(resolved.count - 1)].pitch % 12 == 5,
+              "twelve-bar preset with the Blues scale lost its IV chord");
+    }
+
+    // Phrases can enter after a rest, and velocity follows the meter.
+    {
+        int lateStarts = 0, phrases = 0;
+        double onBeat = 0, offBeat = 0;
+        int onCount = 0, offCount = 0;
+        for (int type = 0; type < 3; ++type)
+            for (uint32_t seed = 1; seed <= 6; ++seed) {
+                Settings fresh;
+                fresh.phraseType = type;
+                fresh.seed = seed;
+                fresh.quality = 0;
+                for (const auto& clip : generate(fresh, nullptr, cancelled)) {
+                    ++phrases;
+                    lateStarts += clip.count && clip.notes[0].start > 1e-9;
+                    for (int i = 0; i < clip.count; ++i) {
+                        const auto& note = clip.notes[size_t(i)];
+                        if (metricLevel(note.start, clip.numerator, clip.denominator) >= 2) {
+                            onBeat += note.velocity;
+                            ++onCount;
+                        } else {
+                            offBeat += note.velocity;
+                            ++offCount;
+                        }
+                    }
+                }
+            }
+        check(lateStarts > 0 && lateStarts < phrases / 2,
+              "phrases never enter after a rest, or rarely start on the downbeat");
+        check(onCount && offCount && onBeat / onCount > offBeat / offCount + 4,
+              "generated velocity does not accent beats");
+    }
+
+    // Riff cells can be half a bar, one bar or two bars long.
+    {
+        // Copies are fitted to the scale, so an occasional chromatic cell note may differ.
+        const auto repeatsAt = [](const Clip& clip, double lag) {
+            int considered = 0, found = 0;
+            for (int i = 0; i < clip.count; ++i) {
+                const auto& note = clip.notes[size_t(i)];
+                if (note.start < lag - 1e-9)
+                    continue;
+                ++considered;
+                for (int j = 0; j < clip.count; ++j)
+                    if (std::abs(clip.notes[size_t(j)].start - (note.start - lag)) < 1e-6 &&
+                        clip.notes[size_t(j)].pitch == note.pitch) {
+                        ++found;
+                        break;
+                    }
+            }
+            return considered > 0 && found >= considered * 0.85;
+        };
+        bool twoBarCellDiffers = false;
+        for (uint32_t seed = 1; seed <= 6; ++seed) {
+            Settings riff;
+            riff.phraseType = 0;
+            riff.seed = seed;
+            riff.quality = 0;
+            riff.riffCellBars = 2;
+            const auto twoBars = generate(riff, nullptr, cancelled).front();
+            check(repeatsAt(twoBars, 8), "two-bar riff cell does not repeat after two bars");
+            twoBarCellDiffers |= !repeatsAt(twoBars, 4);
+            riff.riffCellBars = 0.5;
+            check(repeatsAt(generate(riff, nullptr, cancelled).front(), 2),
+                  "half-bar riff cell does not repeat every half bar");
+        }
+        check(twoBarCellDiffers, "a two-bar riff cell always collapsed into a one-bar cell");
+    }
 }

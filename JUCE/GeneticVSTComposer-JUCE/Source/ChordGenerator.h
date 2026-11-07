@@ -34,6 +34,12 @@ struct HarmonyModelInfo {
     double firstOrderPerplexity, contextPerplexity;
 };
 HarmonyModelInfo harmonyModelInfo();
+// Chords for an existing melody, over its own length and meter; bars, numerator and denominator
+// in the settings are ignored. Each harmonic-rhythm step favours chords containing the notes that
+// sound longest and on the strongest metric positions, and dynamic programming weighs that fit
+// against functional motion and a tonic start and ending. Originality admits sevenths, borrowed
+// chords and applied dominants; the seed varies near ties. An empty melody gives an empty Harmony.
+Harmony harmonizeMelody(const Clip& melody, const ChordGenerationSettings&);
 // Chooses registers and inversions across the entire progression. Every chord
 // tone appears once, with conventional 12-TET pitches and no microtonal offsets.
 Clip voiceHarmony(const Harmony&, int numerator, int denominator, const VoicingSettings&);

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
-project(GeneticComposer VERSION 2.8.0 LANGUAGES C CXX)
+project(GeneticComposer VERSION 2.9.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -22,7 +22,7 @@ if(BUILD_TESTING)
     target_link_libraries(microtonal_engine_tests PRIVATE composer_engine)
     add_test(NAME microtonal_engine COMMAND microtonal_engine_tests)
     add_executable(engine_tests tests/EngineTests.cpp tests/SearchTests.cpp tests/ChordGeneratorTests.cpp
-        tests/MusicalArchitectureTests.cpp tests/MelodyAdaptationTests.cpp)
+        tests/MusicalArchitectureTests.cpp tests/MelodyAdaptationTests.cpp tests/FuzzTests.cpp)
     target_link_libraries(engine_tests PRIVATE composer_engine)
     # Tests keep Clips/Banks and whole Processors on the main-thread stack; match the
     # 8 MB macOS default instead of the 1 MB Windows one.
@@ -33,6 +33,7 @@ if(BUILD_TESTING)
     add_test(NAME harmony COMMAND engine_tests harmony)
     add_test(NAME search COMMAND engine_tests search)
     add_test(NAME architecture COMMAND engine_tests architecture)
+    add_test(NAME fuzz COMMAND engine_tests fuzz)
 endif()
 # Measurements only. Not part of the default build or CTest.
 add_executable(composer_probe EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/scripts/probe-musical-engine.cpp")
@@ -70,6 +71,10 @@ juce_add_plugin(GeneticComposer
     VST3_CATEGORIES Instrument Tools
     FORMATS ${COMPOSER_FORMATS})
 juce_generate_juce_header(GeneticComposer)
+# The in-plugin guide is plain text, one "## title" line per chapter.
+juce_add_binary_data(GeneticComposerResources SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/GeneticVSTComposer-JUCE/Resources/guide_en.txt"
+    "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/GeneticVSTComposer-JUCE/Resources/guide_pl.txt")
 target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginProcessor.cpp" "${SOURCE_DIR}/PluginProcessor.h"
     "${SOURCE_DIR}/ProcessorPlayback.cpp" "${SOURCE_DIR}/ProcessorState.cpp"
@@ -88,7 +93,7 @@ target_include_directories(GeneticComposer PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/libs/dsp-kit/include")
 target_compile_definitions(GeneticComposer PUBLIC
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
-target_link_libraries(GeneticComposer PRIVATE composer_engine juce::juce_audio_utils
+target_link_libraries(GeneticComposer PRIVATE composer_engine GeneticComposerResources juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)
 
 if(APPLE)
@@ -107,8 +112,8 @@ if(BUILD_TESTING)
     target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp
         tests/MicrotonalLabTests.cpp
         tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp
-        tests/RealtimeTests.cpp tests/AllocationGuard.cpp)
-    target_link_libraries(plugin_tests PRIVATE GeneticComposer juce::juce_audio_utils)
+        tests/RealtimeTests.cpp tests/AllocationGuard.cpp tests/ProcessorRegressionTests.cpp)
+    target_link_libraries(plugin_tests PRIVATE GeneticComposer GeneticComposerResources juce::juce_audio_utils)
     if(MSVC)
         target_link_options(plugin_tests PRIVATE /STACK:8388608)
     endif()

@@ -99,6 +99,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     bool audibleChordLayer() const { return heardChordPreview.load() || heardChordLayer.load(); }
     double chordPlayPosition() const { return chordBeat.load(); }
     juce::Result generateChords();
+    // Chords fitted to the selected melody, which stays unchanged.
+    juce::Result harmonizeMelody();
     juce::Result revoiceChords();
     juce::Result adaptMelodyToChords();
     bool canAdaptMelodyToChords() const;
@@ -123,6 +125,11 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     void setChordLengthMenu(int id);
     int phraseLengthMenuId() const;
     int chordLengthMenuId() const;
+    // Phrase type menu: 1-3 Riff with a half-, one- or two-bar cell, 4 Motif, 5 Melody.
+    int phraseMenuId() const;
+    void setPhraseMenu(int id);
+    // Fitness terms of the displayed phrase under the current settings.
+    std::vector<composer::FitnessTerm> fitnessBreakdown() const;
     static juce::StringArray extendedScaleNames();
     composer::SearchBudget configuredSearchBudget() const;
     juce::String searchDescription() const;
@@ -235,7 +242,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         composer::Settings settings;
         composer::Clip parent;
         std::vector<composer::Clip> mates;
-        uint64_t startRevision = 0;
+        uint64_t startContent = 0;
+        uint64_t startRevision = 0; // Independent microtonal workspace revision.
         bool useParent = false;
         bool evolve = false;
         bool selectBest = false;
@@ -254,7 +262,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
     void publishLocked();
-    void pushHistoryLocked();
+    // contentChange is false for edits a running search cannot conflict with, such as pinning.
+    void pushHistoryLocked(bool contentChange = true);
     bool restore(const void*, int);
     composer::Note renderedNote(composer::Note, const composer::Clip&, int transpose = 0,
                                 int index = -1) const;
@@ -315,6 +324,8 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     std::atomic<bool> customHarmonyEnabled{false};
     std::atomic<bool> chordPreview{false}, heardChordPreview{false};
     std::atomic<uint64_t> revision{1};
+    // Counts edits a finished search must not overwrite. Pinning and A/B captures do not count.
+    std::atomic<uint64_t> contentRevision{1};
     std::atomic<bool> busy{false}, cancelled{false}, preview{false}, playing{false}, panicRequested{false};
     std::atomic<float> progress{0};
     mutable std::mutex searchMutex;
