@@ -110,7 +110,7 @@ Piano roll pokazuje wynik do odsłuchu. Keep preview zapisuje go w aktualnie wyb
 
 Zablokowane nuty źródła Rhythm są zachowywane w całości: ich wysokość i velocity nie są zastępowane. Blokady w źródłach Pitches i Accents nie ograniczają wyniku.
 
-Capture A przed rozpoczęciem ułatwia porównanie. Zapnij ważne warianty plusem i użyj Save bank, jeśli chcesz zachować zestaw źródeł na później.
+Capture A przed rozpoczęciem ułatwia porównanie. Zapnij ważne warianty plusem i użyj Zapisz jako..., jeśli chcesz zachować zestaw źródeł jako nazwany preset banku.
 
 ## 8. Studio One i skróty
 STUDIO ONE I SKRÓTY
@@ -130,7 +130,7 @@ Shift-klik lub L: zablokuj / odblokuj nutę.
 Delete / prawy klik: usuń odblokowaną nutę, gdy Edit notes jest włączone.
 Kółko myszy nad piano rollem: przewijaj wysokości.
 
-Skróty odtwarzania nie działają podczas wpisywania tekstu. Save bank zachowuje bank i ustawienia; stan jest również zapisywany z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.
+Skróty odtwarzania nie działają podczas wpisywania tekstu. Zapisz jako... zachowuje pełny bank, akordy, ustawienia i obszar Mikrotonowe jako nazwany preset. Kliknij nazwę presetu (lub Presety banków...) na górnym pasku, aby wybrać zapisany bank. Ctrl/Cmd+S aktualizuje bieżący preset, a Ctrl/Cmd+Shift+S zapisuje kolejną wersję. Zapis pod zajętą nazwą wymaga potwierdzenia zastąpienia. Otwórz... wczytuje dotychczasowe pliki .genetic; Zapisz jako... dodaje je do biblioteki. Menu presetów zawiera też Eksportuj plik banku... i Otwórz folder presetów. Fabryczne Punkty startowe... zmieniają tylko ustawienia generowania. Pełny stan i nazwa presetu są również zapisywane z projektem DAW. Tymczasowy podgląd należy wcześniej zachować przez Keep preview.
 
 ## 9. Mikrotony
 MIKROTONY (OPCJONALNIE)

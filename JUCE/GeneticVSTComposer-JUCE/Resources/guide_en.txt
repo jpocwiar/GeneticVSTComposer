@@ -105,7 +105,7 @@ Play the draft shown in the piano roll. Keep preview writes it to the currently 
 
 Locked notes in the Rhythm source are preserved in full: their pitch and velocity are not replaced. Locks in the Pitches and Accents sources do not constrain the result.
 
-Capture A before starting for easy comparison. Pin important sources and Save bank to retain the complete source set.
+Capture A before starting for easy comparison. Pin important sources and use Save as... to retain the complete source set as a named bank preset.
 
 ## 8. Studio One and shortcuts
 STUDIO ONE AND SHORTCUTS
@@ -125,7 +125,7 @@ Shift-click or L: toggle a note lock.
 Delete / right-click: delete an unlocked note when Edit notes is on.
 Mouse wheel over the roll: scroll pitches.
 
-Playback shortcuts are suspended while typing text. Save bank stores the bank and settings; the DAW project also stores plugin state. Keep preview commits a temporary draft before saving.
+Playback shortcuts are suspended while typing text. Save as... stores the complete bank, chords, settings and Microtonal workspace as a named preset. Click the current preset name (or Bank presets...) in the top bar to recall saved banks. Ctrl/Cmd+S updates the current preset; Ctrl/Cmd+Shift+S saves another version. Saving under an existing name asks before replacing it. Open... reads existing .genetic files; use Save as... afterwards to add them to the library. The preset menu also offers Export bank file... and Open presets folder. Factory Starting points... change generation settings only. Your DAW project also stores the complete plugin state and preset name. Keep preview commits a temporary draft before saving.
 
 ## 9. Microtones
 MICROTONES (OPTIONAL)

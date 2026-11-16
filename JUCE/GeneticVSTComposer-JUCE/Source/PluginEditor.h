@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 
 #include "ActivityDisplay.h"
+#include "BankPresetLibrary.h"
 #include "ComposerTheme.h"
 
 #include "PianoRoll.h"
@@ -94,7 +95,10 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::unique_ptr<juce::PropertiesFile> preferences;
     int shownLanguage = -1;
     std::array<std::unique_ptr<VariationButton>, 12> variants;
-    juce::ComboBox preset, root, scale, bars, grid, meter, grouping, mode, phraseType, harmony, quality,
+    juce::TextButton preset{"Bank presets..."};
+    BankPresetLibrary presetLibrary;
+    std::unique_ptr<juce::AlertWindow> presetDialog;
+    juce::ComboBox root, scale, bars, grid, meter, grouping, mode, phraseType, harmony, quality,
         auditionSound, arrangementForm;
     juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"}, microtonalTab{"Microtonal"};
     bool chordPage = false, microPage = false;
@@ -114,7 +118,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::Slider auditionReverb;
     juce::TextButton generate{"Generate melody bank"}, evolve{"Evolve selected"}, panic{"Stop all"};
     TransportButton play;
-    juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save bank"}, load{"Open bank"};
+    juce::TextButton undo{"Undo"}, redo{"Redo"}, save{"Save as..."}, load{"Open..."};
     juce::TextButton import{"Import MIDI"}, exportBoth{"Melody + chords"}, exportFile{"Export..."}, help{"?"};
     MidiDragButton drag;
     juce::Label status, phraseTitle, phraseInfo, tempoInfo;
@@ -165,6 +169,10 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     juce::String shownHarmony;
     void timerCallback() override;
     void chooseFile(int action);
+    void showPresetMenu();
+    void savePresetAs();
+    void saveNamedPreset(const juce::String&, bool overwrite);
+    void bankLoaded();
     void applyInterfaceLanguage();
     void storeInterfaceLanguage(int language);
     juce::String tr(const juce::String&) const;

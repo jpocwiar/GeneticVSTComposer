@@ -190,8 +190,10 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     juce::Result exportMelodyAndChords(const juce::File&) const;
     juce::Result exportMidiRange(const juce::File&, double start, double end) const;
     juce::Result importMidi(const juce::File&);
-    juce::Result saveBank(const juce::File&);
+    juce::Result saveBank(const juce::File&, const juce::String& presetName = {});
     juce::Result loadBank(const juce::File&);
+    juce::String bankPresetName() const;
+    void setBankPresetName(const juce::String&);
     void panic() {
         panicRequested.store(true);
         preview.store(false);
@@ -318,6 +320,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     void restoreDocumentLocked(const Document&);
     std::deque<Document> undoStack, redoStack;
     juce::String status{"Choose a variation, or generate something new."};
+    juce::String currentBankPreset;
     std::atomic<int> selected{0};
     std::atomic<int> audibleSlot{0};
     std::atomic<bool> comparisonAvailable{false}, compareRequested{false}, heardComparison{false};
