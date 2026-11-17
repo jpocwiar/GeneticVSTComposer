@@ -215,6 +215,10 @@ juce::Result Processor::setMicrotonalSettings(const microtonal::Settings& s) {
     return juce::Result::ok();
 }
 void Processor::setMicrotonalMode(bool enabled) {
+    if (enabled) {
+        compositionSourceSelected.store(false);
+        compositionRequested.store(false);
+    }
     if (microtonalMode.load() == enabled)
         return;
     panic();

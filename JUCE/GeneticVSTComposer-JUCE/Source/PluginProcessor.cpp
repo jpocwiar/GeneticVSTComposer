@@ -53,6 +53,7 @@ class Processor::SearchThread : public juce::Thread {
     bool hasJob = false;
     bool stopping = false;
 };
+void Processor::submitSearch(SearchJob job) { searchThread->submit(std::move(job)); }
 
 void Processor::cacheAudioParameters() {
     auto take = [this](const char* id) { return parameters.getRawParameterValue(id); };
@@ -194,6 +195,8 @@ GeneticVSTComposerJUCEAudioProcessor::GeneticVSTComposerJUCEAudioProcessor()
       pendingBank(bank), audioBank(bank),
       captureEvents(std::make_unique<std::array<CaptureEvent, captureCapacity>>()) {
     cacheAudioParameters();
+    pendingComposition = std::make_unique<CompositionSchedule>();
+    audioComposition = std::make_unique<CompositionSchedule>();
     clearVisualState();
     searchThread = std::make_unique<SearchThread>(*this);
     startTimerHz(30);
@@ -208,6 +211,9 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& layout) const {
            layout.getMainOutputChannelSet() == juce::AudioChannelSet::mono();
 }
 void Processor::prepareToPlay(double sampleRate, int) {
+    // Fit-to-scale is also available in composition playback; initialise its immutable
+    // lookup tables here, before the first real-time note can request them.
+    (void)composer::scaleIntervals(0);
     rate = sampleRate;
     voices = {};
     microVoices = {};
@@ -231,6 +237,11 @@ void Processor::prepareToPlay(double sampleRate, int) {
     nextNote = 0;
     wasPlaying = wasHostPlaying = false;
     audioMicrotonalMode = microWasRunning = microWasHostPlaying = false;
+    audioCompositionMode = false;
+    compositionRequested.store(false);
+    compositionSourceSelected.store(false);
+    compositionPlaying.store(false);
+    heardCompositionSection.store(-1);
     trigger = -1;
     transpose = 0;
     heldTriggers = {};
@@ -241,7 +252,7 @@ void Processor::prepareToPlay(double sampleRate, int) {
     heardComparison.store(false);
     for (int p = 0; p < 128; ++p)
         phaseIncrements[p] = 440.0 * std::exp2((p - 69.0) / 12.0) / rate;
-    outputMidi.ensureSize(65536);
+    outputMidi.ensureSize(1024 * 1024);
     auditionReverbFx.prepare(rate);
     auditionReverbFx.setDecay(1.6f);
     auditionReverbFx.setSize(0.62f);
@@ -250,6 +261,10 @@ void Processor::prepareToPlay(double sampleRate, int) {
     reverbMix.setCurrentAndTargetValue(cached.auditionReverb->load());
 }
 void Processor::releaseResources() {
+    compositionRequested.store(false);
+    compositionSourceSelected.store(false);
+    compositionPlaying.store(false);
+    heardCompositionSection.store(-1);
     microWasRunning = microWasHostPlaying = false;
     playing.store(false);
     preview.store(false);
@@ -352,12 +367,15 @@ void Processor::selectClip(int index) {
         audibleSlot.store(index);
 }
 Processor::Document Processor::documentLocked() const {
-    return {bank, customHarmony, grooveReference, grooveLoaded, chordClip};
+    return {bank, customHarmony, grooveReference, grooveLoaded, chordClip, composition};
 }
 void Processor::restoreDocumentLocked(const Document& d) {
     bank = d.bank;
     customHarmony = d.harmony;
     chordClip = d.chords;
+    composition = d.composition;
+    // The project carries a chooser hint, never permission to execute its interpreter path.
+    compositionRequested.store(false);
     if (chordClip.count == 0 && chordPreview.exchange(false))
         preview.store(false);
     grooveReference = d.groove;
@@ -434,6 +452,10 @@ void Processor::redo() {
     publishLocked();
 }
 void Processor::setPreview(bool enabled) {
+    if (enabled)
+        compositionRequested.store(false);
+    if (enabled)
+        compositionSourceSelected.store(false);
     preview.store(enabled);
     if (!enabled)
         chordPreview.store(false);
@@ -459,6 +481,8 @@ void Processor::setPlaybackRegion(double start, double end, bool enabled) {
     ++pendingRegionSerial;
 }
 void Processor::startAudition() {
+    compositionRequested.store(false);
+    compositionSourceSelected.store(false);
     chordPreview.store(false);
     setParameter("follow", 0);
     setParameter("monitor", 1);
@@ -469,6 +493,8 @@ void Processor::startAudition() {
         "Playing the selected phrase. Stop ends playback; With chords adds the internal accompaniment.");
 }
 void Processor::startChordAudition() {
+    compositionRequested.store(false);
+    compositionSourceSelected.store(false);
     if (chordClipSnapshot().count == 0) {
         setStatus("Generate or enter chords before auditioning them.");
         return;
@@ -970,6 +996,7 @@ composer::Settings Processor::settings() const {
         s.groups = groups;
         s.groupCount = groupCount;
         s.groupUnit = groupUnit > 0 ? groupUnit : s.denominator;
+        s.creative = creativeContextLocked();
     }
     return s;
 }
@@ -1115,6 +1142,10 @@ void Processor::beginMicrotonalSearch(bool evolve, int action) {
     searchThread->submit(std::move(job));
 }
 void Processor::performSearch(SearchJob job) {
+    if (job.aiIdeas) {
+        performAiSearch(job);
+        return;
+    }
     if (job.independentMicrotonal) {
         performMicrotonalSearch(job);
         return;

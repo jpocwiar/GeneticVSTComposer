@@ -114,7 +114,7 @@ void testDocumentAndHistory() {
     juce::MemoryBlock state;
     p->getStateInformation(state);
     const auto xml = juce::AudioProcessor::getXmlFromBinary(state.getData(), int(state.getSize()));
-    check(xml && xml->getIntAttribute("version") == 6, "current document must use state schema version 6");
+    check(xml && xml->getIntAttribute("version") == 7, "current document must use state schema version 7");
     auto restored = std::make_unique<Processor>();
     check(restored->setCustomHarmony("F#:1").wasOk(), "restore sentinel harmony failed");
     restored->setStateInformation(state.getData(), int(state.getSize()));

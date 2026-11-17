@@ -13,6 +13,8 @@ juce::ValueTree clipState(const composer::Clip& c, const char* type) {
     clip.setProperty("denominator", c.denominator, nullptr);
     clip.setProperty("favourite", c.favourite, nullptr);
     clip.setProperty("seed", juce::int64(c.seed), nullptr);
+    if (c.family >= 0)
+        clip.setProperty("family", c.family, nullptr);
     if (c.groupCount > 0) {
         clip.setProperty("groupCount", c.groupCount, nullptr);
         clip.setProperty("groupUnit", c.groupUnit, nullptr);
@@ -63,6 +65,7 @@ bool readClipState(const juce::ValueTree& child, composer::Clip& c) {
     c.denominator = child.getProperty("denominator", 4);
     c.favourite = child.getProperty("favourite", false);
     c.seed = uint32_t(juce::int64(child.getProperty("seed", 0)));
+    c.family = juce::jlimit(-1, 2, int(child.getProperty("family", -1)));
     if (child.hasProperty("groups")) {
         std::string error;
         int count = 0;
@@ -108,13 +111,142 @@ bool validChordVoicing(const composer::Harmony& harmony, const composer::Clip& c
     return true;
 }
 } // namespace
+juce::ValueTree Processor::compositionStateLocked() const {
+    juce::ValueTree state("CompositionWorkspace");
+    state.setProperty("enabled", composition.enabled, nullptr);
+    state.setProperty("selected", composition.selected, nullptr);
+    state.setProperty("role", composition.role, nullptr);
+    state.setProperty("preserveHook", composition.preserveHook, nullptr);
+    state.setProperty("identity", composition.identity, nullptr);
+    state.setProperty("context", composition.contextAmount, nullptr);
+    state.setProperty("aiPython", composition.aiPython, nullptr);
+    state.addChild(clipState(composition.hook, "Hook"), -1, nullptr);
+    state.addChild(clipState(composition.drums, "Drums"), -1, nullptr);
+    state.addChild(clipState(composition.bass, "Bass"), -1, nullptr);
+    juce::ValueTree preferences("PreferenceModel");
+    preferences.setProperty("comparisons", juce::int64(composition.preference.comparisons), nullptr);
+    for (size_t i = 0; i < composition.preference.weights.size(); ++i)
+        preferences.setProperty(juce::Identifier("w" + juce::String(int(i))), composition.preference.weights[i], nullptr);
+    state.addChild(preferences, -1, nullptr);
+    juce::ValueTree roles("RolePreferences");
+    for (int role = 0; role < 4; ++role) {
+        const auto& model = composition.rolePreferences[size_t(role)];
+        juce::ValueTree item("Role");
+        item.setProperty("role", role, nullptr);
+        item.setProperty("comparisons", juce::int64(model.comparisons), nullptr);
+        for (size_t i = 0; i < model.weights.size(); ++i)
+            item.setProperty(juce::Identifier("w" + juce::String(int(i))), model.weights[i], nullptr);
+        roles.addChild(item, -1, nullptr);
+    }
+    state.addChild(roles, -1, nullptr);
+    for (const auto& section : composition.sections) {
+        juce::ValueTree item("Section");
+        item.setProperty("name", section.name, nullptr);
+        item.setProperty("energy", section.energy, nullptr);
+        item.setProperty("contrast", section.contrast, nullptr);
+        item.setProperty("harmony", juce::String(composer::harmonyText(section.harmony)), nullptr);
+        item.addChild(clipState(section.melody, "Melody"), -1, nullptr);
+        item.addChild(clipState(section.chords, "Chords"), -1, nullptr);
+        state.addChild(item, -1, nullptr);
+    }
+    return state;
+}
+bool Processor::readCompositionState(const juce::ValueTree& state, CompositionWorkspace& workspace) {
+    workspace = {};
+    if (!state.isValid())
+        return true;
+    if (state.getNumChildren() > 13)
+        return false;
+    workspace.enabled = bool(state.getProperty("enabled", false));
+    workspace.role = state.getProperty("role", 0);
+    workspace.selected = state.getProperty("selected", 0);
+    workspace.preserveHook = state.getProperty("preserveHook", false);
+    workspace.identity = state.getProperty("identity", 0.75f);
+    workspace.contextAmount = state.getProperty("context", 0.6f);
+    workspace.aiPython = state.getProperty("aiPython").toString();
+    if (workspace.role < 0 || workspace.role > 3 || !std::isfinite(workspace.identity) ||
+        workspace.identity < 0 || workspace.identity > 1 || !std::isfinite(workspace.contextAmount) ||
+        workspace.contextAmount < 0 || workspace.contextAmount > 1 || workspace.aiPython.length() > 4096 ||
+        (workspace.aiPython.isNotEmpty() && !juce::File::isAbsolutePath(workspace.aiPython)))
+        return false;
+    for (auto pair : {std::make_pair("Hook", &workspace.hook), std::make_pair("Drums", &workspace.drums),
+                      std::make_pair("Bass", &workspace.bass)}) {
+        const auto child = state.getChildWithName(pair.first);
+        if (child.isValid() && !readClipState(child, *pair.second))
+            return false;
+    }
+    const auto model = state.getChildWithName("PreferenceModel");
+    const auto comparisons = juce::int64(model.getProperty("comparisons", 0));
+    if (comparisons < 0 || comparisons > 1000000000)
+        return false;
+    workspace.preference.comparisons = uint32_t(comparisons);
+    for (size_t i = 0; i < workspace.preference.weights.size(); ++i) {
+        const double weight = model.getProperty(juce::Identifier("w" + juce::String(int(i))), 0.0);
+        if (!std::isfinite(weight) || std::abs(weight) > 100)
+            return false;
+        workspace.preference.weights[i] = weight;
+    }
+    workspace.rolePreferences[size_t(workspace.role)] = workspace.preference;
+    const auto roles = state.getChildWithName("RolePreferences");
+    if (roles.getNumChildren() > 4)
+        return false;
+    std::array<bool, 4> seen{};
+    for (const auto& item : roles) {
+        const int role = item.getProperty("role", -1);
+        const auto count = juce::int64(item.getProperty("comparisons", 0));
+        if (!item.hasType("Role") || role < 0 || role > 3 || seen[size_t(role)] || count < 0 || count > 1000000000)
+            return false;
+        seen[size_t(role)] = true;
+        auto& stored = workspace.rolePreferences[size_t(role)];
+        stored.comparisons = uint32_t(count);
+        for (size_t i = 0; i < stored.weights.size(); ++i) {
+            const double weight = item.getProperty(juce::Identifier("w" + juce::String(int(i))), 0.0);
+            if (!std::isfinite(weight) || std::abs(weight) > 100)
+                return false;
+            stored.weights[i] = weight;
+        }
+    }
+    if (seen[size_t(workspace.role)])
+        workspace.preference = workspace.rolePreferences[size_t(workspace.role)];
+    for (const auto& child : state) {
+        if (!child.hasType("Section"))
+            continue;
+        if (workspace.sections.size() >= 8)
+            return false;
+        CompositionSection section;
+        section.name = child.getProperty("name").toString();
+        section.energy = child.getProperty("energy", 0.5f);
+        section.contrast = child.getProperty("contrast", 0.0f);
+        if (section.name.trim().isEmpty() || section.name.length() > 80 || !std::isfinite(section.energy) ||
+            section.energy < 0 || section.energy > 1 || !std::isfinite(section.contrast) ||
+            section.contrast < 0 || section.contrast > 1 ||
+            !readClipState(child.getChildWithName("Melody"), section.melody) ||
+            !readClipState(child.getChildWithName("Chords"), section.chords))
+            return false;
+        const auto text = child.getProperty("harmony").toString();
+        std::string error;
+        if (text.isNotEmpty() && !composer::parseHarmony(text.toStdString(), section.harmony, error))
+            return false;
+        if (section.harmony.count && (std::abs(section.harmony.length - section.melody.length) > 1e-8 ||
+                                     !validChordVoicing(section.harmony, section.chords)))
+            return false;
+        if (!section.harmony.count && section.chords.count)
+            return false;
+        workspace.sections.push_back(std::move(section));
+    }
+    if (workspace.selected < 0 || workspace.selected >= std::max(1, int(workspace.sections.size())))
+        return false;
+    workspace.preserveHook &= workspace.hook.count > 0;
+    return true;
+}
 void Processor::getStateInformation(juce::MemoryBlock& dest) {
     juce::ValueTree state("GeneticComposer");
-    state.setProperty("version", 6, nullptr);
+    state.setProperty("version", 7, nullptr);
     state.addChild(parameters.copyState(), -1, nullptr);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         state.addChild(microtonalStateLocked(), -1, nullptr);
+        state.addChild(compositionStateLocked(), -1, nullptr);
         state.setProperty("selected", selected.load(), nullptr);
         state.setProperty("harmony", juce::String(composer::harmonyText(customHarmony)), nullptr);
         state.setProperty("arrangementForm", arrangementForm, nullptr);
@@ -150,9 +282,11 @@ bool Processor::restore(const void* data, int size) {
         return false;
     const auto state = juce::ValueTree::fromXml(*xml);
     const int version = state.getProperty("version", 0);
-    if ((version < 2 || version > 6) || !state.getChildWithName("Parameters").isValid())
+    if ((version < 2 || version > 7) || !state.getChildWithName("Parameters").isValid())
         return false;
     Document restored;
+    if (version >= 7 && !readCompositionState(state.getChildWithName("CompositionWorkspace"), restored.composition))
+        return false;
     MicrotonalWorkspace restoredMicro;
     const auto microState = state.getChildWithName("MicrotonalWorkspace");
     if (!readMicrotonalState(microState, restoredMicro))

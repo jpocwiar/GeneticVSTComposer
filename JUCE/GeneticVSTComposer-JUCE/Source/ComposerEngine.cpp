@@ -1,4 +1,5 @@
 #include "ComposerEngine.h"
+#include "CompositionTools.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -125,7 +126,8 @@ ResolvedGroups resolveGroups(const Settings& s) {
     fillDefaultGroups(numerator, denominator, g.groups, g.count, g.unit);
     return g;
 }
-void defaultGrouping(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount, int& groupUnit) {
+void defaultGrouping(int numerator, int denominator, std::array<int, 16>& groups, int& groupCount,
+                     int& groupUnit) {
     fillDefaultGroups(numerator, denominator, groups, groupCount, groupUnit);
 }
 std::string groupingText(const std::array<int, 16>& groups, int count) {
@@ -193,12 +195,13 @@ std::vector<std::string> groupingChoices(int numerator, int denominator) {
     std::array<int, 16> groups{};
     int count = 0, unit = 4;
     defaultGrouping(numerator, denominator, groups, count, unit);
-    const int total = std::max(1, count == 0 ? numerator : [&] {
-        int sum = 0;
-        for (int i = 0; i < count; ++i)
-            sum += groups[size_t(i)];
-        return sum;
-    }());
+    const int total = std::max(
+        1, count == 0 ? numerator : [&] {
+            int sum = 0;
+            for (int i = 0; i < count; ++i)
+                sum += groups[size_t(i)];
+            return sum;
+        }());
     std::vector<std::string> options;
     std::vector<int> candidate;
     const auto emit = [&](auto&& self, int remaining) -> void {
@@ -324,11 +327,11 @@ const std::vector<int>& scaleIntervals(int scale) {
                                                           {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
                                                           // Maqam Saba; selected only by its tuning.
                                                           {0, 2, 3, 4, 7, 8, 10},
-                                                          {0, 1, 3, 5, 7, 8, 10}, // Phrygian
-                                                          {0, 1, 3, 5, 6, 8, 10}, // Locrian
-                                                          {0, 2, 3, 5, 7, 9, 11}, // Melodic minor
-                                                          {0, 2, 4, 6, 8, 10},    // Whole tone
-                                                          {0, 3, 5, 6, 7, 10},    // Hexatonic blues
+                                                          {0, 1, 3, 5, 7, 8, 10},   // Phrygian
+                                                          {0, 1, 3, 5, 6, 8, 10},   // Locrian
+                                                          {0, 2, 3, 5, 7, 9, 11},   // Melodic minor
+                                                          {0, 2, 4, 6, 8, 10},      // Whole tone
+                                                          {0, 3, 5, 6, 7, 10},      // Hexatonic blues
                                                           {0, 1, 4, 5, 7, 8, 10}}}; // Phrygian dominant
     return scales[std::clamp(scale, 0, int(scales.size()) - 1)];
 }
@@ -435,6 +438,7 @@ void sanitise(Clip& clip) {
     if (!validDenominator(clip.denominator))
         clip.denominator = 4;
     clip.groupCount = std::clamp(clip.groupCount, 0, 16);
+    clip.family = std::clamp(clip.family, -1, 2);
     if (!unitDenominator(clip.groupUnit))
         clip.groupUnit = clip.denominator;
     for (int i = 0; i < clip.groupCount; ++i)
@@ -495,26 +499,23 @@ void sanitise(Harmony& harmony) {
             (i + 1 < harmony.count ? harmony.chords[i + 1].start : harmony.length) - harmony.chords[i].start;
 }
 namespace {
-constexpr int chordIntervals[17][4]{{0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},
-                                    {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 2, 7, -1},
-                                    {0, 5, 7, -1}, {0, 3, 6, 10}, {0, 3, 6, 9},  {0, 4, 7, 9},
-                                    {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14},
-                                    {0, 3, 7, 11}};
-constexpr const char* chordSuffixes[]{"",    "m",    "dim", "aug", "7",   "maj7", "m7",  "sus2",
-                                      "sus4", "m7b5", "dim7", "6",  "m6", "add9", "9",   "maj9",
-                                      "mM7"};
+constexpr int chordIntervals[17][4]{
+    {0, 4, 7, -1}, {0, 3, 7, -1}, {0, 3, 6, -1},  {0, 4, 8, -1},  {0, 4, 7, 10}, {0, 4, 7, 11},
+    {0, 3, 7, 10}, {0, 2, 7, -1}, {0, 5, 7, -1},  {0, 3, 6, 10},  {0, 3, 6, 9},  {0, 4, 7, 9},
+    {0, 3, 7, 9},  {0, 4, 7, 14}, {0, 4, 10, 14}, {0, 4, 11, 14}, {0, 3, 7, 11}};
+constexpr const char* chordSuffixes[]{"",     "m",    "dim", "aug", "7",    "maj7", "m7",   "sus2", "sus4",
+                                      "m7b5", "dim7", "6",   "m6",  "add9", "9",    "maj9", "mM7"};
 struct ChordAlias {
     const char* text;
     int quality;
 };
 // Longer spellings first so "m7(b5)" is not read as minor plus junk.
 constexpr ChordAlias chordAliases[]{
-    {"m(maj7)", 16}, {"m7(b5)", 9}, {"min7", 6}, {"mmaj7", 16}, {"maj7", 5}, {"dim7", 10},
-    {"sus4", 8},    {"sus2", 7},    {"m7b5", 9}, {"add9", 13},  {"maj9", 15}, {"Δ7", 5},
-    {"°7", 10},     {"o7", 10},     {"ø7", 9},   {"mM7", 16},   {"min", 1},   {"maj", 0},
-    {"dim", 2},     {"aug", 3},     {"sus", 8},  {"M7", 5},     {"j7", 5},    {"-7", 6},
-    {"Δ", 5},       {"ø", 9},       {"°", 2},    {"+", 3},      {"M", 0},     {"-", 1},
-    {"o", 2},
+    {"m(maj7)", 16}, {"m7(b5)", 9}, {"min7", 6},  {"mmaj7", 16}, {"maj7", 5}, {"dim7", 10}, {"sus4", 8},
+    {"sus2", 7},     {"m7b5", 9},   {"add9", 13}, {"maj9", 15},  {"Δ7", 5},   {"°7", 10},   {"o7", 10},
+    {"ø7", 9},       {"mM7", 16},   {"min", 1},   {"maj", 0},    {"dim", 2},  {"aug", 3},   {"sus", 8},
+    {"M7", 5},       {"j7", 5},     {"-7", 6},    {"Δ", 5},      {"ø", 9},    {"°", 2},     {"+", 3},
+    {"M", 0},        {"-", 1},      {"o", 2},
 };
 bool validPassing(const Clip&, int, const Settings&);
 const ChordEvent* chordAt(const Harmony& harmony, double time) {
@@ -1270,6 +1271,7 @@ struct Evolution {
     Settings s;
     std::mt19937 rng;
     const Clip* parent;
+    int family = -1;
     double bar, grid, length;
     explicit Evolution(Settings settings, const Clip* p)
         : s(settings), rng(s.seed), parent(p), bar(s.numerator * 4.0 / s.denominator), grid(4.0 / s.division),
@@ -1282,7 +1284,18 @@ struct Evolution {
     }
     float random() { return std::generate_canonical<float, 24>(rng); }
     int integer(int lo, int hi) { return std::uniform_int_distribution<int>(lo, std::max(lo, hi))(rng); }
-    double activity() const { return std::clamp(double(s.density + (s.arousal - 0.5f) * 0.65f), 0.0, 1.0); }
+    double activity() const {
+        if (!s.creative)
+            return std::clamp(double(s.density + (s.arousal - 0.5f) * 0.65f), 0.0, 1.0);
+        double value = s.density + (s.arousal - 0.5f) * 0.65;
+        if (s.creative) {
+            if (s.creative->role == InstrumentRole::Bass)
+                value -= 0.12;
+            else if (s.creative->role == InstrumentRole::Arpeggio)
+                value += 0.12;
+        }
+        return std::clamp(value, 0.0, 1.0);
+    }
     double targetDuration() const {
         // Reference generator scores rhythmic values in log2 space. At the
         // default activity this targets eighth-note motion with shorter pickups,
@@ -1304,7 +1317,7 @@ struct Evolution {
     }
     int level(double time) const { return metricWeight(time, s); }
     bool structured() const {
-        if (s.regionOnly || s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
+        if (s.creative || s.regionOnly || s.lockRhythm || s.mode == 2 || s.phraseType >= 2)
             return false;
         return !parent || (s.mutation > 0 && parent->count && parent->notes[0].start < cellLength() &&
                            std::none_of(parent->notes.begin(), parent->notes.begin() + parent->count,
@@ -1477,6 +1490,31 @@ struct Evolution {
         return false;
     }
     int pitch(int previous, double time) {
+        if (s.creative && s.creative->role == InstrumentRole::Arpeggio && s.mode != 1) {
+            const auto* chord = chordAt(s.harmony, time);
+            const auto& scale = scaleIntervals(harmonicScale(s.scale));
+            const int scaleDegree = progressionDegree(s.progression, time, bar);
+            const auto tones =
+                chord ? chordPitchClasses(*chord)
+                      : std::array<int, 4>{(s.root + scale[size_t(scaleDegree % 7)]) % 12,
+                                           (s.root + scale[size_t((scaleDegree + 2) % 7)]) % 12,
+                                           (s.root + scale[size_t((scaleDegree + 4) % 7)]) % 12, -1};
+            const int voices =
+                int(std::count_if(tones.begin(), tones.end(), [](int tone) { return tone >= 0; }));
+            const int degree = int(std::floor(time / std::max(grid, targetDuration()))) % std::max(1, voices);
+            const int desired = s.low + (s.high - s.low) / 2;
+            const int tone = tones[size_t(degree)];
+            int best = std::clamp(desired, s.low, s.high), distance = 200;
+            for (int key = s.low; key <= s.high; ++key)
+                if ((key % 12 + 12) % 12 == tone && std::abs(key - desired) < distance) {
+                    best = key;
+                    distance = std::abs(key - desired);
+                }
+            return best;
+        }
+        if (s.creative && s.creative->role == InstrumentRole::Bass && s.mode != 1 &&
+            metricWeight(time, s) >= 2 && random() < 0.65f)
+            return harmonicPitch(s.low + (s.high - s.low) / 5, time, s, true);
         // Mostly adjacent movement, with occasional wider gestures for diversity.
         int step = integer(-2, 2);
         if (random() < s.diversity * 0.16f + s.weirdness * 0.24f)
@@ -1511,8 +1549,9 @@ struct Evolution {
         c.groupCount = s.groupCount;
         c.groupUnit = s.groupUnit > 0 ? s.groupUnit : s.denominator;
         c.seed = s.seed;
-        int previous =
-            snapPitch((s.low + s.high) / 2 + int((s.valence - 0.5f) * 10), s.root, s.scale, s.low, s.high);
+        const double rolePosition = s.creative && s.creative->role == InstrumentRole::Bass ? 0.22 : 0.5;
+        const int centre = s.low + int((s.high - s.low) * rolePosition);
+        int previous = snapPitch(centre + int((s.valence - 0.5f) * 10), s.root, s.scale, s.low, s.high);
         double time = 0.0;
         // A phrase may enter after a short rest, as offbeat riffs do. The rhythm operators can
         // keep, move or remove that rest like any other.
@@ -1530,7 +1569,8 @@ struct Evolution {
                     const double unit = 4.0 / std::max(1, grouping.unit);
                     const int choice = integer(0, 3);
                     const double boundary = std::ceil((time + 1e-6) / unit) * unit + choice * unit;
-                    steps = std::max(1, std::min(maxSteps, int(std::lround(std::max(grid, boundary - time) / grid))));
+                    steps = std::max(
+                        1, std::min(maxSteps, int(std::lround(std::max(grid, boundary - time) / grid))));
                 }
             }
             if (random() > s.dynamics)
@@ -1546,8 +1586,8 @@ struct Evolution {
                 int origin = previous;
                 if (s.phraseType == 2 && s.mode != 1) {
                     const double arch = std::sin(3.141592653589793 * time / length);
-                    const int contour = (s.low + s.high) / 2 - 3 + int((s.valence - 0.5f) * 10) +
-                                        int(arch * (4 + s.arousal * 8));
+                    const int contour =
+                        centre - 3 + int((s.valence - 0.5f) * 10) + int(arch * (4 + s.arousal * 8));
                     origin = int(std::lround(previous * 0.70 + contour * 0.30));
                 }
                 previous = s.mode == 1 ? snapPitch(60 + s.root, s.root, s.scale, s.low, s.high)
@@ -1607,8 +1647,8 @@ struct Evolution {
     }
     void mutateRhythm(Clip& c, float amount) {
         if (s.lockRhythm || s.mode == 2 || c.count < 2 ||
-            (!s.regionOnly && std::any_of(c.notes.begin(), c.notes.begin() + c.count,
-                                         [](const Note& n) { return n.locked; })))
+            (!s.regionOnly &&
+             std::any_of(c.notes.begin(), c.notes.begin() + c.count, [](const Note& n) { return n.locked; })))
             return;
         const double end = structured() ? cellLength() : c.length;
         int editable = 0;
@@ -1753,6 +1793,15 @@ struct Evolution {
         mutateRhythm(c, amount);
         shape(c);
         constrainMicro(c);
+        if (s.creative && amount > 0 && random() < amount * 0.45f) {
+            const int classification = c.family >= 0 ? c.family : std::max(0, family);
+            const auto action = classification == 1   ? DevelopmentAction::Answer
+                                : classification == 2 ? DevelopmentAction::Contrast
+                                                      : DevelopmentAction::Develop;
+            c = developMotif(c, action, s, rng());
+            c.family = classification;
+            constrainMicro(c);
+        }
     }
     double score(const Clip& c, std::vector<FitnessTerm>* terms = nullptr) const {
         // Every term goes through add(), so a breakdown always sums to the score.
@@ -1838,8 +1887,12 @@ struct Evolution {
             const double registerSpan = std::max(1, s.high - s.low);
             const double spanTarget = std::min(registerSpan, 4.0 + s.dynamics * 6.0 + s.arousal * 8.0);
             add("Range", -std::abs(musical.pitchSpan - spanTarget) / 12.0 * 0.8);
+            const double rolePosition = !s.creative                                ? 0.5
+                                        : s.creative->role == InstrumentRole::Bass ? 0.22
+                                        : s.creative->role == InstrumentRole::Riff ? 0.40
+                                                                                   : 0.55;
             const double pitchTarget =
-                (s.low + s.high) * 0.5 + (s.valence - 0.5) * 10.0 + (s.arousal - 0.5) * 4.0;
+                s.low + (s.high - s.low) * rolePosition + (s.valence - 0.5) * 10.0 + (s.arousal - 0.5) * 4.0;
             add("Register", -std::abs(musical.meanPitch - pitchTarget) / registerSpan * 1.5);
             add("Contour direction", -std::abs(musical.upwardRatio - (0.3 + s.valence * 0.4)) * 0.6);
             add("Consonance", -consonanceCost / count * (0.2 + s.valence * 0.8));
@@ -1870,6 +1923,14 @@ struct Evolution {
         }
         if (parent)
             add("Distance from parent", -std::abs(similarity(c, *parent) - (1.0 - s.mutation)) * 3.0);
+        if (s.creative) {
+            const auto creative = evaluateCreative(c, s);
+            add("Motif identity", creative.identity);
+            add("Musical gestures", creative.gestures);
+            add("Track context", creative.context);
+            add("Instrument role", creative.role);
+            add("Your preferences", creative.preference);
+        }
         return result;
     }
 };
@@ -2052,8 +2113,7 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         }
     }
     if (s.regionOnly && (!source || !std::isfinite(s.regionStart) || !std::isfinite(s.regionEnd) ||
-                         s.regionStart < 0 || s.regionEnd > source->length ||
-                         s.regionEnd <= s.regionStart))
+                         s.regionStart < 0 || s.regionEnd > source->length || s.regionEnd <= s.regionStart))
         return {};
     if (!source &&
         (!std::isfinite(s.lengthOverride) || s.lengthOverride < 0 ||
@@ -2061,7 +2121,7 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         return {};
     const auto budget = searchBudget(s);
     const int size = budget.population, rounds = budget.generations;
-    const int islands = size >= 64 ? 4 : 1;
+    const int islands = s.creative ? 3 : size >= 64 ? 4 : 1;
     std::vector<int> counts(size_t(islands), size / islands);
     for (int extra = 0; extra < size % islands; ++extra)
         ++counts[size_t(extra)];
@@ -2093,14 +2153,56 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         settings.seed = mixSeed(s.seed, index);
         island.emplace_back(settings, source, counts[size_t(index)]);
         auto& current = island.back();
+        current.evolution.family = s.creative ? index : -1;
+        int memberIndex = 0;
         for (auto& clip : current.population) {
             if (cancelled.load())
                 return {};
             clip = source ? *source : current.evolution.fresh();
+            if (s.creative) {
+                // Each specialist searches a different relationship to the same source idea.
+                if (!source && s.creative->preserveHook && s.creative->hook.count > 0) {
+                    auto hook = s.creative->hook;
+                    sanitise(hook);
+                    if (hook.count > 0) {
+                        const auto fallback = clip;
+                        clip.count = 0;
+                        for (double origin = 0; origin < clip.length - 1e-8 && clip.count < maxNotes;
+                             origin += hook.length) {
+                            for (int i = 0; i < hook.count && clip.count < maxNotes; ++i) {
+                                auto note = hook.notes[size_t(i)];
+                                note.start += origin;
+                                if (note.start >= clip.length)
+                                    break;
+                                note.duration = std::min(note.duration, clip.length - note.start);
+                                note.locked = false;
+                                note.pitch = std::clamp(note.pitch, s.low, s.high);
+                                if (s.mode == 1) {
+                                    note.pitch = snapPitch(60 + s.root, s.root, s.scale, s.low, s.high);
+                                    note.cents = 0;
+                                } else if (!note.cents)
+                                    note.pitch = harmonicPitch(note.pitch, note.start, s);
+                                clip.notes[size_t(clip.count++)] = note;
+                            }
+                        }
+                        if (!clip.count)
+                            clip = fallback;
+                    }
+                }
+                if ((!source || s.mutation > 0) && memberIndex > 0) {
+                    const auto action = index == 1   ? DevelopmentAction::Answer
+                                        : index == 2 ? DevelopmentAction::Contrast
+                                                     : DevelopmentAction::Develop;
+                    clip = developMotif(clip, action, settings, current.evolution.rng());
+                }
+                clip.family = index;
+                current.evolution.constrainMicro(clip);
+            }
             clip.favourite = false;
             clip.seed = s.seed;
             if (source)
                 current.evolution.mutate(clip, s.mutation);
+            ++memberIndex;
         }
     }
     // Every individual of every island is scored in one pass. Each task writes only its own
@@ -2119,6 +2221,8 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
         if (s.tension == 0.0f && s.harmony.count)
             articulateCustomHarmony(clip, s);
         current.evolution.constrainRegion(clip);
+        if (s.creative)
+            clip.family = current.evolution.family;
         if (s.regionOnly)
             current.evolution.constrainMicro(clip);
         current.scores[size_t(members[size_t(member)].second)] = current.evolution.score(clip);
@@ -2127,12 +2231,48 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
     stats.population = size;
     stats.generations = rounds;
     const float baseMutation = source ? s.mutation * 0.4f : 0.25f;
+    struct ArchiveEntry {
+        Clip clip;
+        double score;
+    };
+    std::vector<ArchiveEntry> creativeArchive;
+    std::array<int, 81> archiveBins;
+    archiveBins.fill(-1);
+    if (s.creative)
+        creativeArchive.reserve(81);
     for (int generation = 0; generation <= rounds; ++generation) {
         if (cancelled.load())
             return {};
         pool.run(size, scoreMember);
         if (cancelled.load())
             return {};
+        if (s.creative) {
+            // Quality-diversity archive: keep a scored elite for each family, density,
+            // contour direction and syncopation band, including earlier generations.
+            for (const auto& current : island)
+                for (size_t index = 0; index < current.population.size(); ++index) {
+                    const auto& clip = current.population[index];
+                    if (!clip.count)
+                        continue;
+                    int weak = 0;
+                    for (int i = 0; i < clip.count; ++i)
+                        weak += metricWeight(clip.notes[size_t(i)].start, current.evolution.s) < 2;
+                    const double density = clip.count / std::max(0.125, clip.length);
+                    const int densityBand = density < 1.0 ? 0 : density < 2.5 ? 1 : 2;
+                    const double direction =
+                        actualPitch(clip.notes[size_t(clip.count - 1)]) - actualPitch(clip.notes[0]);
+                    const int directionBand = direction < -200 ? 0 : direction > 200 ? 2 : 1;
+                    const double offbeat = double(weak) / clip.count;
+                    const int offbeatBand = offbeat < 0.2 ? 0 : offbeat < 0.55 ? 1 : 2;
+                    const int bin = clip.family * 27 + densityBand * 9 + directionBand * 3 + offbeatBand;
+                    auto& entry = archiveBins[size_t(bin)];
+                    if (entry < 0) {
+                        entry = int(creativeArchive.size());
+                        creativeArchive.push_back({clip, current.scores[index]});
+                    } else if (current.scores[index] > creativeArchive[size_t(entry)].score)
+                        creativeArchive[size_t(entry)] = {clip, current.scores[index]};
+                }
+        }
         for (const auto& current : island)
             for (const auto& clip : current.population)
                 if (std::any_of(clip.notes.begin(), clip.notes.begin() + clip.count,
@@ -2147,7 +2287,7 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             globalBest = std::max(globalBest, current.scores[size_t(current.order.front())]);
             total = std::accumulate(current.scores.begin(), current.scores.end(), total);
         }
-        if (islands > 1 && generation > 0 && generation % 10 == 0) {
+        if (!s.creative && islands > 1 && generation > 0 && generation % 10 == 0) {
             for (int index = 0; index < islands; ++index) {
                 auto& current = island[size_t(index)];
                 const auto& neighbor = island[size_t((index + 1) % islands)];
@@ -2214,6 +2354,8 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
                         sanitise(child);
                 }
                 current.evolution.mutate(child, std::min(1.0f, baseMutation * current.mutationScale));
+                if (s.creative)
+                    child.family = current.evolution.family;
                 next.push_back(std::move(child));
             }
             current.population = std::move(next);
@@ -2227,10 +2369,45 @@ std::vector<Clip> generate(Settings s, const Clip* source, const std::atomic<boo
             ranked.push_back(current.population[size_t(index)]);
             rankedScores.push_back(current.scores[size_t(index)]);
         }
+    for (const auto& entry : creativeArchive) {
+        ranked.push_back(entry.clip);
+        rankedScores.push_back(entry.score);
+    }
     std::vector<int> rank(ranked.size());
     std::iota(rank.begin(), rank.end(), 0);
     std::stable_sort(rank.begin(), rank.end(),
                      [&](int a, int b) { return rankedScores[size_t(a)] > rankedScores[size_t(b)]; });
+    if (s.creative && !s.regionOnly) {
+        std::vector<Clip> families;
+        families.reserve(slotCount);
+        std::vector<bool> used(ranked.size(), false);
+        for (int family = 0; family < 3; ++family) {
+            std::vector<Clip> chosen;
+            for (int slot = 0; slot < 4; ++slot) {
+                int choice = -1;
+                double best = -1e100;
+                for (int candidate : rank) {
+                    if (used[size_t(candidate)] || ranked[size_t(candidate)].family != family)
+                        continue;
+                    double closest = 0;
+                    for (const auto& prior : chosen)
+                        closest = std::max(closest, musicalSimilarity(prior, ranked[size_t(candidate)]));
+                    const double value =
+                        rankedScores[size_t(candidate)] + (chosen.empty() ? 0.0 : 1.5 * (1.0 - closest));
+                    if (value > best) {
+                        best = value;
+                        choice = candidate;
+                    }
+                }
+                if (choice < 0)
+                    choice = rank.front();
+                used[size_t(choice)] = true;
+                chosen.push_back(ranked[size_t(choice)]);
+                families.push_back(ranked[size_t(choice)]);
+            }
+        }
+        return families;
+    }
     auto tooClose = [](const std::vector<Clip>& chosen, const Clip& clip) {
         for (const auto& existing : chosen)
             if (similarity(existing, clip) > 0.85)

@@ -38,6 +38,12 @@ void runRealtimeTests();
 void runMicrotonalLabTests(const juce::File& screenshots = {});
 void runSearchBudgetAudit();
 void runProcessorRegressionTests();
+void runCompositionPanelTests();
+void runCompositionWorkflowTests();
+void runCompositionPlaybackTests();
+void runAiMidiProviderTests(bool realInferenceEnabled = false);
+void runAiCompositionSmoke();
+void renderCompositionPanelPreviews(const juce::File&);
 void renderMusicalExamples(const juce::File&);
 void renderHarmonyExamples(const juce::File&, bool controls);
 int main(int argc, char** argv) {
@@ -48,6 +54,11 @@ int main(int argc, char** argv) {
     setenv("COMPOSER_DISABLE_UI_PREFS", "1", 1);
 #endif
     const std::string requested = argc > 1 ? argv[1] : "all";
+    if (requested == "composition-previews") {
+        require(argc == 3, "composition preview rendering requires an output directory");
+        renderCompositionPanelPreviews(juce::File(argv[2]));
+        return 0;
+    }
     if (requested == "render-harmony" || requested == "render-harmony-controls") {
         require(argc == 3, "harmony rendering requires an output directory");
         renderHarmonyExamples(juce::File(argv[2]), requested == "render-harmony-controls");
@@ -55,10 +66,16 @@ int main(int argc, char** argv) {
     }
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
                            requested == "realtime" || requested == "microtonal-lab" ||
-                           requested == "budget-audit";
+                           requested == "budget-audit" || requested == "composition-workflow" ||
+                           requested == "composition-playback" || requested == "ai-smoke";
     const std::string suite = suiteMode ? requested : "all";
     const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
+        if (requested == "ai-smoke") {
+            runAiMidiProviderTests(true);
+            runAiCompositionSmoke();
+            return 0;
+        }
         if (requested == "budget-audit") {
             runSearchBudgetAudit();
             return 0;
@@ -393,6 +410,7 @@ int main(int argc, char** argv) {
         runChordPluginTests();
         runChordPanelTests();
         runProcessorRegressionTests();
+        runCompositionPanelTests();
         }
         if (want("midi"))
             runMicrotonalTests();
@@ -402,6 +420,12 @@ int main(int argc, char** argv) {
             runRealtimeTests();
         if (want("microtonal-lab"))
             runMicrotonalLabTests(suiteMode && argc > 2 ? juce::File(argv[2]) : juce::File());
+        if (want("composition-workflow"))
+            runCompositionWorkflowTests();
+        if (want("composition-workflow"))
+            runAiMidiProviderTests(false);
+        if (want("composition-playback"))
+            runCompositionPlaybackTests();
         if (!suiteMode && argc > 1) {
             auto demo = std::make_unique<Processor>();
             std::unique_ptr<juce::AudioProcessorEditor> editor(demo->createEditor());

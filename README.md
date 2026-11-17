@@ -1,6 +1,8 @@
-# Genetic Composer 2.9.0
+# Genetic Composer 2.10.0
 
 A JUCE instrument for composing and evolving MIDI phrases. Generate twelve alternatives, keep an idea, develop it and take the melody and chords into your track.
+
+Version **2.10.0** adds **Compose / Komponuj**: remember a motif's relative rhythm and contour, develop it into related ideas, and compare Development / Response / Contrast families. Lead, Bass, Riff and Arpeggio roles and optional drum/bass MIDI references guide creative generation. Explicit A/B choices train small per-role ranking models stored locally in the project. Build up to eight independent sections with editable notes, names, lengths, harmony, energy and contrast; reorder, audition and export the complete melody/chord composition. Motifs, references, preferences and sections support Undo and DAW/bank persistence. An optional local symbolic AI provider supplies extra proposals. See the [composing workflow, in English and Polish](docs/COMPOSING.md) and [optional AI setup](docs/AI_MIDI.md).
 
 Version **2.9.0** groups beats inside the meter (quarters in 4/4, a 2-and-3 pattern in x/8, or a typed pattern such as `2+2+3`). **Host** follows the DAW time signature when one is available. **Capture phrase** records incoming MIDI into the selected variation. Arrangement can preview A A' B A'', AAAB, ABAC or Call / Response. **Each loop** evolves the phrase when playback wraps, using the Evolution amount, and leaves pinned variations in place. The internal audition adds a little reverb (dry when the mix is zero, and dry for older sessions that have no reverb setting). MIDI export writes a `RHYTHMS_GROUPS` text event and chord-name markers, including slash bass such as `C/E`.
 

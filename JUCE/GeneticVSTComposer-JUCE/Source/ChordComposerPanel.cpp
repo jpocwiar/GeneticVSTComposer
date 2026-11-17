@@ -411,7 +411,7 @@ struct ChordComposerPanel::Impl : public juce::Component {
         together.setEnabled(chordCount > 0 && processor.displayedClip().count > 0);
         drag.setEnabled(chordCount > 0);
         exportFile.setEnabled(chordCount > 0);
-        const bool hearingChords = processor.audibleChordLayer();
+        const bool hearingChords = !processor.isCompositionPlaying() && processor.audibleChordLayer();
         audition.setPlaying(processor.isAuditioningChords() && processor.previewRequested());
         const bool playingTogether = processor.previewRequested() && !processor.isAuditioningChords() &&
                                      parameter("auditionChords") > 0.5f;

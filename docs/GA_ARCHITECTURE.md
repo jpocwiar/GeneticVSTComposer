@@ -1,6 +1,6 @@
 # Architektura generowania melodii
 
-Ten dokument opisuje wersję 2.9 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
+Ten dokument opisuje wersję 2.10 i bieżący kod `ComposerEngine.cpp` oraz testy `MusicalArchitectureTests.cpp`. Funkcja fitness jest zestawem jawnych heurystyk muzycznych. Wyższy wynik oznacza lepsze dopasowanie do tych heurystyk i ustawień, nie obiektywnie lepszą muzykę.
 
 ## Inspiracja i różnice wobec pierwotnego projektu
 
@@ -207,3 +207,12 @@ Te cele współdziałają. Przykładowo wysoka Dynamics może sprzyjać większe
 `SearchTests.cpp` sprawdza podobieństwo po wstawieniu nuty, przesunięciu wszystkich początków i przy nutach jednoczesnych, najlepszą frazę w slocie 1 przy czterech wyspach, brak par podobnych powyżej 0.85 w banku oraz zgodność sumy rozbicia z wynikiem. `FuzzTests.cpp` podaje losowe dane do parserów, przekształceń, harmonizacji i małych pełnych wyszukiwań.
 
 Dotychczasowe testy nadal sprawdzają pełną liczbę pokoleń, ocen i krzyżowań, elityzm, anulowanie, metra, własną harmonię, blokady i zgodność stanu silnika. Bieżący engine-only build przeszedł **AddressSanitizer i UndefinedBehaviorSanitizer**, a CTest zakończył się **1/1 PASS**. Są to sprawdzenia implementacji i jej ograniczeń; nie zastępują odsłuchu ani oceny muzycznej przez użytkownika.
+
+
+## Tryb Compose w 2.10
+
+Bez kontekstu kreatywnego dotychczasowy algorytm i jego budżet pozostają aktywne. Karta Compose włącza trzy rodziny wyszukiwania: rozwinięcia, odpowiedzi i kontrasty. Każda utrzymuje własną preferencję podobieństwa do motywu. Ocenione elity trafiają również do archiwum według rodziny, gęstości, konturu i synkopy (maksymalnie 81 klipów). Cztery wyniki każdej rodziny wybierane są z ocenionych osobników przy użyciu podobieństwa muzycznego; przypięte sloty pozostają chronione przez procesor.
+
+Tożsamość porównuje względne interwały i rytm (do 12 nut motywu), a podobieństwo DTW używa do 32 nut. Są to ograniczone obliczeniowo preferencje muzyczne, nie blokady konkretnych nut. Chronione zdarzenia i Keep rhythm zachowują wszystkie pierwotne pola zgodnie z dotychczasowymi regułami. Nowe operatory obejmują sekwencję, zmianę konturu, wydłużenie i skrócenie rytmu, fragmentację oraz kadencję. Dopasowanie do kontekstu obejmuje rozwiązania napięcia, powrót po skoku, rolę instrumentu oraz referencje MIDI perkusji i basu.
+
+Model preferencji uczy się jawnych porównań A/B na 16 cechach frazy. Wagi są ograniczone i zapisane osobno dla roli instrumentu w projekcie; brak przykładów oznacza zerowy udział modelu. Nowe składniki są widoczne w rozbiciu fitness. Wyższy wynik nadal oznacza lepsze dopasowanie do tych kryteriów, a nie gwarancję lepszej muzyki lub globalnej oryginalności.

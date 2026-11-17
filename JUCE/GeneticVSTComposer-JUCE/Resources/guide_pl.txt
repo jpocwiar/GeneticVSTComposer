@@ -186,3 +186,32 @@ Trójkąt Play pod akordowym piano rollem odtwarza same akordy, a kwadrat Stop z
 Akordy przeciągaj z piano rollu Chords albo Drag chord MIDI. Melodię przeciągaj z Melody. Export zapisuje widoczne przewroty i rejestr akordów. MIDI obu warstw pozostaje oddzielne. Akordy mają strój 12-TET również przy włączonym Micro; wewnętrzny odsłuch używa osobnej warstwy, więc pitch bend melodii nie zmienia stroju akordów. Progresja i przewroty zapisują się z bankiem i projektem DAW.
 
 Length ma też 3, 6, 12 i 16 taktów. Nazwy akordów obejmują m7b5, dim7, 6, m6, add9, 9 i maj9, nadal jako cztery głosy. Skale dodają frygijską, lokrycką, molową melodyczną, całotonową, bluesową i frygijską dominantową. Kształt rytmu może być równy, długi-krótki albo krótki-długi. Melody + chords zapisuje MIDI typu 1: melodię na ścieżce 1 i dokładne głosy akordów na ścieżce 2. Chord MIDI output jest domyślnie wyłączone; po włączeniu wysyła te głosy na kanale 16 i pozostaje wyłączone, gdy MPE używa kanałów 2–16.
+
+## 12. Komponuj: motywy i sekcje
+OD WŁASNEGO POMYSŁU DO KOMPOZYCJI
+
+Komponuj to czwarta główna karta. Pomysły, Sekcje oraz Kontekst / AI korzystają z konwencjonalnego banku Melody. Niezależna karta Mikrotonowe zachowuje własny obszar EDO i proporcji stroju.
+
+POMYSŁY
+
+Wybierz rolę melodii prowadzącej, basu, riffu albo arpeggia dla następnego kreatywnego wyszukiwania. Zaznacz charakterystyczny fragment na linijce piano rolla i kliknij Zachowaj motyw. Bez zaznaczenia zapisany zostanie cały widoczny pomysł. Tożsamość motywu preferuje podobny kontur i rytm; dokładne nuty zabezpieczają blokady oraz Zachowaj rytm. Usuń motyw kasuje referencję bez zmiany banku.
+
+Rozwiń, Odpowiedz, Zmień charakter i Zakończ przekształcają wybraną frazę banku Melody. Aktywne zaznaczenie czasu na Melody ogranicza edycję do odblokowanych początków nut w tym zakresie. Odkryj 12 pomysłów wyszukuje rozwinięcia, odpowiedzi i kontrasty; przypięte warianty zostają. Więcej jak A rozwija wybrany wariant A.
+
+Wybierz A i B, odsłuchaj je przez Słuchaj A i Słuchaj B, a potem Wolę A od B, aby zapisać wybór. Kolejne kreatywne wyszukiwanie korzysta z tych lokalnych preferencji cech muzycznych. Każda rola ma osobne preferencje w projekcie. Wyzeruj preferencje czyści tylko model bieżącej roli. Edycję motywu i preferencji można cofnąć. Zapisują się w projekcie DAW i banku .genetic.
+
+SEKCJE
+
+Utwórz sekcje z pomysłu tworzy temat, rozwinięcie, kontrast i powrót z osobnymi melodiami, harmonią i dokładnymi głosami akordów. Kliknij kartę sekcji, nadaj nazwę i ustaw liczbę taktów. Wydłużenie powtarza obecny materiał, a skrócenie przycina koniec. Długość uszkadzająca zablokowaną nutę jest odrzucana. Wcześniej i Później przestawiają części bez utraty zawartości. + Sekcja dodaje bieżący pomysł z banku Melody; Usuń kasuje wybraną część. Zmiany można cofnąć.
+
+Energia i Kontrast prowadzą następne rozwinięcie sekcji. Wpisz akord:uderzenia, np. Cm:4 Fm:4 G7:4 Cm:4, i wybierz Zastosuj akordy. Harmonia powtarza się lub przycina do długości sekcji. Rozwiń sekcję dopasowuje do niej melodię. Puste pole akordów usuwa harmonię sekcji. Włącz Edytuj nuty, aby edytować piano roll; Shift-click albo L blokuje nutę.
+
+Graj sekcję zapętla wybraną część. Graj całość odtwarza kompozycję jeden raz. Spacja w Sekcjach uruchamia/zatrzymuje całą kompozycję; Stop, główne Stop all i Esc zwalniają odtwarzanie. Eksportuj kompozycję zapisuje osobne ścieżki MIDI melodii i akordów z nazwami sekcji. Przeciągnięcie piano rolla eksportuje tylko widoczną melodię sekcji od czasu zero.
+
+Kompozycja może mieć osiem sekcji. Każda mieści do 512 nut, 128 ćwierćnutowych uderzeń i 64 zdarzeń akordowych. Odsłuch i eksport zachowują wszystkie sekcje bez spłaszczania ich do pojedynczego klipu 512 nut. Nuty, harmonia, kolejność i ustawienia zapisują się w projekcie.
+
+KONTEKST I LOKALNE AI
+
+W Kontekst / AI zaimportuj osobne referencje MIDI perkusji oraz basu. Wpływ kontekstu określa ich udział w nowych propozycjach. Referencje nie są dodatkowymi słyszalnymi ścieżkami. Ich usunięcie nie zmienia istniejącej muzyki.
+
+Eksperymentalne lokalne AI wymaga osobno przygotowanego środowiska. Jednorazowo uruchom scripts/setup-ai-midi.sh z repozytorium, a potem wybierz interpreter Python przez Środowisko AI. Generuj pomysły AI tworzy propozycję MIDI i rozwija ją natywnym silnikiem. Anuluj zatrzymuje żądanie; błąd zachowuje poprzedni bank. Ścieżka interpretera odczytana z projektu jest tylko podpowiedzią w oknie wyboru i nie uruchamia automatycznie tego pliku. W razie potrzeby wybierz przygotowane środowisko albo skorzystaj z domyślnej lokalnej instalacji. Pełna instrukcja jest w docs/AI_MIDI.md. Zwykłe generowanie i odsłuch nie potrzebują połączenia z internetem.

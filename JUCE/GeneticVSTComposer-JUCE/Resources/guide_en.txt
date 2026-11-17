@@ -181,3 +181,32 @@ The triangular Play button below the chord piano roll plays the chords alone; th
 Drag the Chords piano roll or Drag chord MIDI for the chord part. Drag the Melody piano roll for the melody. Export saves the displayed inversions and register. Each layer remains a separate MIDI export. Chords use 12-TET even with Micro on; internal preview gives them a separate sound layer so melody pitch bends do not detune them. The progression and voicings are saved with the bank and DAW project.
 
 Length also offers 3, 6, 12 and 16 bars. Chord names add m7b5, dim7, 6, m6, add9, 9 and maj9, still as four voices. Scales add Phrygian, Locrian, melodic minor, whole tone, blues and Phrygian dominant. Rhythm shape can be even, long-short or short-long. Melody + chords writes MIDI type 1: the melody on track 1 and the exact chord voices on track 2. Chord MIDI output is off by default; when enabled it sends those voices on channel 16 and stays off while MPE uses channels 2-16.
+
+## 12. Compose: motifs and sections
+FROM YOUR OWN IDEA TO A COMPOSITION
+
+Compose is the fourth main page. Ideas, Sections and Context / AI work with the conventional Melody bank. The independent Microtonal page retains its own EDO/ratio workspace.
+
+IDEAS
+
+Choose Lead, Bass, Riff or Arpeggio to guide the next creative search. Drag the bar ruler on the Compose piano roll to select a recognisable fragment, then Keep selected motif. Without a selection, the whole displayed idea is captured. Motif identity prefers related contour and rhythm; exact locks and Keep rhythm remain available for exact preservation. Clear motif removes the reference without changing the bank.
+
+Develop, Answer, Contrast and Finish transform the selected Melody-bank phrase. An active Melody time range limits the edit to unlocked onsets inside it. Explore 12 ideas searches for Development, Response and Contrast families; pinned variations remain intact. More like A evolves the chosen A variation.
+
+Choose A and B, listen through Hear A and Hear B, then Prefer A to B to record your choice. The next creative search uses those local feature preferences. Each role keeps separate preferences in the project. Reset preferences clears only the current role's model. Motif and preference edits support Undo and are saved in the DAW project and .genetic bank.
+
+SECTIONS
+
+Build sections from idea creates a theme, development, contrast and return, with independent melodies, harmony and exact chord voicings. Select a section card, rename it and set its bar count. Extending repeats existing material; shortening crops the end. A shorter length is rejected if it would remove or truncate a locked note. Earlier and Later reorder sections while keeping their contents. + Section adds the current Melody-bank idea; Remove deletes the selected section. Undo restores edits.
+
+Energy and Contrast guide the next section development. Enter chord:beats, for example Cm:4 Fm:4 G7:4 Cm:4, then Apply chords. The harmony repeats/crops to the section length. Develop section fits its melody to these chords. An empty chord field removes section harmony. Enable Edit notes for direct piano-roll editing; Shift-click or L locks a note.
+
+Play section loops the selected part. Play all performs the whole composition once. Space on Sections starts/stops the whole composition; Stop, global Stop all and Esc release playback. Export composition writes melody and chord MIDI tracks with section markers. Dragging the piano roll exports only the displayed section melody, starting at zero.
+
+A composition can hold eight sections. Each section supports up to 512 notes, 128 quarter-note beats and 64 chord events. Playback/export retains all sections without reducing them to a single 512-note clip. Notes, harmony, order and metadata are saved with the project.
+
+CONTEXT AND LOCAL AI
+
+Import separate drum and bass MIDI references on Context / AI. Context influence controls how they guide new creative proposals; the references are not additional audible tracks. Clearing a reference leaves existing music unchanged.
+
+The experimental local AI provider needs a separately prepared runtime. Run scripts/setup-ai-midi.sh once from the repository, then select its Python executable through AI environment. Generate AI ideas creates a MIDI proposal and develops it with the native engine. Cancel stops a running request; failure keeps the previous bank. An interpreter path restored from a project is only a chooser hint and is never automatically trusted or executed. Select a prepared runtime when required, or use your default local installation. Full setup is documented in docs/AI_MIDI.md. Ordinary generation and playback need no network connection.

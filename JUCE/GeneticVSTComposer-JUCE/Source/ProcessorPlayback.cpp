@@ -90,6 +90,11 @@ void Processor::processBlockBypassed(juce::AudioBuffer<float>& audio, juce::Midi
     chordPreview.store(false);
     heardChordPreview.store(false);
     audioChordPreview = false;
+    compositionRequested.store(false);
+    compositionSourceSelected.store(false);
+    compositionPlaying.store(false);
+    audioCompositionMode = false;
+    heardCompositionSection.store(-1);
     playing.store(false);
     playBeat.store(-1);
     clearVisualState();
@@ -231,6 +236,10 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const int samples = audio.getNumSamples();
     if (samples <= 0)
         return;
+    if (compositionSourceSelected.load() || audioCompositionMode) {
+        processCompositionBlock(audio, midi);
+        return;
+    }
     if (microtonalMode.load()) {
         processMicrotonalBlock(audio, midi);
         return;

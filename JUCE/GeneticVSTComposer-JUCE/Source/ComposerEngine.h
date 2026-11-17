@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,6 +26,8 @@ struct Clip {
     // groupCount 0 means the meter default. groupUnit is the grouping denominator (4 = quarter).
     std::array<int, 16> groups{};
     int groupCount = 0, groupUnit = 4;
+    // -1 is a legacy/unclassified clip; 0 development, 1 response, 2 contrast.
+    int family = -1;
 };
 using Bank = std::array<Clip, slotCount>;
 enum class RegionAction { Simplify, MoreMovement, Answer, Resolve };
@@ -41,6 +44,7 @@ struct Harmony {
     int count = 0;
     double length = 16.0;
 };
+struct CreativeContext;
 struct Settings {
     int root = 0, scale = 1, bars = 4, division = 16;
     int numerator = 4, denominator = 4, low = 48, high = 84;
@@ -75,6 +79,8 @@ struct Settings {
     // Optional evolution scope. Protected onsets and locked notes retain every stored field.
     bool regionOnly = false;
     double regionStart = 0, regionEnd = 0;
+    // Immutable project context shared by all scoring workers; unused by the audio callback.
+    std::shared_ptr<const CreativeContext> creative;
 };
 struct TimeSignature {
     int numerator, denominator;

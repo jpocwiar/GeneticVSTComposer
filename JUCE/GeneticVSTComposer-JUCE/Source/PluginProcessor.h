@@ -1,6 +1,7 @@
 #pragma once
 #include "ChordGenerator.h"
 #include "ComposerEngine.h"
+#include "CompositionTools.h"
 #include "MicrotonalEngine.h"
 #include "reverbcore/Fdn.hpp"
 #include <JuceHeader.h>
@@ -49,6 +50,54 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     bool canUndo() const;
     bool canRedo() const;
     void generate(bool evolve, bool overHarmony = false);
+    struct CompositionSection {
+        juce::String name;
+        composer::Clip melody;
+        composer::Harmony harmony;
+        composer::Clip chords;
+        float energy = 0.5f, contrast = 0;
+    };
+    struct CompositionWorkspace {
+        std::vector<CompositionSection> sections;
+        int selected = 0, role = 0;
+        bool enabled = false;
+        bool preserveHook = false;
+        float identity = 0.75f, contextAmount = 0.6f;
+        composer::Clip hook, drums, bass;
+        composer::PreferenceModel preference;
+        std::array<composer::PreferenceModel, 4> rolePreferences{};
+        juce::String aiPython;
+    };
+    CompositionWorkspace compositionSnapshot() const;
+    void generateCreativeBank(bool evolve = false);
+    juce::Result setCompositionRole(int);
+    juce::Result setMotifIdentity(float);
+    juce::Result setContextAmount(float);
+    juce::Result captureMotif(double start, double end);
+    void clearMotif();
+    juce::Result developSelectedMotif(int action);
+    juce::Result preferVariation(int preferred, int other);
+    void resetPreferences();
+    juce::Result importCompositionReference(const juce::File&, bool bass);
+    void clearCompositionReference(bool bass);
+    juce::Result createComposition();
+    juce::Result addCompositionSection();
+    juce::Result removeCompositionSection(int);
+    juce::Result moveCompositionSection(int index, int direction);
+    juce::Result selectCompositionSection(int);
+    juce::Result updateCompositionSection(int, const juce::String&, int bars, float energy, float contrast);
+    juce::Result setCompositionSectionHarmony(int, const juce::String&);
+    juce::Result setCompositionSectionClip(int, composer::Clip);
+    juce::Result developCompositionSection(int action);
+    void auditionComposition(bool allSections);
+    void stopComposition();
+    bool isCompositionPlaying() const { return compositionPlaying.load(); }
+    int audibleCompositionSection() const { return heardCompositionSection.load(); }
+    juce::Result exportCompositionMidi(const juce::File&) const;
+    juce::Result exportCompositionSectionMidi(int, const juce::File&) const;
+    juce::Result generateAiIdeas();
+    juce::String aiAvailability() const;
+    void setAiPythonExecutable(const juce::File&);
     struct MicrotonalWorkspace {
         microtonal::Settings settings;
         microtonal::Clip clip;
@@ -194,6 +243,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     juce::Result loadBank(const juce::File&);
     void panic() {
         panicRequested.store(true);
+        compositionRequested.store(false);
         preview.store(false);
         chordPreview.store(false);
     }
@@ -248,9 +298,12 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         bool evolve = false;
         bool selectBest = false;
         int regionSlot = -1;
+        bool aiIdeas = false;
     };
     void beginSearch(bool evolve, bool overHarmony, bool regionOnly, double start = 0, double end = 0);
     void performSearch(SearchJob);
+    void submitSearch(SearchJob);
+    void performAiSearch(const SearchJob&);
     void performMicrotonalSearch(const SearchJob&);
     void publishMicrotonalLocked();
     juce::ValueTree microtonalStateLocked() const;
@@ -261,6 +314,11 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     microtonal::Clip microtonalPlaybackClipLocked(int source) const;
     void assignStatusLocked(const juce::String&);
     composer::Settings settings() const;
+    std::shared_ptr<const composer::CreativeContext> creativeContextLocked() const;
+    juce::ValueTree compositionStateLocked() const;
+    static bool readCompositionState(const juce::ValueTree&, CompositionWorkspace&);
+    void processCompositionBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&);
+    void rebuildCompositionScheduleLocked(bool allSections);
     void publishLocked();
     // contentChange is false for edits a running search cannot conflict with, such as pinning.
     void pushHistoryLocked(bool contentChange = true);
@@ -284,6 +342,31 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
                             bool plainMidi = false) const;
     composer::VoicingSettings voicingSettings() const;
     mutable std::mutex documentMutex;
+    CompositionWorkspace composition;
+    juce::File aiPythonExecutable;
+    struct ScheduledNote {
+        composer::Note note;
+        int section = 0, sourceIndex = -1;
+    };
+    struct CompositionSchedule {
+        std::array<ScheduledNote, composer::maxNotes * 8> melody{}, chords{};
+        std::array<double, 8> starts{}, ends{};
+        std::array<int, 8> sectionIds{};
+        std::array<composer::Clip, 8> sources{};
+        std::array<double, 8> origins{};
+        int melodyCount = 0, chordCount = 0, sections = 0;
+        double length = 0;
+        bool loop = false;
+    };
+    // Allocated during construction; publication never allocates in the audio callback.
+    std::unique_ptr<CompositionSchedule> pendingComposition, audioComposition;
+    uint64_t pendingCompositionRevision = 0, audioCompositionRevision = 0;
+    std::atomic<bool> compositionRequested{false}, compositionPlaying{false};
+    std::atomic<bool> compositionSourceSelected{false};
+    std::atomic<int> heardCompositionSection{-1};
+    bool audioCompositionMode = false;
+    double compositionPhase = 0;
+    int nextCompositionNote = 0, nextCompositionChord = 0;
     MicrotonalWorkspace microWorkspace;
     std::atomic<bool> microtonalMode{false};
     std::atomic<bool> microSearchActive{false};
@@ -313,6 +396,7 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
         composer::Clip groove;
         bool grooveLoaded = false;
         composer::Clip chords;
+        CompositionWorkspace composition;
     };
     Document documentLocked() const;
     void restoreDocumentLocked(const Document&);

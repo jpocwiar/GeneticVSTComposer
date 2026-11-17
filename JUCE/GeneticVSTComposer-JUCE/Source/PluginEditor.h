@@ -15,9 +15,11 @@ class VariationButton : public juce::Button {
     void resized() override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     std::function<void()> onPin, onAudition;
+    void setInterfaceLanguage(int language) { interfaceLanguage = language; repaint(); }
 
   private:
     int slot;
+    int interfaceLanguage = 0;
     bool selected = false, microtonal = false;
     bool audible = false, queued = false;
     float hoverMix = 0, selectMix = 0, energy = 0;
@@ -53,6 +55,7 @@ class MidiDragButton : public juce::TextButton {
 class ComposerGuide;
 class ChordComposerPanel;
 class MicrotonalComposerPanel;
+class CompositionPanel;
 class TransportButton : public juce::TextButton {
   public:
     TransportButton() : TextButton("Play") {}
@@ -77,6 +80,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     void showChordComposer();
     void showMelodyComposer();
     void showMicrotonalComposer();
+    void showCompositionWorkspace();
     void refreshDisplay();
     void showWorkflowPage(int page);
 
@@ -96,8 +100,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::array<std::unique_ptr<VariationButton>, 12> variants;
     juce::ComboBox preset, root, scale, bars, grid, meter, grouping, mode, phraseType, harmony, quality,
         auditionSound, arrangementForm;
-    juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"}, microtonalTab{"Microtonal"};
-    bool chordPage = false, microPage = false;
+    juce::TextButton melodyTab{"Melody"}, chordsTab{"Chords"}, microtonalTab{"Microtonal"}, composeTab{"Compose"};
+    bool chordPage = false, microPage = false, compositionPage = false;
     juce::ToggleButton editNotes{"Edit notes"}, customSearch{"Custom budget"};
     juce::Slider searchPopulation, searchGenerations, crossover;
     juce::TextButton searchDetails{"Search settings..."}, explainScore{"Explain score"};
@@ -139,6 +143,7 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     std::unique_ptr<ComposerGuide> guide;
     std::unique_ptr<ChordComposerPanel> chordPanel;
     std::unique_ptr<MicrotonalComposerPanel> microPanel;
+    std::unique_ptr<CompositionPanel> compositionPanel;
     std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<ComboAttachment>> comboAttachments;
     std::vector<std::unique_ptr<ButtonAttachment>> buttonAttachments;

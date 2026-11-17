@@ -2,7 +2,7 @@
 
 ## Structure
 
-This section describes version **2.9**. The 2.7 notes below remain the previous baseline. The dated sections below retain the implementation and validation history of 2.0–2.6. See [GA_ARCHITECTURE.md](GA_ARCHITECTURE.md) for the current chromosome, phrase construction, fitness terms, interval-cost tables and control mappings.
+This section describes version **2.10**. The 2.7 notes below remain the previous baseline. The dated sections below retain the implementation and validation history of 2.0–2.6. See [GA_ARCHITECTURE.md](GA_ARCHITECTURE.md) for the current chromosome, phrase construction, fitness terms, interval-cost tables and control mappings.
 
 - `ComposerEngine.{h,cpp}` is a JUCE-independent, deterministic genetic search. The old `genetic`, `mingus` and `notes_generator` files live in `legacy/reference/` and are not compiled by CMake. The current engine uses a full population, tournament selection, crossover and mutation. Populations of 64 or more run as four islands, each keeping one unchanged elite; smaller populations use one island. The phrase-type feature does not replace the search with a preset lookup.
 - `Clip` holds up to 512 sorted note events in quarter-note units. Each note carries pitch, velocity, duration, a lock flag and a cents offset (±50 around its key; `sanitise` respells larger offsets onto a nearer key). Each of twelve slots also carries phrase length, meter, grid, favourite status and seed. Fitness and similarity use the actual pitch, `100 * pitch + cents`.
@@ -307,3 +307,31 @@ The interrupted rebase of `1445b3a` onto `e593635` was resolved by integrating b
 - Engine-only Debug with AddressSanitizer and UndefinedBehaviorSanitizer: **6/6 PASS**. Transcript: `build/validation/rebase-ctest-sanitizers.txt`.
 - VST3: **pluginval strictness 10 PASS**, including GUI, automation, state/background-state and parameter fuzzing. Transcript: `build/validation/rebase-vst3-2.9-console.txt`.
 - Updated existing PNG previews from the integrated plugin. The normal/compact Chords screens and Search score view were inspected visually.
+
+
+## Composition workspace — 2.10.0
+
+`CompositionTools.{h,cpp}` adds relative contour/rhythm identity, bounded DTW musical similarity, deterministic Develop/Answer/Contrast/Finish operators, gesture quality, instrument roles and drum/bass context. The extra search is explicitly enabled by Compose controls. Legacy generation keeps a null creative context. Creative searches use three specialist populations and retain a bounded quality-diversity archive (up to 81 evaluated clips); twelve outputs comprise four development, four response and four contrast candidates before pinned-slot replacement. No unscored post-search transformations are used. Exact locks, Keep rhythm, scoped edits, capacity checks and cancellation stay authoritative.
+
+A 16-feature bounded pairwise logistic ranker learns explicit A/B choices. Separate models are stored for Lead, Bass, Riff and Arpeggio in each project; no implicit export/listening telemetry is collected. Its influence grows gradually as comparisons accumulate. `Explain score` includes the creative terms.
+
+`ProcessorComposition.cpp` owns a document workspace with a hook, MIDI references, preferences and up to eight independently editable sections. Each section retains its own melody (512 notes / 128 quarter-note beats), full harmony and exact chord voices. Section length/energy/contrast, note/harmony edits, add/remove/reorder and development are undoable. A shortened section cannot discard protected notes. `CompositionPlayback.cpp` publishes a fixed-capacity schedule allocated outside the callback. The complete composition can exceed one clip's capacity; preview schedules each section at its actual boundary and type-1 MIDI export accumulates all events with section/meter markers. The selected section loops; the whole composition plays once, or follows host position without falling back to another source at its end. Swing/Gate/Fit/Humanize are projected from stored notes during playback and export. MIDI/MPE cleanup, sustained-note chase, source switching and SysEx forwarding are covered by composition playback regressions.
+
+State schema **7** adds the composition workspace and clip-family metadata; schemas **2–6** still restore with legacy behavior. Invalid composition data reject the complete restore before publication. Undo snapshots include composition data. Playback is transient and does not resume on restore.
+
+The optional `AiMidiProvider` extracts an embedded Python bridge and runs checksum-pinned SkyTNT ONNX weights in a cancellable local process. The setup is explicit and isolated under `.deps/ai-midi`; normal use has no network calls. Neural MIDI is a seed for the native search, with the selected source's locked events restored before evaluation. Runtime execution paths come from local chooser/environment or trusted executable-relative development discovery; project-stored paths are hints only. See [AI_MIDI.md](AI_MIDI.md) and [COMPOSING.md](COMPOSING.md).
+
+The Compose interface is embedded in the fourth main page, with EN/PL Ideas, Sections and Context / AI subpages. The independent Microtonal workspace retains its degree/ratio representation; Compose works with the conventional melody bank and its passing-note cents.
+
+
+### Local validation — 2.10.0, 2026-11-07
+
+- macOS Apple Silicon Release: VST3, AU and Standalone built; all three pass strict ad-hoc signature verification.
+- CTest: **15/15 PASS**, including all previous suites, creative engine, AI protocol/lifecycle, section state/export/UI, and composition playback. `build/validation/composition-release-tests.txt`.
+- Engine-only Debug with ASan/UBSan: all seven native suites pass, plus the Python protocol suite (**8/8 CTest PASS**). `build/validation/composition-asan-ubsan.txt`.
+- VST3: **pluginval strictness 10 PASS**, including GUI, state/background-state, automation and parameter fuzzing. `build/validation/composition-pluginval-10.txt`.
+- Python bridge protocol and MIDI round trips: **10/10 PASS** in the isolated AI runtime. Real ONNX inference passed for two-bar Lead and seeded three-bar 7/8 Bass; the native `plugin_tests ai-smoke` also exercises the complete AI-to-GA-to-bank path and verifies exact source locks and pinned slots. `build/validation/composition-ai-smoke.txt`.
+- Composition regressions verify export above 512 total notes, sample-accurate section boundaries, finite audio, no callback allocations, sustained-note chase on host seek, stop/resume/end without source fallback, looping PPQ, live Swing/Gate/Fit and MIDI/MPE cleanup. UI tests cover EN/PL and normal/compact sizes; the three Compose views were inspected visually.
+- A standalone engine benchmark of Balanced 128×100, four bars, seed 41 measured 105–119 ms for a 16-note hook and 134–139 ms for a 64-note hook on this machine, without external references or learned preferences. These are measured search timings, not guarantees for other systems/settings.
+
+These checks establish implementation behavior and integration. Musical quality and the usefulness of the learned preference ranking still require listening and actual compositional choices.
