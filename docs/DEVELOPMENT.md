@@ -335,3 +335,12 @@ The Compose interface is embedded in the fourth main page, with EN/PL Ideas, Sec
 - A standalone engine benchmark of Balanced 128×100, four bars, seed 41 measured 105–119 ms for a 16-note hook and 134–139 ms for a 64-note hook on this machine, without external references or learned preferences. These are measured search timings, not guarantees for other systems/settings.
 
 These checks establish implementation behavior and integration. Musical quality and the usefulness of the learned preference ranking still require listening and actual compositional choices.
+
+### Bank preset integration — 2026-11-17
+
+Merged the named-bank library from `0116e8b` with the Compose/AI work in `57c59ec`. The four main pages and preset controls remain available together; both editor-owned panels and the save dialog are released on close. State schema 7 retains preset identity alongside the complete composition document and backward-compatible bank loading.
+
+- Release VST3, AU and Standalone built on macOS Apple Silicon; all three pass `codesign --verify --deep --strict`. Build log: `build/validation/merge-presets-build.txt`.
+- CTest: **16/16 PASS**, including the new presets suite. Named save/load and overwrite restore Compose sections, exact notes, harmony, motif and learned preferences as well as the conventional and Microtonal workspaces. GUI regressions cover preset visibility across the workspaces and fourth-tab overlap at normal/compact sizes. Log: `build/validation/merge-presets-ctest.txt`.
+- The save-dialog test requires access to WindowServer: the sandbox exposed no displays and JUCE crashed while locating the monitor. The complete suite passed when run with GUI access; the dialog and compact Compose/preset captures were inspected.
+- VST3: **pluginval strictness 10 PASS**, including GUI, state, background-state, automation and parameter fuzzing. Log: `build/validation/merge-presets-pluginval-console.txt`.

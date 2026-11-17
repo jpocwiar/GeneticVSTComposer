@@ -28,6 +28,7 @@ struct PlayHead : juce::AudioPlayHead {
     }
 };
 void runWorkflowTests();
+void runBankPresetTests(const juce::File& screenshots = {});
 void runVisualTelemetryTests();
 void runMicrotonalTests();
 void runUsabilityTests();
@@ -67,7 +68,7 @@ int main(int argc, char** argv) {
     const bool suiteMode = requested == "plugin" || requested == "midi" || requested == "playback" ||
                            requested == "realtime" || requested == "microtonal-lab" ||
                            requested == "budget-audit" || requested == "composition-workflow" ||
-                           requested == "composition-playback" || requested == "ai-smoke";
+                           requested == "composition-playback" || requested == "ai-smoke" || requested == "presets";
     const std::string suite = suiteMode ? requested : "all";
     const auto want = [&](const char* name) { return suite == "all" || suite == name; };
     try {
@@ -412,6 +413,8 @@ int main(int argc, char** argv) {
         runProcessorRegressionTests();
         runCompositionPanelTests();
         }
+        if (want("presets"))
+            runBankPresetTests(suiteMode && argc > 2 ? juce::File(argv[2]) : juce::File());
         if (want("midi"))
             runMicrotonalTests();
         if (want("playback"))

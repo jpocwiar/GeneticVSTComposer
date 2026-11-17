@@ -12,7 +12,7 @@ Version **2.7.0** searches in islands, with one unchanged elite on each island. 
 
 Version **2.6.0** restores rhythmic insertion, rests, onset shifts and fragment copying inside the GA; exposes **Density**; and separates chord-only, melody-over-chords and combined generation. See the [reference comparison and reproducible measurements](docs/REFERENCE_AUDIT_2.6.md).
 
-The interface has **Melody**, **Chords** and an independent **Microtonal** tab. Both conventional piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
+The interface has **Melody**, **Chords**, an independent **Microtonal** tab and **Compose**. Both conventional piano rolls have a triangular **Play** button directly below them. **With chords** on Melody and **Play together** on Chords preview the two parts through independent internal voices using the same selected sound preset; their MIDI exports remain separate.
 
 Choose **Riff**, **Motif** or **Melody**, shape the search with the original musical control names, and optionally enable **Micro** for genetically chosen microtonal passing notes. **Fit to scale** is an independent live switch, off by default. Chord originality, inversions, A/B comparison, local edits, groove references, arrangements and the actual search budget remain available. Existing parameter IDs and the original meter/progression automation ranges are retained.
 
@@ -80,7 +80,8 @@ To export one section of an arrangement, select its range on the piano-roll rule
 - Import or drop a `.mid` / `.midi` file to replace the selected variation. Multiple tracks are merged; polyphonic notes are retained. Import accepts musical tick-based MIDI, up to 512 notes and 128 quarter-note beats. Oversize phrases are reported as truncated.
 - **Melody on rhythm** generates pitches on the selected phrase's existing rhythm. **Rhythm only** generates a single-pitch rhythm.
 - **Undo / Redo** restores up to 24 document edits, including melody changes, custom harmony, exact chord voicings and groove references. It does not undo parameter automation or A/B capture.
-- **Save bank / Open bank** stores the committed bank, parameters, custom harmony, exact chord voicings, groove reference and captured A snapshot in a `.genetic` file. The same state is saved inside your DAW project. Playback is deliberately stopped on restore.
+- **Save as...** saves a named bank preset in your personal library. The preset menu at the top shows the current name and lists your saved banks; choose one to restore it. **Ctrl/Cmd+S** (or **Save changes to current preset** in the menu) updates the current preset; **Ctrl/Cmd+Shift+S** saves another version. Saving under an existing name asks before replacing it. Each preset includes the committed bank, parameters, custom harmony, exact chord voicings, groove reference, captured A snapshot, the independent Microtonal workspace, and Compose sections, motif, MIDI references and per-role learned preferences. The name and complete state also travel with your DAW project. Playback stops on restore; unaccepted previews are excluded.
+- **Open...** opens an existing `.genetic` file; **Save as...** adds its contents to your library. **Export bank file...** in the preset menu writes a portable `.genetic` copy. **Open presets folder** reveals the library (`%APPDATA%/Genetic Composer/Presets` on Windows, `~/Library/Genetic Composer/Presets` on macOS). Existing bank files remain compatible. Factory **Starting points...** are in the same menu and still change generation settings only.
 
 ## Meter, harmony and genetic search
 

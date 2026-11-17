@@ -21,6 +21,8 @@ Choose two variations in the A and B menus. **Hear A / Słuchaj A** and **Hear B
 
 The next creative search includes the learned ranking together with musical coherence, motif identity, role and context. The small preference model starts without personal examples; each comparison updates its local feature weights. No listening-time or export action is silently treated as a preference. **Reset preferences / Wyzeruj preferencje** clears the current role's comparison count and weights in this project. Ordinary Undo can restore a preceding preference edit.
 
+**Save as... / Zapisz jako...** stores the complete document as a named bank preset, including Compose sections, motif, references and learned preferences. Recall it from the preset name in the top bar; Ctrl/Cmd+S updates it, and Ctrl/Cmd+Shift+S saves another version.
+
 Lead, Bass, Riff and Arpeggio keep separate preference weights and counts within each project. Preferences, motif and references are saved inside the DAW project and `.genetic` bank. They are project data, not a cloud account or a global profile.
 
 ## Build and edit related sections

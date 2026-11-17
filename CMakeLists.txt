@@ -88,6 +88,7 @@ juce_add_binary_data(GeneticComposerResources SOURCES
 target_sources(GeneticComposer PRIVATE
     "${SOURCE_DIR}/PluginProcessor.cpp" "${SOURCE_DIR}/PluginProcessor.h"
     "${SOURCE_DIR}/ProcessorPlayback.cpp" "${SOURCE_DIR}/ProcessorState.cpp"
+    "${SOURCE_DIR}/BankPresetLibrary.h"
     "${SOURCE_DIR}/ProcessorMicrotonal.cpp"
     "${SOURCE_DIR}/ProcessorComposition.cpp" "${SOURCE_DIR}/CompositionPlayback.cpp"
     "${SOURCE_DIR}/CompositionPanel.cpp" "${SOURCE_DIR}/CompositionPanel.h"
@@ -123,6 +124,7 @@ if(BUILD_TESTING)
     add_executable(plugin_tests)
     set_target_properties(plugin_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugin_tests_artefacts/$<CONFIG>")
     target_sources(plugin_tests PRIVATE tests/PluginTests.cpp tests/WorkflowTests.cpp tests/VisualTelemetryTests.cpp
+        tests/BankPresetTests.cpp
         tests/MicrotonalLabTests.cpp
         tests/MicrotonalTests.cpp tests/UsabilityTests.cpp tests/ChordPluginTests.cpp tests/ChordPanelTests.cpp tests/PlaybackArchitectureTests.cpp tests/RenderMusicalExamples.cpp
         tests/RealtimeTests.cpp tests/AllocationGuard.cpp tests/ProcessorRegressionTests.cpp
@@ -136,6 +138,7 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/libs/dsp-kit/include")
     add_test(NAME plugin COMMAND plugin_tests plugin)
+    add_test(NAME presets COMMAND plugin_tests presets)
     add_test(NAME midi COMMAND plugin_tests midi)
     add_test(NAME playback COMMAND plugin_tests playback)
     add_test(NAME realtime COMMAND plugin_tests realtime)

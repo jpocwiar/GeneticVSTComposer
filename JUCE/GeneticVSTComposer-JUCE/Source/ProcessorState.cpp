@@ -245,6 +245,7 @@ void Processor::getStateInformation(juce::MemoryBlock& dest) {
     state.addChild(parameters.copyState(), -1, nullptr);
     {
         std::lock_guard<std::mutex> lock(documentMutex);
+        state.setProperty("presetName", currentBankPreset, nullptr);
         state.addChild(microtonalStateLocked(), -1, nullptr);
         state.addChild(compositionStateLocked(), -1, nullptr);
         state.setProperty("selected", selected.load(), nullptr);
@@ -366,6 +367,7 @@ bool Processor::restore(const void* data, int size) {
     {
         std::lock_guard<std::mutex> lock(documentMutex);
         restoreDocumentLocked(restored);
+        currentBankPreset = state.getProperty("presetName").toString().substring(0, 80);
         microWorkspace = restoredMicro;
         microUndo.clear();
         microRedo.clear();
@@ -408,10 +410,35 @@ bool Processor::restore(const void* data, int size) {
 void Processor::setStateInformation(const void* data, int size) {
     restore(data, size);
 }
-juce::Result Processor::saveBank(const juce::File& file) {
+juce::String Processor::bankPresetName() const {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    return currentBankPreset;
+}
+void Processor::setBankPresetName(const juce::String& name) {
+    std::lock_guard<std::mutex> lock(documentMutex);
+    currentBankPreset = name;
+}
+juce::Result Processor::saveBank(const juce::File& file, const juce::String& presetName) {
     juce::MemoryBlock data;
     getStateInformation(data);
-    return file.replaceWithData(data.getData(), data.getSize())
+    if (presetName.isNotEmpty()) {
+        auto xml = getXmlFromBinary(data.getData(), int(data.getSize()));
+        if (!xml)
+            return juce::Result::fail("Could not save this bank.");
+        xml->setAttribute("presetName", presetName);
+        copyXmlToBinary(*xml, data);
+    }
+    // Write beside the destination and replace only once the complete snapshot is on disk.
+    juce::TemporaryFile temporary(file, juce::TemporaryFile::useHiddenFile);
+    {
+        juce::FileOutputStream output(temporary.getFile());
+        if (output.failedToOpen() || !output.write(data.getData(), data.getSize()))
+            return juce::Result::fail("Could not save this bank.");
+        output.flush();
+        if (output.getStatus().failed())
+            return juce::Result::fail("Could not save this bank.");
+    }
+    return temporary.overwriteTargetFileWithTemporary()
                ? juce::Result::ok()
                : juce::Result::fail("Could not save this bank.");
 }
@@ -421,6 +448,8 @@ juce::Result Processor::loadBank(const juce::File& file) {
     juce::MemoryBlock data;
     if (!file.loadFileAsData(data) || !restore(data.getData(), int(data.getSize())))
         return juce::Result::fail("Not a valid Genetic Composer 2 bank.");
+    if (bankPresetName().isEmpty())
+        setBankPresetName(file.getFileNameWithoutExtension().substring(0, 80));
     return juce::Result::ok();
 }
 juce::Result Processor::exportMidi(const juce::File& file) const {

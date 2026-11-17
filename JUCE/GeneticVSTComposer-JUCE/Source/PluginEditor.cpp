@@ -367,12 +367,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     harmony.setTooltip("Choose a progression, enter Custom chords, or open Chord composer for creative "
                        "progressions, voiced chord audition and separate chord MIDI export.");
     mode.setTooltip("Melody on rhythm uses the selected variation as a rhythmic template.");
-    preset.addItemList({"Starting point: Balanced", "Airy / spacious", "Rhythmic / driving",
-                        "Chromatic / restless", "Bass / restrained"},
-                       1);
-    preset.setTextWhenNothingSelected("Starting points...");
     addAndMakeVisible(preset);
-    preset.onChange = [this] { processor.applyPreset(preset.getSelectedId() - 1); };
+    preset.onClick = [this] { showPresetMenu(); };
     for (auto* b : {&generate, &evolve, &panic, &undo, &redo, &save, &load, &import, &exportBoth, &exportFile,
                     &help})
         addAndMakeVisible(*b);
@@ -425,7 +421,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         processor.redo();
         refresh();
     };
-    save.onClick = [this] { chooseFile(2); };
+    save.onClick = [this] { savePresetAs(); };
     load.onClick = [this] { chooseFile(3); };
     import.onClick = [this] { chooseFile(0); };
     exportBoth.onClick = [this] { chooseFile(7); };
@@ -733,8 +729,11 @@ void Editor::applyInterfaceLanguage() {
     text(panic, "Stop all");
     text(undo, "Undo");
     text(redo, "Redo");
-    text(save, "Save bank");
-    text(load, "Open bank");
+    text(save, "Save as...");
+    text(load, "Open...");
+    save.setTooltip(tr("Save the complete bank as a named preset. Ctrl/Cmd+S updates the current preset."));
+    load.setTooltip(tr("Open a .genetic bank file. Use Save as to add it to your presets."));
+    preset.setTooltip(tr("Your saved banks and factory starting points. Each bank preset restores all variations, chords and settings."));
     text(import, "Import MIDI");
     text(exportBoth, "Melody + chords");
     text(exportFile, "Export...");
@@ -789,7 +788,7 @@ void Editor::applyInterfaceLanguage() {
     for (int i = 0; i < 7; ++i)
         workflowTabs[i].setButtonText(tr(tabs[i]));
     interfaceLanguageButton.setButtonText(processor.interfaceLanguageIndex() == 1 ? "PL" : "EN");
-    preset.setTextWhenNothingSelected(tr("Starting points..."));
+    preset.setButtonText(processor.bankPresetName().isNotEmpty() ? processor.bankPresetName() : tr("Bank presets..."));
     searchDetails.setButtonText(tr("Search settings..."));
     explainScore.setButtonText(tr(explainingScore ? "Show statistics" : "Explain score"));
     shownLanguage = processor.interfaceLanguageIndex();
@@ -802,6 +801,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcesso
     chordPanel.reset();
     microPanel.reset();
     compositionPanel.reset();
+    presetDialog.reset();
     chooser.reset();
     setLookAndFeel(nullptr);
     for (auto& file : dragFiles)
@@ -1181,7 +1181,7 @@ void Editor::updateMainPage() {
             dynamic_cast<juce::ResizableBorderComponent*>(child) != nullptr)
             continue;
         const bool sharedWithMicro = child == &melodyTab || child == &chordsTab || child == &microtonalTab || child == &composeTab ||
-                                     child == &activity || child == &load || child == &save ||
+                                     child == &activity || child == &preset || child == &load || child == &save ||
                                      child == &help || child == &panic || child == &motion ||
                                      child == &interfaceLanguageButton || child == &status;
         child->setVisible(microPage ? sharedWithMicro : (global || (!chordPage && !microPage && !compositionPage)));
@@ -1268,6 +1268,10 @@ juce::String Editor::microDescription() const {
                       : "Microtones OFF: plain 12-tone playback. Enable Microtones in Composition.");
 }
 void Editor::refresh() {
+    const auto presetName = processor.bankPresetName();
+    const auto presetText = presetName.isNotEmpty() ? presetName : tr("Bank presets...");
+    if (preset.getButtonText() != presetText)
+        preset.setButtonText(presetText);
     const auto meterNow = processor.timeSignature();
     if (!meter.hasKeyboardFocus(true) && (meterNow.numerator != shownMeterNumerator ||
                                            meterNow.denominator != shownMeterDenominator)) {
@@ -1656,6 +1660,15 @@ bool Editor::keyPressed(const juce::KeyPress& k) {
         if (focused == this)
             break;
     }
+    if (k.getModifiers().isCommandDown() &&
+        (k.getTextCharacter() == 's' || k.getTextCharacter() == 'S' || k.getKeyCode() == 'S')) {
+        const auto name = processor.bankPresetName();
+        if (k.getModifiers().isShiftDown() || presetLibrary.find(name) == juce::File())
+            savePresetAs();
+        else
+            saveNamedPreset(name, true);
+        return true;
+    }
     if (k.getKeyCode() == juce::KeyPress::escapeKey) {
         if (compositionPage)
             processor.stopComposition();
@@ -1721,7 +1734,119 @@ void Editor::filesDropped(const juce::StringArray& files, int, int) {
     auto result = file.hasFileExtension("genetic") ? processor.loadBank(file) : processor.importMidi(file);
     if (result.failed())
         processor.setStatus(result.getErrorMessage());
+    else if (file.hasFileExtension("genetic"))
+        bankLoaded();
     refresh();
+}
+void Editor::bankLoaded() {
+    // Restoring a preset may switch workspaces; immediately show the restored one.
+    if (processor.isMicrotonalMode())
+        showMicrotonalComposer();
+    else
+        showMelodyComposer();
+    roll.selectAllTime();
+    refresh();
+}
+void Editor::showPresetMenu() {
+    const auto files = presetLibrary.files();
+    const auto name = processor.bankPresetName();
+    juce::PopupMenu menu;
+    menu.setLookAndFeel(&look);
+    menu.addSectionHeader(tr("My bank presets"));
+    if (files.isEmpty())
+        menu.addItem(99, tr("No saved presets yet"), false);
+    for (int i = 0; i < files.size(); ++i) {
+        const auto label = files[i].getFileNameWithoutExtension();
+        menu.addItem(1000 + i, label, true, label == name);
+    }
+    juce::PopupMenu factory;
+    const char* names[]{"Balanced", "Airy / spacious", "Rhythmic / driving",
+                        "Chromatic / restless", "Bass / restrained"};
+    for (int i = 0; i < 5; ++i)
+        factory.addItem(i + 1, tr(names[i]));
+    menu.addSubMenu(tr("Starting points..."), factory, !microPage);
+    menu.addSeparator();
+    menu.addItem(10, tr("Save changes to current preset"), presetLibrary.find(name) != juce::File());
+    menu.addItem(11, tr("Save preset as..."));
+    menu.addItem(12, tr("Open bank file..."));
+    menu.addItem(13, tr("Export bank file..."));
+    menu.addItem(14, tr("Open presets folder"));
+    juce::Component::SafePointer<Editor> safe(this);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&preset), [safe, files, name](int id) {
+        if (!safe || id == 0)
+            return;
+        if (id >= 1000 && id - 1000 < files.size()) {
+            const auto result = safe->processor.loadBank(files[id - 1000]);
+            if (result.wasOk()) {
+                safe->processor.setBankPresetName(files[id - 1000].getFileNameWithoutExtension());
+                safe->bankLoaded();
+            } else
+                safe->report(result);
+        } else if (id >= 1 && id <= 5) {
+            safe->processor.applyPreset(id - 1);
+            safe->refresh();
+        } else if (id == 10)
+            safe->saveNamedPreset(name, true);
+        else if (id == 11)
+            safe->savePresetAs();
+        else if (id == 12 || id == 13)
+            safe->chooseFile(id == 12 ? 3 : 2);
+        else if (id == 14) {
+            const auto result = safe->presetLibrary.directory().createDirectory();
+            if (result.wasOk())
+                safe->presetLibrary.directory().revealToUser();
+            else
+                safe->report(result);
+        }
+    });
+}
+void Editor::saveNamedPreset(const juce::String& name, bool overwrite) {
+    const auto result = presetLibrary.save(processor, name, overwrite);
+    if (result.failed())
+        report(result);
+    else {
+        processor.setStatus(tr("Bank preset saved: ") + processor.bankPresetName());
+        refresh();
+    }
+}
+void Editor::savePresetAs() {
+    if (presetDialog && presetDialog->isCurrentlyModal())
+        return;
+    presetDialog = std::make_unique<juce::AlertWindow>(
+        tr("Save bank preset"),
+        tr("Save all variations, chords and settings in your preset library. Unaccepted previews are excluded."),
+        juce::MessageBoxIconType::NoIcon, this);
+    auto* dialog = presetDialog.get();
+    dialog->setLookAndFeel(&look);
+    dialog->addTextEditor("name", processor.bankPresetName(), tr("Preset name"));
+    dialog->addButton(tr("Save"), 1, juce::KeyPress(juce::KeyPress::returnKey));
+    dialog->addButton(tr("Cancel"), 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    auto* input = dialog->getTextEditor("name");
+    input->setInputRestrictions(80);
+    input->onTextChange = [dialog, input] {
+        dialog->getButton(0)->setEnabled(BankPresetLibrary::validateName(input->getText().trim()).wasOk());
+    };
+    input->onTextChange();
+    input->setTooltip(tr("Use 1-80 characters without file-name symbols or trailing dots."));
+    juce::Component::SafePointer<Editor> safe(this);
+    juce::Component::SafePointer<juce::AlertWindow> safeDialog(dialog);
+    dialog->enterModalState(true, juce::ModalCallbackFunction::create([safe, safeDialog](int result) {
+        if (!safe || !safeDialog || result != 1)
+            return;
+        const auto name = safeDialog->getTextEditorContents("name").trim();
+        if (safe->presetLibrary.find(name) == juce::File()) {
+            safe->saveNamedPreset(name, false);
+            return;
+        }
+        juce::AlertWindow::showOkCancelBox(
+            juce::MessageBoxIconType::QuestionIcon, safe->tr("Replace preset?"),
+            safe->tr("Replace the saved bank preset: ") + name + "?",
+            safe->tr("Replace"), safe->tr("Cancel"), safe.getComponent(),
+            juce::ModalCallbackFunction::create([safe, name](int confirmed) {
+                if (safe && confirmed == 1)
+                    safe->saveNamedPreset(name, true);
+            }));
+    }));
 }
 void Editor::chooseFile(int action) {
     const bool saving = action == 1 || action == 2 || action == 6 || action == 7;
@@ -1730,12 +1855,15 @@ void Editor::chooseFile(int action) {
                                : action == 5 ? "Import groove reference MIDI"
                                : action == 6 ? "Export selected time range"
                                : action == 7 ? "Export melody and chords"
-                               : saving      ? (bankFile ? "Save phrase bank" : "Export MIDI")
-                                             : (bankFile ? "Open phrase bank" : "Import MIDI");
+                               : saving      ? (bankFile ? "Export bank file..." : "Export MIDI")
+                                             : (bankFile ? "Open bank file..." : "Import MIDI");
     chooser =
-        std::make_unique<juce::FileChooser>(title,
+        std::make_unique<juce::FileChooser>(tr(title),
                                             juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                                                .getChildFile(saving ? (bankFile      ? "My phrases.genetic"
+                                                .getChildFile(saving ? (bankFile      ? juce::File::createLegalFileName(
+                                                                                          processor.bankPresetName().isNotEmpty()
+                                                                                              ? processor.bankPresetName()
+                                                                                              : tr("My phrases")) + ".genetic"
                                                                         : action == 6 ? "Selected range.mid"
                                                                         : action == 7 ? "Melody and chords.mid"
                                                                                       : "Variation.mid")
@@ -1773,6 +1901,8 @@ void Editor::chooseFile(int action) {
                                       : "MIDI exported.");
         else if (action == 2 || action == 3)
             p.setStatus(action == 2 ? "Phrase bank saved." : "Phrase bank restored.");
+        if (result.wasOk() && action == 3)
+            safe->bankLoaded();
         safe->refresh();
     });
 }

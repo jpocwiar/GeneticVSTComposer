@@ -190,9 +190,10 @@ void runCompositionPanelTests() {
         auto& main = control<juce::Button>(*editor, "compose-main-tab");
         const auto mainBounds = main.getBoundsInParent();
         for (auto* child : editor->getChildren())
-            if (child != &main && dynamic_cast<juce::ComboBox*>(child) && child->isVisible())
+            if (child != &main && child->isVisible() &&
+                (dynamic_cast<juce::ComboBox*>(child) || dynamic_cast<juce::Button*>(child)))
                 check(!mainBounds.intersects(child->getBoundsInParent()),
-                      "the fourth main tab overlaps a header selector");
+                      "the fourth main tab overlaps another control");
     }
     editor->showMelodyComposer();
     check(!panel.isVisible(), "returning to Melody left Compose visible");
