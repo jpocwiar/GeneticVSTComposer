@@ -24,7 +24,9 @@ class GeneticVSTComposerJUCEAudioProcessor : public juce::AudioProcessor, privat
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.15; }
+    // The audition FDN has a 1.6 s decay. Allow five decay periods plus
+    // the voice release so hosts can finish offline renders without truncation.
+    double getTailLengthSeconds() const override { return 8.5; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}

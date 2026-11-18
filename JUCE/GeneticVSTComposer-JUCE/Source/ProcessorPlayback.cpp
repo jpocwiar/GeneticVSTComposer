@@ -357,6 +357,7 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     const double swingAmount = cached.swing->load();
     const bool quantise = cached.quantiseSwitch->load() > 0.5f;
     const bool accompany = cached.auditionChords->load() > 0.5f;
+    const bool chordMidiRequested = cached.chordMidiOut->load() > 0.5f;
     float blockPeak = 0;
     const bool captureArmed = cached.capturePhrase->load() > 0.5f;
     if (captureArmed && !captureAudioArmed) {
@@ -369,8 +370,15 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                             (loopBoundary && !audioChordPreview && audioRegion.enabled &&
                              audioRegion.slot == audioSelection);
         while (incoming != end && (*incoming).samplePosition <= sample) {
-            const auto message = (*incoming).getMessage();
+            const auto event = *incoming;
             ++incoming;
+            // Long messages (notably SysEx) own heap storage in MidiMessage.
+            // Forward their bytes without constructing that owning copy on audio.
+            if (event.numBytes > 3) {
+                outputMidi.addEvent(event.data, event.numBytes, sample);
+                continue;
+            }
+            const auto message = event.getMessage();
             const int pitch = message.isNoteOnOrOff() ? message.getNoteNumber() : -1;
             if (cached.capturePhrase->load() > 0.5f && message.isNoteOnOrOff() && captureEvents != nullptr) {
                 const auto index = captureWrite.load(std::memory_order_relaxed);
@@ -525,7 +533,8 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
                 ++nextNote;
             }
         }
-        scheduleChordLayer(run && monitor && accompany && !audioChordPreview, restartLayer, accompanimentBeat,
+        const bool chordOutput = monitor || (chordMidiRequested && outputMode != 2);
+        scheduleChordLayer(run && chordOutput && accompany && !audioChordPreview, restartLayer, accompanimentBeat,
                            step, sample, outputMidi);
         double signal = 0.0;
         for (int p = 0; p < 128; ++p) {
@@ -580,6 +589,11 @@ void Processor::processBlock(juce::AudioBuffer<float>& audio, juce::MidiBuffer& 
     expectedPpq = ppq + samples * step;
     wasHostPlaying = hostPlaying;
     lastFollow = follow;
-    midi.swapWith(outputMidi);
+    // Keep our preallocated work buffer. swapWith would donate its capacity
+    // to the host and make the next large message allocate here. Appending
+    // reuses the host's current input capacity; as with any JUCE MIDI producer,
+    // the host must provide room for additional generated output events.
+    midi.clear();
+    midi.addEvents(outputMidi, 0, -1, 0);
     publishVisualState(blockPeak);
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Validates Release VST3 and AU with pluginval (strictness 10) and auval.
-# pluginval is downloaded into .tools/ on first use. Builds when artefacts are missing.
+# Builds and validates current Release VST3/AU with pluginval, without installation.
+# pluginval is downloaded into .tools/ on first use.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -19,15 +19,13 @@ if [[ ! -x "$PLUGINVAL" ]]; then
     rm "$TOOLS/pluginval.zip"
 fi
 
-if [[ ! -d "$VST3" || ! -d "$AU" ]]; then
-    ./scripts/build-macos.sh
-fi
+# Always rebuild changed sources. Existing bundle directories do not establish
+# that the binaries match the working tree being validated.
+./scripts/build-macos.sh
 
-for plugin in "$VST3" "$AU"; do
-    echo "== pluginval $(basename "$plugin")"
-    "$PLUGINVAL" --strictness-level 10 --validate "$plugin"
-done
+echo "== pluginval VST3"
+"$PLUGINVAL" --strictness-level 10 --validate "$VST3"
+echo "== pluginval exact AU factory (process-local registration)"
+scripts/validate-au-local.sh "$PLUGINVAL" "$AU"
 
-echo "== auval"
-killall -9 AudioComponentRegistrar 2>/dev/null || true
-auval -strict -v aumu Gnc2 Gnco
+echo "== Native auval requires an installed AU; skipped (this script does not install plugins)."

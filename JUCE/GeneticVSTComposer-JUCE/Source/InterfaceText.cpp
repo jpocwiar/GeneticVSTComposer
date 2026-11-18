@@ -418,6 +418,8 @@ const Entry exact[]{
     {"CHARACTER", "CHARAKTER"},
     {"Diversity", "Różnorodność"},
     {"Dynamics", "Dynamika"},
+    {"Melody motion", "Ruch melodii"},
+    {"Fit screen", "Dopasuj do ekranu"},
     {"Jazziness", "Jazzowość"},
     {"Valence", "Walencja"},
     {"Arousal", "Pobudzenie"},

@@ -285,10 +285,14 @@ bool Processor::restore(const void* data, int size) {
     const int version = state.getProperty("version", 0);
     if ((version < 2 || version > 7) || !state.getChildWithName("Parameters").isValid())
         return false;
-    Document restored;
+    // AU hosts may restore on a 512 KiB worker. These workspaces together exceed
+    // that entire stack before the nested state readers have even been called.
+    auto restoredStorage = std::make_unique<Document>();
+    auto& restored = *restoredStorage;
     if (version >= 7 && !readCompositionState(state.getChildWithName("CompositionWorkspace"), restored.composition))
         return false;
-    MicrotonalWorkspace restoredMicro;
+    auto restoredMicroStorage = std::make_unique<MicrotonalWorkspace>();
+    auto& restoredMicro = *restoredMicroStorage;
     const auto microState = state.getChildWithName("MicrotonalWorkspace");
     if (!readMicrotonalState(microState, restoredMicro))
         return false;

@@ -455,6 +455,42 @@ void testChordMidiOutputAndCombinedExport() {
     file.deleteFile();
 }
 
+void testExternalChordMidiWithoutMonitor() {
+    auto audible = player(true, 0, false), external = player(true, 0, false);
+    for (auto* processor : {audible.get(), external.get()}) {
+        parameter(*processor, "chordMidiOut", 1);
+        processor->setPreview(true);
+    }
+    parameter(*external, "monitor", 0);
+    Frame reference, routed;
+    int chordOns = 0;
+    for (int block = 0; block < 500; ++block) {
+        process(*audible, reference);
+        process(*external, routed);
+        sameMidi(reference.midi, routed.midi);
+        check(routed.audio.getMagnitude(0, blockSize) == 0,
+              "external-only chord playback rendered internal audio");
+        for (const auto event : routed.midi)
+            chordOns += event.getMessage().isNoteOn() && event.getMessage().getChannel() == 16;
+    }
+    check(chordOns >= 3, "disabling Internal sound suppressed chord MIDI");
+    // Toggling the monitor during a held chord must not retrigger or drop MIDI.
+    parameter(*external, "monitor", 1);
+    process(*audible, reference);
+    process(*external, routed);
+    sameMidi(reference.midi, routed.midi);
+    parameter(*external, "monitor", 0);
+    process(*audible, reference);
+    process(*external, routed);
+    sameMidi(reference.midi, routed.midi);
+    external->setPreview(false);
+    process(*external, routed);
+    int chordOffs = 0;
+    for (const auto event : routed.midi)
+        chordOffs += event.getMessage().isNoteOff() && event.getMessage().getChannel() == 16;
+    check(chordOffs > 0, "stopping an external-only chord left MIDI notes held");
+}
+
 void testRegionLoop(int output) {
     auto processor = std::make_unique<Processor>();
     composer::Clip clip;
@@ -559,4 +595,5 @@ void runPlaybackArchitectureTests() {
     testHarmonyLongerThanRiff();
     testLiveFitToScaleWithHarmony();
     testChordMidiOutputAndCombinedExport();
+    testExternalChordMidiWithoutMonitor();
 }

@@ -2,6 +2,8 @@
 
 A JUCE instrument for composing and evolving MIDI phrases. Generate twelve alternatives, keep an idea, develop it and take the melody and chords into your track.
 
+Pre-release fixes: **Chord MIDI** keeps playing when **Internal sound** is off. The **UI** button below Character offers remembered scaling and Fit screen (minimum window 870 × 630); Grouping, phrase labels and the footer no longer overlap. **Melody motion** describes the existing Dynamics automation parameter without changing its ID or range. Playback forwards long SysEx without an owning copy and keeps its private MIDI work buffer preallocated; the host must still provide capacity for additional generated MIDI events. The reported audio tail now includes the audition reverb. State restore keeps large workspaces on the heap and has a regression test on a 512 KiB host thread stack. Validation rebuilds current sources and tests the exact AU factory without installation; the external system `auval` subtest is explicitly excluded from that process-local check. Packaging derives its version from CMake, rebuilds before staging, checks bundle versions and records relative binary checksums and source provenance.
+
 Version **2.10.0** adds **Compose / Komponuj**: remember a motif's relative rhythm and contour, develop it into related ideas, and compare Development / Response / Contrast families. Lead, Bass, Riff and Arpeggio roles and optional drum/bass MIDI references guide creative generation. Explicit A/B choices train small per-role ranking models stored locally in the project. Build up to eight independent sections with editable notes, names, lengths, harmony, energy and contrast; reorder, audition and export the complete melody/chord composition. Motifs, references, preferences and sections support Undo and DAW/bank persistence. An optional local symbolic AI provider supplies extra proposals. See the [composing workflow, in English and Polish](docs/COMPOSING.md) and [optional AI setup](docs/AI_MIDI.md).
 
 Version **2.9.0** groups beats inside the meter (quarters in 4/4, a 2-and-3 pattern in x/8, or a typed pattern such as `2+2+3`). **Host** follows the DAW time signature when one is available. **Capture phrase** records incoming MIDI into the selected variation. Arrangement can preview A A' B A'', AAAB, ABAC or Call / Response. **Each loop** evolves the phrase when playback wraps, using the Evolution amount, and leaves pinned variations in place. The internal audition adds a little reverb (dry when the mix is zero, and dry for older sessions that have no reverb setting). MIDI export writes a `RHYTHMS_GROUPS` text event and chord-name markers, including slash bass such as `C/E`.
@@ -117,7 +119,7 @@ The seven original musical control names are visible again, alongside Evolution.
 | Control | What it changes |
 | --- | --- |
 | Diversity | Variety of pitches and intervals |
-| Dynamics | Melodic motion and register changes; not output volume |
+| Melody motion | Melodic motion and register changes; the existing Dynamics automation parameter |
 | Jazziness | Chromatic freedom and harmonic tension; leave Fit to scale off to retain those pitches |
 | Valence | Preference for brighter consonance and upward melodic direction |
 | Arousal | Rhythmic energy, faster movement and a wider, higher register |

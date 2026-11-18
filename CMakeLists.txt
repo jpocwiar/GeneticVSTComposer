@@ -137,6 +137,13 @@ if(BUILD_TESTING)
     target_include_directories(plugin_tests PRIVATE "${SOURCE_DIR}" "${CMAKE_BINARY_DIR}/GeneticComposer_artefacts/JuceLibraryCode"
         "${CMAKE_CURRENT_SOURCE_DIR}/libs/reverb-core/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/libs/dsp-kit/include")
+    # Hosts may restore AU state on a 512 KiB worker, unlike the large test/main stack.
+    add_executable(host_stack_tests tests/HostStackTests.cpp)
+    target_link_libraries(host_stack_tests PRIVATE GeneticComposer GeneticComposerResources)
+    target_include_directories(host_stack_tests PRIVATE $<TARGET_PROPERTY:plugin_tests,INCLUDE_DIRECTORIES>)
+    target_compile_definitions(host_stack_tests PRIVATE $<TARGET_PROPERTY:plugin_tests,COMPILE_DEFINITIONS>)
+    add_test(NAME host_stack COMMAND host_stack_tests)
+
     add_test(NAME plugin COMMAND plugin_tests plugin)
     add_test(NAME presets COMMAND plugin_tests presets)
     add_test(NAME midi COMMAND plugin_tests midi)

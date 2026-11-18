@@ -96,6 +96,8 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     ActivityDisplay activity;
     juce::ToggleButton motion{"Motion"};
     juce::TextButton interfaceLanguageButton{"EN"};
+    juce::TextButton interfaceSizeButton{"UI 100%"};
+    float preferredZoom = 1.0f;
     std::unique_ptr<juce::PropertiesFile> preferences;
     int shownLanguage = -1;
     std::array<std::unique_ptr<VariationButton>, 12> variants;
@@ -180,6 +182,9 @@ class GeneticVSTComposerJUCEAudioProcessorEditor : public juce::AudioProcessorEd
     void bankLoaded();
     void applyInterfaceLanguage();
     void storeInterfaceLanguage(int language);
+    float layoutZoom() const noexcept;
+    void showInterfaceSizeMenu();
+    void setInterfaceZoom(float);
     juce::String tr(const juce::String&) const;
     void startMidiDrag(juce::Component* source = nullptr);
     void refresh();

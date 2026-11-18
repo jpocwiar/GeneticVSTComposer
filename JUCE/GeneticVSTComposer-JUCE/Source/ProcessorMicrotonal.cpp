@@ -470,8 +470,11 @@ void Processor::processMicrotonalBlock(juce::AudioBuffer<float>& audio, juce::Mi
     float peak = 0;
     for (int sample = 0; sample < audio.getNumSamples(); ++sample) {
         while (incoming != end && (*incoming).samplePosition <= sample) {
-            const auto m = (*incoming).getMessage();
-            if (m.isAllNotesOff() || m.isAllSoundOff()) {
+            const auto event = *incoming;
+            // Only channel-mode resets affect this workspace. Inspect short
+            // messages directly; constructing a long SysEx copy would allocate.
+            if (event.numBytes == 3 && (event.data[0] & 0xf0) == 0xb0 &&
+                (event.data[1] == 120 || event.data[1] == 123)) {
                 allOff(sample, outputMidi);
                 resetOutput(sample, outputMidi);
                 preview.store(false);
@@ -520,7 +523,8 @@ void Processor::processMicrotonalBlock(juce::AudioBuffer<float>& audio, juce::Mi
     heardChordLayer.store(false);
     heardComparison.store(false);
     chordBeat.store(-1);
-    midi.swapWith(outputMidi);
+    midi.clear();
+    midi.addEvents(outputMidi, 0, -1, 0);
     publishVisualState(peak);
     for (const auto& voice : microVoices)
         if (voice.sound.on) {

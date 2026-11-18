@@ -1,5 +1,5 @@
 # Downloads pluginval on first use and validates the Release VST3 at strictness 10.
-# Builds the VST3 first when the artefact is missing.
+# Always builds changed sources before validating the current VST3.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
@@ -21,10 +21,8 @@ if (-not (Test-Path $pluginval)) {
 }
 
 $vst3 = 'build\GeneticComposer_artefacts\Release\VST3\Genetic Composer.vst3'
-if (-not (Test-Path $vst3)) {
-    & scripts\build-windows.ps1
-    if ($LASTEXITCODE) { exit $LASTEXITCODE }
-}
+& scripts\build-windows.ps1
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 & $pluginval --strictness-level 10 --validate (Resolve-Path $vst3).Path
 exit $LASTEXITCODE

@@ -40,6 +40,33 @@ juce::MouseEvent mouse(PianoRoll& roll, juce::Point<float> point, juce::Point<fl
 } // namespace
 void runUsabilityTests() {
     {
+        Processor layout;
+        auto editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(layout);
+        auto find = [&](const juce::String& id) -> juce::Component* {
+            for (auto* child : editor->getChildren())
+                if (child->getComponentID() == id)
+                    return child;
+            return nullptr;
+        };
+        for (const auto size : {juce::Point<int>{870, 630}, {1180, 900}, {1600, 1100}}) {
+            editor->setSize(size.x, size.y);
+            auto* details = find("search-details");
+            auto* activity = find("midi-activity");
+            auto* grouping = find("metric-grouping");
+            auto* phrase = find("phrase-type");
+            auto* zoom = find("interface-size");
+            check(details && activity && grouping && phrase && zoom, "layout review controls missing");
+            check(!details->getBounds().intersects(activity->getBounds()) &&
+                      details->getBottom() <= activity->getY(),
+                  "search settings are obscured by the MIDI activity footer");
+            check(!zoom->getBounds().intersects(details->getBounds()) &&
+                      zoom->getBottom() <= activity->getY(),
+                  "interface size action overlaps search settings or the footer");
+            check(phrase->getY() - grouping->getBottom() >= 16,
+                  "phrase controls leave no room for their label below grouping");
+        }
+    }
+    {
         Processor scoped;
         scoped.setInterfaceLanguage(1);
         auto editor = std::make_unique<GeneticVSTComposerJUCEAudioProcessorEditor>(scoped);

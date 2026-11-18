@@ -9,7 +9,7 @@ Drag the piano roll onto an instrument track, or use Drag MIDI / Export. Clickin
 
 Phrase type: Riff ½ bar, Riff 1 bar and Riff 2 bars repeat a cell of half a bar, one bar or two bars; Motif builds a returning theme and Melody develops the whole phrase. A phrase may enter after a short rest, like a riff that starts on the "and". New notes take their velocity from the meter: bar starts and the other beats sound louder than the notes between them.
 
-Diversity shapes pitch and interval variety. Dynamics shapes melodic movement, not loudness. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. Density sets note activity, also influenced by Arousal. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
+Diversity shapes pitch and interval variety. Melody motion shapes melodic movement and register; its automation parameter remains Dynamics. Jazziness adds chromatic freedom. Valence favours brighter consonance and contour. Arousal shapes rhythmic energy and register. Weirdness adds unexpected accents and leaps. Pause Amount leaves space. Density sets note activity, also influenced by Arousal. These are scoring preferences with the original plugin's names; the new engine does not reproduce the old weights 1:1.
 
 The header MIDI trace shows actual emitted note events; OUT meters the internal audio output. Piano keys respond to emitted notes. Turn Motion off in the bottom bar for reduced animation while transport and level indicators remain active.
 
@@ -210,3 +210,6 @@ CONTEXT AND LOCAL AI
 Import separate drum and bass MIDI references on Context / AI. Context influence controls how they guide new creative proposals; the references are not additional audible tracks. Clearing a reference leaves existing music unchanged.
 
 The experimental local AI provider needs a separately prepared runtime. Run scripts/setup-ai-midi.sh once from the repository, then select its Python executable through AI environment. Generate AI ideas creates a MIDI proposal and develops it with the native engine. Cancel stops a running request; failure keeps the previous bank. An interpreter path restored from a project is only a chooser hint and is never automatically trusted or executed. Select a prepared runtime when required, or use your default local installation. Full setup is documented in docs/AI_MIDI.md. Ordinary generation and playback need no network connection.
+
+## Interface size
+UI below the character controls offers Fit screen and text scaling. The choice is remembered locally. Internal sound can be off while both melody MIDI and Chord MIDI feed external instruments; Chord MIDI uses channel 16 and stays unavailable while MPE uses channels 2–16.

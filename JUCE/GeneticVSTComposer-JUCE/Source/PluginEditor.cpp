@@ -213,6 +213,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
                      "or 32. Applies to new generations.");
     meter.onChange = [this] { report(processor.setTimeSignature(meter.getText())); };
     addAndMakeVisible(grouping);
+    grouping.setComponentID("metric-grouping");
     grouping.setTooltip("Metric groups inside one bar, such as 2+2+3. The meter default stays in use until you "
                         "choose another grouping.");
     grouping.onChange = [this] {
@@ -238,6 +239,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         if (phraseType.getSelectedId() > 0)
             processor.setPhraseMenu(phraseType.getSelectedId());
     };
+    phraseType.setComponentID("phrase-type");
     phraseType.setTooltip(
         "Riff: a short hook whose cell of half a bar, one bar or two bars repeats. Motif: a "
         "recognisable idea with small changes. Melody: a longer phrase with development and an "
@@ -291,6 +293,7 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         "Evolutionary generations, 1-2000. The initial population is evaluated separately.");
     crossover.setTooltip("Chance of crossing two tournament-selected parents before mutation.");
     addAndMakeVisible(searchDetails);
+    searchDetails.setComponentID("search-details");
     searchDetails.onClick = [this] { showWorkflowPage(6); };
     addAndMakeVisible(explainScore);
     explainScore.setTooltip(
@@ -668,8 +671,13 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
         };
     }
     setResizable(true, true);
-    setResizeLimits(870, 630, 1600, 1100);
+    setResizeLimits(870, 630, 2200, 1700);
     addAndMakeVisible(activity);
+    activity.setComponentID("midi-activity");
+    addAndMakeVisible(interfaceSizeButton);
+    interfaceSizeButton.setComponentID("interface-size");
+    interfaceSizeButton.setTooltip("Interface size. Fit screen uses the current display; the minimum window is 870 x 630.");
+    interfaceSizeButton.onClick = [this] { showInterfaceSizeMenu(); };
     addAndMakeVisible(motion);
     motion.setToggleState(true, juce::dontSendNotification);
     motion.setTooltip(
@@ -702,6 +710,8 @@ GeneticVSTComposerJUCEAudioProcessorEditor::GeneticVSTComposerJUCEAudioProcessor
     } else
         applyInterfaceLanguage();
     setSize(1240, 900);
+    if (preferences)
+        setInterfaceZoom(float(preferences->getDoubleValue("interfaceZoom", 0.0)));
     updateMainPage();
     timerCallback();
     startTimerHz(60);
@@ -796,6 +806,37 @@ void Editor::applyInterfaceLanguage() {
     shownStatusSerial = 0;
     roll.setInterfaceLanguage(shownLanguage);
 }
+float Editor::layoutZoom() const noexcept {
+    const float requested = preferredZoom > 0 ? preferredZoom : 1.0f;
+    return std::max(0.1f, std::min(requested, std::min(getWidth() / 1180.0f, getHeight() / 900.0f)));
+}
+void Editor::setInterfaceZoom(float choice) {
+    preferredZoom = choice <= 0 ? 0.0f : juce::jlimit(0.7f, 1.75f, choice);
+    const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
+    const auto area = display ? display->userArea : juce::Rectangle<int>(0, 0, 1280, 800);
+    const float fit = std::min((area.getWidth() - 24) / 1180.0f, (area.getHeight() - 48) / 900.0f);
+    const float scale = std::max(0.7f, std::min(preferredZoom > 0 ? preferredZoom : 1.0f, fit));
+    setSize(juce::roundToInt(1180 * scale), juce::roundToInt(900 * scale));
+    if (preferences)
+        preferences->setValue("interfaceZoom", double(preferredZoom));
+    resized();
+    repaint();
+}
+void Editor::showInterfaceSizeMenu() {
+    juce::PopupMenu menu;
+    menu.addItem(1, tr("Fit screen"), true, preferredZoom == 0);
+    const float choices[]{0.75f, 1.0f, 1.25f, 1.5f, 1.75f};
+    for (int i = 0; i < 5; ++i)
+        menu.addItem(i + 2, juce::String(juce::roundToInt(choices[i] * 100)) + "%", true,
+                     preferredZoom == choices[i]);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&interfaceSizeButton),
+                      [safe = juce::Component::SafePointer<Editor>(this)](int selected) {
+        if (!safe || selected == 0)
+            return;
+        const float scales[]{0.75f, 1.0f, 1.25f, 1.5f, 1.75f};
+        safe->setInterfaceZoom(selected == 1 ? 0.0f : scales[selected - 2]);
+    });
+}
 GeneticVSTComposerJUCEAudioProcessorEditor::~GeneticVSTComposerJUCEAudioProcessorEditor() {
     stopTimer();
     chordPanel.reset();
@@ -814,7 +855,7 @@ void Editor::label(juce::Graphics& g, const juce::String& s, juce::Rectangle<int
 }
 void Editor::paint(juce::Graphics& g) {
     g.fillAll(background);
-    const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+    const float zoom = layoutZoom();
     g.addTransform(juce::AffineTransform::scale(zoom));
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom);
     g.setGradientFill(juce::ColourGradient(background.brighter(0.03f), 0, 0, background.darker(0.2f),
@@ -872,13 +913,13 @@ void Editor::paint(juce::Graphics& g) {
     label(g, "Length", {36, 188, 74, 16});
     label(g, "Grid", {118, 188, 66, 16});
     label(g, "Meter", {192, 188, 74, 16});
-    label(g, "Grouping", {36, 244, 170, 16});
-    label(g, "Phrase type", {36, 274, 100, 16});
-    label(g, "Source mode", {146, 274, 120, 16});
+    label(g, "Grouping", {36, 236, 170, 16});
+    label(g, "Phrase type", {36, 286, 100, 16});
+    label(g, "Source mode", {146, 286, 120, 16});
     label(g, shownHarmony.isNotEmpty() ? "Using sequence from Chords" : "Harmony preset / or open Chords",
-          {36, 330, 230, 16});
+          {36, 340, 230, 16});
     label(g, "CHARACTER", {36, 408, 230, 16}, true);
-    const juce::String names[]{"Diversity", "Dynamics",     "Jazziness", "Valence", "Arousal",
+    const juce::String names[]{"Diversity", "Melody motion", "Jazziness", "Valence", "Arousal",
                                "Weirdness", "Pause Amount", "Evolution", "Density"};
     for (int i = 0; i < int(knobs.size()); ++i) {
         g.setFont(font(10));
@@ -942,7 +983,7 @@ void Editor::paint(juce::Graphics& g) {
     }
 }
 void Editor::resized() {
-    const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+    const float zoom = layoutZoom();
     const int w = int(getWidth() / zoom), h = int(getHeight() / zoom), x = 304, mw = w - x - 20;
     melodyTab.setBounds(276, 23, 82, 32);
     chordsTab.setBounds(363, 23, 82, 32);
@@ -961,20 +1002,22 @@ void Editor::resized() {
     bars.setBounds(36, 208, 74, 30);
     grid.setBounds(118, 208, 66, 30);
     meter.setBounds(192, 208, 74, 30);
-    grouping.setBounds(36, 260, 108, 26);
-    groupingEntry.setBounds(148, 260, 64, 26);
-    hostMeter.setBounds(216, 260, 50, 26);
-    phraseType.setBounds(36, 294, 100, 30);
-    mode.setBounds(146, 294, 120, 30);
-    harmony.setBounds(36, 350, 230, 30);
+    grouping.setBounds(36, 254, 88, 26);
+    groupingEntry.setBounds(130, 254, 64, 26);
+    hostMeter.setBounds(200, 254, 76, 26);
+    phraseType.setBounds(36, 304, 100, 30);
+    mode.setBounds(146, 304, 120, 30);
+    harmony.setBounds(36, 358, 230, 30);
     for (int i = 0; i < int(knobs.size()); ++i)
         knobs[i].setBounds(36 + (i % 3) * 79, 426 + (i / 3) * 76, 72, 60);
     low.setBounds(32, 679, 116, 24);
     high.setBounds(154, 679, 116, 24);
     quality.setBounds(94, 711, 172, 28);
-    generate.setBounds(36, 750, 230, 34);
-    evolve.setBounds(36, 792, 230, 34);
-    searchDetails.setBounds(36, 834, 230, 24);
+    generate.setBounds(36, 748, 230, 28);
+    evolve.setBounds(36, 782, 230, 28);
+    interfaceSizeButton.setBounds(36, 812, 76, 24);
+    interfaceSizeButton.setButtonText("UI " + juce::String(juce::roundToInt(zoom * 100)) + "%");
+    searchDetails.setBounds(118, 812, 148, 24);
     lockRhythm.setBounds(x + 106, 498, 118, 26);
     editNotes.setBounds(x + 418, 456, 100, 30);
     phraseTitle.setBounds(x, 96, 320, 32);
@@ -1547,7 +1590,7 @@ void Editor::advanceVisuals() {
     }
     if (animate && (running || searching || onsetPulse > 0.01f)) {
         motionPhase += elapsed * (searching ? 2.8 : running ? processor.tempo() / 80.0 : 0.4);
-        const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+        const float zoom = layoutZoom();
         repaint(juce::Rectangle<float>(18, 15, 45, 46)
                     .transformedBy(juce::AffineTransform::scale(zoom))
                     .toNearestInt());
@@ -1640,7 +1683,7 @@ void Editor::refreshDisplay() {
                                       i == queued);
     advanceVisuals();
     if (busy || busy != shownBusy) {
-        const float zoom = std::min(1.0f, std::min(getWidth() / 1180.0f, getHeight() / 900.0f));
+        const float zoom = layoutZoom();
         repaint(juce::Rectangle<float>(32, 709, 238, 12)
                     .transformedBy(juce::AffineTransform::scale(zoom))
                     .toNearestInt());

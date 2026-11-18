@@ -11,7 +11,7 @@ PIERWSZA FRAZA
 
 Phrase type: Riff ½ bar, Riff 1 bar i Riff 2 bars powtarzają komórkę długości pół taktu, taktu albo dwóch taktów; Motif buduje powracający temat, a Melody rozwija całą frazę. Fraza może zaczynać się po krótkiej pauzie, jak riff wchodzący na „i”. Velocity nowych nut wynika z metrum: początek taktu i pozostałe mocne części brzmią głośniej niż nuty pomiędzy nimi.
 
-Diversity: różnorodność wysokości i interwałów. Dynamics: ruch melodii, nie głośność. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. Density: liczba nut, dodatkowo modulowana przez Arousal. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
+Diversity: różnorodność wysokości i interwałów. Ruch melodii: zmiany kierunku i rejestru; parametr automatyzacji nadal nazywa się Dynamics. Jazziness: swoboda chromatyczna. Valence: jaśniejsze współbrzmienia i kierunek melodii. Arousal: energia rytmu i rejestru. Weirdness: zaskakujące akcenty i skoki. Pause Amount: pauzy. Density: liczba nut, dodatkowo modulowana przez Arousal. To preferencje funkcji oceny; nazwy pochodzą z pierwotnej wtyczki, a nowy silnik nie odtwarza dawnych wag 1:1.
 
 Panel MIDI u góry pokazuje rzeczywiste zdarzenia nutowe; OUT mierzy dźwięk wewnętrznego instrumentu. Podświetlenia klawiatury reagują na nuty wysyłane przez wtyczkę. Motion w dolnym pasku ogranicza animacje, zachowując wskazania transportu i poziomu.
 
@@ -215,3 +215,6 @@ KONTEKST I LOKALNE AI
 W Kontekst / AI zaimportuj osobne referencje MIDI perkusji oraz basu. Wpływ kontekstu określa ich udział w nowych propozycjach. Referencje nie są dodatkowymi słyszalnymi ścieżkami. Ich usunięcie nie zmienia istniejącej muzyki.
 
 Eksperymentalne lokalne AI wymaga osobno przygotowanego środowiska. Jednorazowo uruchom scripts/setup-ai-midi.sh z repozytorium, a potem wybierz interpreter Python przez Środowisko AI. Generuj pomysły AI tworzy propozycję MIDI i rozwija ją natywnym silnikiem. Anuluj zatrzymuje żądanie; błąd zachowuje poprzedni bank. Ścieżka interpretera odczytana z projektu jest tylko podpowiedzią w oknie wyboru i nie uruchamia automatycznie tego pliku. W razie potrzeby wybierz przygotowane środowisko albo skorzystaj z domyślnej lokalnej instalacji. Pełna instrukcja jest w docs/AI_MIDI.md. Zwykłe generowanie i odsłuch nie potrzebują połączenia z internetem.
+
+## Rozmiar interfejsu
+Przycisk UI pod kontrolkami charakteru udostępnia dopasowanie do ekranu i skalowanie napisów. Wybór jest zapamiętywany lokalnie. Dźwięk wewnętrzny może być wyłączony, gdy melodia i Chord MIDI sterują instrumentami zewnętrznymi; akordy używają kanału 16 i pozostają niedostępne przy MPE na kanałach 2–16.

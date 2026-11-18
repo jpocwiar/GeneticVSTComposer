@@ -3,8 +3,8 @@
 namespace composertest
 {
 
-/// Counts operator new calls made on the current thread while alive.
-/// The test executable replaces the global operator new to make this possible.
+/// Counts allocations on the current thread. operator new is always observed;
+/// on macOS the test also observes direct malloc/realloc through malloc_logger.
 class AllocationGuard
 {
 public:
@@ -15,9 +15,12 @@ public:
     AllocationGuard& operator=(const AllocationGuard&) = delete;
 
     long count() const noexcept;
+    long cAllocationCount() const noexcept;
+    static bool observesCAllocations() noexcept;
 
 private:
     long start;
+    long cStart;
 };
 
 } // namespace composertest

@@ -108,7 +108,8 @@ void Processor::processCompositionBlock(juce::AudioBuffer<float>& audio, juce::M
         playBeat.store(-1);
         clearVisualState();
         wasPlaying = false;
-        midi.swapWith(outputMidi);
+        midi.clear();
+        midi.addEvents(outputMidi, 0, -1, 0);
         return;
     }
     for (const auto metadata : midi)
@@ -286,7 +287,8 @@ void Processor::processCompositionBlock(juce::AudioBuffer<float>& audio, juce::M
     playBeat.store(localBeat);
     heardChordLayer.store(heard >= 0 && audioComposition->chordCount > 0);
     expectedPpq = ppq + audio.getNumSamples() * step;
-    midi.swapWith(outputMidi);
+    midi.clear();
+    midi.addEvents(outputMidi, 0, -1, 0);
     publishVisualState(peak);
 }
 juce::Result Processor::exportCompositionSectionMidi(int index, const juce::File& file) const {
